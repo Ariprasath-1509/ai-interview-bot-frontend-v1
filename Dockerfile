@@ -1,4 +1,4 @@
 FROM node:22-slim
-COPY . .
+COPY ./** .
 EXPOSE 6001
 CMD ["npm","start"] 
