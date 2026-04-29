@@ -1,37 +1,50 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { demoCookieName, signDemoSession } from "@/server/demoAuth";
-import { USER_ROLES, type UserRole } from "@/server/roles";
 
 export const runtime = "nodejs";
 
-const LoginSchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
-  role: z.enum(USER_ROLES),
-  next: z.string().optional(),
-});
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
-  const parsed = LoginSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
+  if (!body) return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
+
+  const upstream = await fetch(`${GATEWAY}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch(() => null);
+
+  if (!upstream || !upstream.ok) {
+    const err = await upstream?.json().catch(() => null);
+    return NextResponse.json(
+      { ok: false, error: err?.error ?? "Login failed" },
+      { status: upstream?.status ?? 502 }
+    );
   }
 
-  const { username, password, role } = parsed.data;
-  if (!(username === "Demo" && password === "Demo123")) {
-    return NextResponse.json({ ok: false, error: "Invalid credentials" }, { status: 401 });
-  }
-
-  const token = await signDemoSession({ username, role: role as UserRole });
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(demoCookieName(), token, {
+  const data = (await upstream.json()) as { ok: boolean; token: string; role: string; name?: string };
+  const username = data.name ?? (body as { username?: string }).username ?? "User";
+  const res = NextResponse.json({ ok: true, role: data.role });
+  res.cookies.set("br_jwt", data.token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
+    maxAge: 86400,
+  });
+  res.cookies.set("br_role", data.role, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 86400,
+  });
+  res.cookies.set("br_username", username, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 86400,
   });
   return res;
 }
-

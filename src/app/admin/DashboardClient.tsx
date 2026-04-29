@@ -1,0 +1,356 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+
+// Interfaces
+interface AnalyticsData {
+  statusCounts: { scheduled: number; inProgress: number; completed: number; signedOff: number; total: number; };
+  timePeriods: { today: number; thisWeek: number; total: number; };
+  successMetrics: { readyCount: number; totalAssessed: number; successRate: number; };
+  lastUpdated: string;
+}
+
+interface TokenData {
+  usage: number; limit: number; warningThreshold: number; nearLimit: boolean; overLimit: boolean; remainingTokens: number;
+}
+
+interface ModeAnalytics {
+  modeDistribution: Record<string, number>;
+  totalInterviews: number;
+}
+
+interface VerdictAnalytics {
+  READY: number; NEEDS_1_WEEK_PREP: number; NEEDS_RESKILLING: number; MISMATCH_WITH_JD: number; WITHDRAWN: number;
+}
+
+interface Interviewer {
+  name: string; interviewCount: number; successRate: number;
+}
+
+interface TrendData {
+  labels: string[];
+  datasets: { label: string; data: number[] }[];
+}
+
+export default function DashboardClient() {
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [tokenData, setTokenData] = useState<TokenData | null>(null);
+  const [modeAnalytics, setModeAnalytics] = useState<ModeAnalytics | null>(null);
+  const [verdicts, setVerdicts] = useState<VerdictAnalytics | null>(null);
+  const [interviewers, setInterviewers] = useState<Interviewer[] | null>(null);
+  const [trends, setTrends] = useState<TrendData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchAnalytics = async () => {
+    try {
+      const [analyticsRes, tokenRes, modeRes, verdictsRes, interviewersRes, trendsRes] = await Promise.all([
+        fetch('/api/analytics/realtime').catch(() => null),
+        fetch('/api/tokens/check-limit').catch(() => null),
+        fetch('/api/analytics/modes').catch(() => null),
+        fetch('/api/analytics/verdicts').catch(() => null),
+        fetch('/api/analytics/interviewers').catch(() => null),
+        fetch('/api/analytics/trends').catch(() => null)
+      ]);
+
+      if (analyticsRes?.ok) setAnalytics(await analyticsRes.json());
+      if (tokenRes?.ok) setTokenData(await tokenRes.json());
+      if (modeRes?.ok) setModeAnalytics(await modeRes.json());
+      if (verdictsRes?.ok) {
+        const vData = await verdictsRes.json();
+        // The real API might nest the verdict stats (e.g. { data: { READY: 1... } })
+        let extracted = vData;
+        if (vData && typeof vData === 'object' && !vData.READY && Object.values(vData).some(v => typeof v === 'object' && v !== null && 'READY' in v)) {
+          extracted = Object.values(vData).find(v => typeof v === 'object' && v !== null && 'READY' in v);
+        }
+        setVerdicts(extracted.verdicts || extracted.data || extracted);
+      }
+      if (interviewersRes?.ok) {
+        const iData = await interviewersRes.json();
+        // Backend returns { hasData: true, topInterviewers: [...] }
+        setInterviewers(iData.topInterviewers || []);
+      }
+      if (trendsRes?.ok) setTrends(await trendsRes.json());
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return <div className="p-6">Loading comprehensive dashboard...</div>;
+  }
+
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'status', label: 'Status & Flow' },
+    { id: 'performance', label: 'Performance' },
+    { id: 'modes', label: 'Interview Modes' },
+    { id: 'trends', label: 'Trends' },
+    { id: 'tokens', label: 'Token Usage' }
+  ];
+
+  return (
+    <div className="space-y-6 max-w-6xl">
+      <div className="flex justify-between items-center">
+        {/* Token Usage Alert Summary */}
+        <div>
+          {tokenData && (tokenData.nearLimit || tokenData.overLimit) && (
+            <div className={`px-4 py-2 rounded-lg text-sm font-medium ${tokenData.overLimit ? 'bg-red-50 text-red-900 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-900/50' : 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-900/50'}`}>
+              {tokenData.overLimit ? '🚫 Token Limit Exceeded' : '⚠️ Approaching Token Limit'} ({tokenData.usage.toLocaleString()} / {tokenData.limit.toLocaleString()})
+            </div>
+          )}
+        </div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          Last updated: {analytics?.lastUpdated ? new Date(analytics.lastUpdated).toLocaleTimeString() : 'Never'}
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex space-x-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl overflow-x-auto">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+              activeTab === tab.id 
+                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' 
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800/50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content Areas */}
+      <div className="mt-6">
+        
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <StatusCard title="Scheduled" count={analytics?.statusCounts.scheduled || 0} color="blue" icon="📅" linkTo="/admin/review?status=SCHEDULED" />
+              <StatusCard title="In Progress" count={analytics?.statusCounts.inProgress || 0} color="yellow" icon="⏳" linkTo="/admin/review?status=IN_PROGRESS" />
+              <StatusCard title="Completed" count={analytics?.statusCounts.completed || 0} color="green" icon="✅" linkTo="/admin/review?status=COMPLETED" />
+              <StatusCard title="Signed Off" count={analytics?.statusCounts.signedOff || 0} color="purple" icon="✍️" linkTo="/admin/review?status=SIGNED_OFF" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <StatusCard title="Today" count={analytics?.timePeriods.today || 0} color="indigo" icon="📊" />
+              <StatusCard title="This Week" count={analytics?.timePeriods.thisWeek || 0} color="teal" icon="📈" />
+              <StatusCard title="Success Rate" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="🎯" subtitle={`${analytics?.successMetrics.readyCount || 0} ready out of ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
+            </div>
+          </div>
+        )}
+
+        {/* STATUS & FLOW TAB */}
+        {activeTab === 'status' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+              <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Assessment Verdict Distribution</h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {verdicts && Object.keys(verdicts).length > 0 ? (
+                  Object.entries(verdicts).map(([key, count]) => {
+                    if (typeof count === 'object' && count !== null) return null; // Prevent React object render error
+                    const formatKey = key.replace(/_/g, ' ');
+                    return (
+                      <div key={key} className="text-center p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-3xl font-bold text-zinc-800 dark:text-zinc-200">{String(count)}</div>
+                        <div className="text-xs font-medium text-zinc-500 mt-2 uppercase">{formatKey}</div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full text-center py-8 text-zinc-500 dark:text-zinc-400">
+                    No verdict data available
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PERFORMANCE TAB */}
+        {activeTab === 'performance' && (
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Interviewer Performance</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
+                  <tr>
+                    <th className="px-4 py-3 font-medium rounded-l-lg">Interviewer Name</th>
+                    <th className="px-4 py-3 font-medium">Interviews Conducted</th>
+                    <th className="px-4 py-3 font-medium rounded-r-lg">Candidate Success Rate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {Array.isArray(interviewers) && interviewers.map((interviewer, idx) => (
+                    <tr key={idx}>
+                      <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">{interviewer.name}</td>
+                      <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">{interviewer.interviewCount}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-2 max-w-[100px]">
+                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${interviewer.successRate}%` }}></div>
+                          </div>
+                          <span className="text-zinc-600 dark:text-zinc-400 font-mono text-xs">{interviewer.successRate}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!interviewers || !Array.isArray(interviewers) || interviewers.length === 0) && <tr><td colSpan={3} className="px-4 py-4 text-center text-zinc-500">No interviewer data available</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* MODES TAB */}
+        {activeTab === 'modes' && (
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-zinc-100">Interview Mode Distribution</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {modeAnalytics && Object.entries(modeAnalytics.modeDistribution).map(([mode, count]) => (
+                <Link href={`/admin/review?mode=${mode}`} key={mode} className="text-center p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors border border-zinc-100 dark:border-zinc-800 cursor-pointer block">
+                  <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">{count}</div>
+                  <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mt-2 uppercase tracking-wide">{mode}</div>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              Total Recorded Interviews: {modeAnalytics?.totalInterviews || 0}
+            </div>
+          </div>
+        )}
+
+        {/* TRENDS TAB */}
+        {activeTab === 'trends' && (
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Weekly Trends</h3>
+            {trends?.labels && trends.labels.length > 0 ? (
+              <div className="h-64 flex items-end gap-2 justify-between">
+                {/* Simple CSS Bar Chart Visualization */}
+                {trends.labels.map((label, idx) => {
+                  const scheduled = trends.datasets[0].data[idx] || 0;
+                  const completed = trends.datasets[1].data[idx] || 0;
+                  const max = Math.max(...trends.datasets[0].data, ...trends.datasets[1].data) || 1;
+                  
+                  return (
+                    <div key={idx} className="flex flex-col items-center flex-1">
+                      <div className="flex gap-1 items-end w-full justify-center h-48 mb-2">
+                        <div 
+                          className="w-1/3 bg-blue-300 dark:bg-blue-600 rounded-t-sm" 
+                          style={{ height: `${(scheduled / max) * 100}%` }}
+                          title={`Scheduled: ${scheduled}`}
+                        ></div>
+                        <div 
+                          className="w-1/3 bg-emerald-400 dark:bg-emerald-600 rounded-t-sm" 
+                          style={{ height: `${(completed / max) * 100}%` }}
+                          title={`Completed: ${completed}`}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-zinc-500 font-medium">{label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
+                No trend data available
+              </div>
+            )}
+            <div className="flex justify-center gap-6 mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-300 dark:bg-blue-600 rounded-sm"></div>
+                <span className="text-xs text-zinc-600 dark:text-zinc-400">Scheduled</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-emerald-400 dark:bg-emerald-600 rounded-sm"></div>
+                <span className="text-xs text-zinc-600 dark:text-zinc-400">Completed</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TOKENS TAB */}
+        {activeTab === 'tokens' && (
+          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 max-w-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Daily Token Usage</h3>
+              <Link href="/admin/settings/tokens" className="text-sm text-blue-600 hover:underline">Manage Settings</Link>
+            </div>
+            
+            {tokenData ? (
+              <div className="space-y-6">
+                <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-4 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${tokenData.overLimit ? 'bg-red-500' : tokenData.nearLimit ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                    style={{ width: `${Math.min(100, (tokenData.usage / tokenData.limit) * 100)}%` }}
+                  ></div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                    <div className="text-sm text-zinc-500 mb-1">Tokens Used Today</div>
+                    <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100">{tokenData.usage.toLocaleString()}</div>
+                  </div>
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                    <div className="text-sm text-zinc-500 mb-1">Tokens Remaining</div>
+                    <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{tokenData.remainingTokens.toLocaleString()}</div>
+                  </div>
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800 col-span-2">
+                    <div className="text-sm text-zinc-500 mb-1">Daily Limit (Hard Cap)</div>
+                    <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100">{tokenData.limit.toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-zinc-500">Token data unavailable</div>
+            )}
+          </div>
+        )}
+        
+      </div>
+    </div>
+  );
+}
+
+// Reuse the same StatusCard as before
+function StatusCard({ title, count, color, icon, subtitle, linkTo }: { title: string; count: number | string; color: string; icon: string; subtitle?: string; linkTo?: string; }) {
+  const colorClasses = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-900/30 dark:text-blue-100',
+    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:border-yellow-900/30 dark:text-yellow-100',
+    green: 'bg-green-50 border-green-200 text-green-900 dark:bg-emerald-900/20 dark:border-emerald-900/30 dark:text-emerald-100',
+    purple: 'bg-purple-50 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:border-purple-900/30 dark:text-purple-100',
+    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-900 dark:bg-indigo-900/20 dark:border-indigo-900/30 dark:text-indigo-100',
+    teal: 'bg-teal-50 border-teal-200 text-teal-900 dark:bg-teal-900/20 dark:border-teal-900/30 dark:text-teal-100',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-900/20 dark:border-emerald-900/30 dark:text-emerald-100'
+  };
+
+  const content = (
+    <div className={`p-5 rounded-xl border shadow-sm transition-all duration-200 ${colorClasses[color as keyof typeof colorClasses]} ${linkTo ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium opacity-80">{title}</p>
+          <p className="text-3xl font-bold mt-1">{count}</p>
+          {subtitle && <p className="text-xs mt-2 opacity-75">{subtitle}</p>}
+        </div>
+        <div className="text-3xl opacity-80">{icon}</div>
+      </div>
+    </div>
+  );
+
+  if (linkTo) {
+    return <Link href={linkTo} className="block">{content}</Link>;
+  }
+  return content;
+}

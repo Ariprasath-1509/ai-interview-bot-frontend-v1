@@ -25,7 +25,7 @@ export function InterviewPlanPanel({ slotsJson }: { slotsJson: string | null }) 
   const plan = parsePlan(parsed);
 
   return (
-    <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
       <div className="font-medium">Interview plan (10 slots)</div>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         This is the <span className="font-medium">saved snapshot</span> from when this interview was created: slot

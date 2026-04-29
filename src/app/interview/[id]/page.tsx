@@ -1,15 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { prisma } from "@/server/db";
-import { getDemoSession } from "@/server/demoAuth";
-import {
-  assessInterviewWithAi,
-  mergeTranscriptWithAssessment,
-  verdictForPrisma,
-} from "@/server/aiInterviewAssessment";
 import { z } from "zod";
 import { VoiceInterviewForm } from "./VoiceInterviewForm";
 import { InterviewPlanPanel } from "./InterviewPlanPanel";
+import { getSession } from "@/lib/session";
+import { apiServer } from "@/lib/apiClient";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,69 +15,100 @@ const CompleteSchema = z.object({
   transcriptJson: z.string().optional().or(z.literal("")),
 });
 
-export default async function InterviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+type Interview = { 
+  id: string; 
+  status: string; 
+  jdId: string; 
+  planId: string | null;
+  interviewMode: string;
+  customDurationMinutes: number | null;
+};
+
+export default async function InterviewPage({ params }: { params: Promise<{ id: string }> }) {
   const p = await params;
   const id = z.string().min(1).safeParse(p?.id).data;
-  if (!id) {
-    return (
-      <div className="mx-auto max-w-3xl p-8">
-        <h1 className="text-2xl font-semibold">Not found</h1>
-        <p className="mt-2 text-zinc-600">Missing interview id in URL.</p>
-      </div>
-    );
+  if (!id) return <div className="mx-auto max-w-3xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
+
+  const session = await getSession();
+  const isCandidate = session?.role === "CANDIDATE";
+  const isOwner = session?.role === "INTERVIEWER";
+  const isManager = session?.role === "BENCH_MANAGER" || session?.role === "INTERVIEWER";
+  if (!isCandidate && !isOwner && !isManager) redirect("/login");
+
+  const interviewRes = await apiServer(`/interviews/${id}`, session?.token);
+  if (!interviewRes.ok) return <div className="mx-auto max-w-3xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
+
+  const interview = (await interviewRes.json()) as Interview;
+
+  // Calculate interview duration based on mode or custom duration
+  const getInterviewDurationMinutes = (mode: string, customDuration: number | null): number => {
+    if (customDuration) return customDuration;
+    switch (mode) {
+      case 'SCREENING': return 15;
+      case 'L1': return 20;
+      case 'L2': return 25;
+      case 'L3': return 30;
+      case 'L4': return 30;
+      default: return 30;
+    }
+  };
+
+  const durationMinutes = getInterviewDurationMinutes(interview.interviewMode, interview.customDurationMinutes);
+
+  // Fetch plan for slot panel + rubric
+  let slotsJson: string | null = null;
+  let rubricJson: string | null = null;
+  let candidateProfileJson: string | null = null;
+  if (interview.planId) {
+    const planRes = await apiServer(`/interviews/plans/${interview.planId}`, session?.token).catch(() => null);
+    if (planRes?.ok) {
+      const plan = (await planRes.json()) as { slotsJson?: string; rubricJson?: string; candidateProfileJson?: string };
+      slotsJson = plan.slotsJson ?? null;
+      rubricJson = plan.rubricJson ?? null;
+      candidateProfileJson = plan.candidateProfileJson ?? null;
+    }
   }
-  const session = await getDemoSession();
 
-  const interview = await prisma.interview.findUnique({
-    where: { id },
-    include: { engineer: { include: { user: true } }, jd: true, plan: true },
-  });
-
-  if (!interview) {
-    return (
-      <div className="mx-auto max-w-3xl p-8">
-        <h1 className="text-2xl font-semibold">Not found</h1>
-        <p className="mt-2 text-zinc-600">Interview does not exist.</p>
-      </div>
-    );
+  // Fetch JD title for display
+  let jdTitle = "Target role";
+  const jdRes = await apiServer(`/interviews/jd/${interview.jdId}`, session?.token).catch(() => null);
+  if (jdRes?.ok) {
+    const jd = (await jdRes.json()) as { title?: string };
+    jdTitle = jd.title ?? jdTitle;
   }
-
-  // Basic guard: only the engineer themselves (or a manager) can open.
-  const isOwner = session?.role === "ENGINEER";
-  const isManager = session?.role === "BENCH_MANAGER" || session?.role === "PRACTICE_LEAD";
-  if (!isOwner && !isManager) redirect("/unauthorized");
 
   return (
-    <div className="mx-auto max-w-4xl p-8">
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Live interview (MVP shell)</h1>
-          <p className="mt-2 text-zinc-600">
-            JD: {interview.jd.title ?? interview.jd.id} • Status: {interview.status}
-          </p>
+    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold sm:text-2xl">Live interview</h1>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">JD: {jdTitle} • Status: {interview.status}</p>
+          </div>
+          <div className="flex shrink-0 gap-3 text-sm">
+            {isCandidate ? (
+              <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/candidate/dashboard">Dashboard</Link>
+            ) : (
+              <>
+                <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href={`/observer/interview/${interview.id}`}>Observer</Link>
+                <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/dashboard">Dashboard</Link>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex gap-4">
-          <Link className="underline" href={`/observer/interview/${interview.id}`}>
-            Observer
-          </Link>
-          <Link className="underline" href="/dashboard">
-            Dashboard
-          </Link>
+
+        <div className="mt-6 grid gap-5 md:grid-cols-2">
+          <InterviewPlanPanel slotsJson={slotsJson} />
+          <VoiceInterviewForm
+            interviewId={interview.id}
+            jdTitle={jdTitle}
+            rubricJson={rubricJson}
+            candidateProfileJson={candidateProfileJson}
+            durationMinutes={durationMinutes}
+            interviewMode={interview.interviewMode}
+            completeInterview={completeInterview}
+          />
         </div>
-      </div>
-
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <InterviewPlanPanel slotsJson={interview.plan?.slotsJson ?? null} />
-
-        <VoiceInterviewForm
-          interviewId={interview.id}
-          jdTitle={interview.jd.title ?? "Target role"}
-          completeInterview={completeInterview}
-        />
       </div>
     </div>
   );
@@ -91,8 +117,9 @@ export default async function InterviewPage({
 async function completeInterview(formData: FormData) {
   "use server";
 
-  const session = await getDemoSession();
-  if (!session) redirect("/");
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const isCandidate = session.role === "CANDIDATE";
 
   const parsed = CompleteSchema.parse({
     interviewId: formData.get("interviewId"),
@@ -100,71 +127,96 @@ async function completeInterview(formData: FormData) {
     transcriptJson: formData.get("transcriptJson"),
   });
 
-  const fallbackTranscript = {
-    meta: { generated: true, at: new Date().toISOString() },
-    notes: parsed.candidateNotes || undefined,
-    utterances: [
-      { speaker: "BOT", text: "Thanks for joining. Start with a quick intro.", at: new Date().toISOString() },
-      { speaker: "CANDIDATE", text: "I’m a backend engineer focused on APIs and systems.", at: new Date().toISOString() },
-    ],
-  };
-  const transcriptJson =
-    parsed.transcriptJson && parsed.transcriptJson.trim().length > 0
-      ? parsed.transcriptJson
-      : JSON.stringify(fallbackTranscript, null, 2);
-
-  const interview = await prisma.interview.findUnique({
-    where: { id: parsed.interviewId },
-    include: { jd: true, plan: true, engineer: { include: { user: true } } },
+  const transcriptJson = parsed.transcriptJson?.trim() || JSON.stringify({
+    meta: { generated: true },
+    utterances: [],
   });
-  if (!interview) redirect("/admin/setup?error=Interview%20not%20found");
 
-  let resumeSummary: string | undefined;
-  try {
-    const g = JSON.parse(interview.plan?.gapMapJson ?? "{}") as { resumeSummary?: string };
-    resumeSummary = typeof g.resumeSummary === "string" && g.resumeSummary.trim() ? g.resumeSummary.trim() : undefined;
-  } catch {
-    resumeSummary = undefined;
+  // Fetch interview + JD + plan for assessment context
+  const interviewRes = await apiServer(`/interviews/${parsed.interviewId}`, session.token);
+  if (!interviewRes.ok) redirect("/admin/setup?error=Interview%20not%20found");
+  const interview = (await interviewRes.json()) as { jdId: string; planId: string | null };
+
+  let jdTitle = "Target role";
+  let jdText = "";
+  const jdRes = await apiServer(`/interviews/jd/${interview.jdId}`, session.token).catch(() => null);
+  if (jdRes?.ok) {
+    const jd = (await jdRes.json()) as { title?: string; text?: string };
+    jdTitle = jd.title ?? jdTitle;
+    jdText = jd.text ?? jdText;
   }
 
-  const candidateLabel =
-    [interview.engineer?.user?.name, interview.engineer?.user?.email].filter(Boolean).join(" · ") || undefined;
+  let resumeSummary: string | undefined;
+  let rubricJson: string | undefined;
+  let candidateProfileJson: string | undefined;
+  if (interview.planId) {
+    const planRes = await apiServer(`/interviews/plans/${interview.planId}`, session.token).catch(() => null);
+    if (planRes?.ok) {
+      const plan = (await planRes.json()) as { gapMapJson?: string; rubricJson?: string; candidateProfileJson?: string };
+      rubricJson = plan.rubricJson;
+      candidateProfileJson = plan.candidateProfileJson;
+      try {
+        const gap = JSON.parse(plan.gapMapJson ?? "{}") as { resumeSummary?: string };
+        resumeSummary = gap.resumeSummary?.trim() || undefined;
+      } catch { /* ignore */ }
+    }
+  }
 
-  const { payload, source } = await assessInterviewWithAi({
-    jdTitle: interview.jd.title ?? "Target role",
-    jdText: interview.jd.text ?? "",
-    resumeSummary,
-    candidateLabel,
-    transcriptJson,
+  // Call ai-service for assessment
+  const assessRes = await apiServer("/ai/assess", session.token, {
+    method: "POST",
+    body: JSON.stringify({ jdTitle, jdText, resumeSummary, transcriptJson, rubricJson, candidateProfileJson }),
   });
 
-  const transcriptWithAssessment = mergeTranscriptWithAssessment(transcriptJson, payload, source);
+  let proposedVerdict = "NEEDS_1_WEEK_PREP";
+  let assessmentMeta: Record<string, unknown> = {};
 
-  await prisma.interview.update({
-    where: { id: parsed.interviewId },
-    data: {
-      status: "REVIEW_PENDING",
-      endedAt: new Date(),
-      transcriptJson: transcriptWithAssessment,
-      proposedVerdict: verdictForPrisma(payload.proposedVerdict),
-      scores: {
-        deleteMany: {},
-        create: [
-          {
-            dimension: "TechnicalKnowledge",
-            value: payload.technicalKnowledge.score,
-            rationale: payload.technicalKnowledge.rationale,
-          },
-          {
-            dimension: "Communication",
-            value: payload.communication.score,
-            rationale: payload.communication.rationale,
-          },
+  if (assessRes.ok) {
+    const assessment = (await assessRes.json()) as {
+      technicalKnowledge?: { score: number; rationale: string };
+      communication?: { score: number; rationale: string };
+      proposedVerdict: string;
+      summary: string;
+      strengths: string[];
+      gaps: string[];
+      source: string;
+      categoryScores?: { dimension: string; value: number; rationale?: string; gap?: string; evidence?: string }[];
+    };
+
+    proposedVerdict = assessment.proposedVerdict;
+    assessmentMeta = { ...assessment, scoredAt: new Date().toISOString() };
+
+    // Save scores to review-service
+    await apiServer("/scores", session.token, {
+      method: "POST",
+      body: JSON.stringify({
+        interviewId: parsed.interviewId,
+        scores: assessment.categoryScores?.length ? assessment.categoryScores.map(s => ({
+          dimension: s.dimension,
+          value: s.value,
+          rationale: s.rationale,
+          evidence: s.evidence,
+          gap: s.gap
+        })) : [
+          { dimension: "TechnicalKnowledge", value: assessment.technicalKnowledge?.score ?? 1, rationale: assessment.technicalKnowledge?.rationale ?? "No rationale provided" },
+          { dimension: "Communication", value: assessment.communication?.score ?? 1, rationale: assessment.communication?.rationale ?? "No rationale provided" },
         ],
-      },
-    },
-  });
+      }),
+    }).catch(() => null);
+  }
 
+  // Merge assessment into transcript and update interview
+  let transcriptDoc: Record<string, unknown> = {};
+  try { transcriptDoc = JSON.parse(transcriptJson) as Record<string, unknown>; } catch { /* ignore */ }
+  const mergedTranscript = JSON.stringify({ ...transcriptDoc, meta: { ...(transcriptDoc.meta as object ?? {}), aiAssessment: assessmentMeta } });
+
+  await apiServer(`/interviews/${parsed.interviewId}/complete`, session.token, {
+    method: "PATCH",
+    body: JSON.stringify({ transcriptJson: mergedTranscript, proposedVerdict, status: "REVIEW_PENDING" }),
+  }).catch(() => null);
+
+  if (isCandidate) {
+    redirect(`/candidate/feedback/${encodeURIComponent(parsed.interviewId)}`);
+  }
   redirect(`/admin/interviews/${encodeURIComponent(parsed.interviewId)}/review`);
 }
-

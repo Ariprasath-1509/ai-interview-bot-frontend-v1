@@ -1,19 +1,21 @@
 export const USER_ROLES = [
-  "ENGINEER",
   "BENCH_MANAGER",
-  "TALENT",
-  "PRACTICE_LEAD",
+  "ADMIN",
+  "INTERVIEWER",
+  "HR",
   "COMPLIANCE",
+  "CANDIDATE",
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const ROLE_RANK: Record<UserRole, number> = {
-  ENGINEER: 10,
-  BENCH_MANAGER: 40,
-  TALENT: 50,
-  PRACTICE_LEAD: 60,
+  ADMIN: 100,
+  BENCH_MANAGER: 80,
+  INTERVIEWER: 60,
+  HR: 50,
   COMPLIANCE: 70,
+  CANDIDATE: 5,
 };
 
 export function isUserRole(value: unknown): value is UserRole {
@@ -21,6 +23,6 @@ export function isUserRole(value: unknown): value is UserRole {
 }
 
 export function pickHighestRole(roles: UserRole[]): UserRole {
-  return roles.sort((a, b) => ROLE_RANK[b] - ROLE_RANK[a])[0] ?? "ENGINEER";
+  return roles.sort((a, b) => ROLE_RANK[b] - ROLE_RANK[a])[0] ?? "INTERVIEWER";
 }
 

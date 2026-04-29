@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -213,6 +213,9 @@ model Interview {
 
   transcriptJson  String?         // MVP: store transcript as JSON
   audioStorageKey String?         // MVP: pointer to blob storage or local file
+
+  interviewMode   String          @default("SCREENING")
+  customDurationMinutes Int?
 
   rubricRoleType  String?
   rubricLevel     String?

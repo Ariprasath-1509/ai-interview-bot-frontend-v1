@@ -7,10 +7,26 @@ type Utterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
 type Props = {
   jdTitle: string;
   interviewId: string;
+  rubricJson: string | null;
+  candidateProfileJson: string | null;
+  durationMinutes: number;
+  interviewMode: string;
   onTranscriptChange: (json: string) => void;
 };
 
 type MicPhase = "idle" | "listening" | "bot_speaking";
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort?: () => void;
+  onresult: ((event: unknown) => void) | null;
+  onerror: ((event: unknown) => void) | null;
+  onend: (() => void) | null;
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -61,15 +77,20 @@ function isEndInterviewIntent(text: string): boolean {
   return patterns.some((re) => re.test(t));
 }
 
-export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange }: Props) {
-  const w =
-    typeof window !== "undefined"
-      ? (window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown })
-      : null;
-  const SR = (w?.SpeechRecognition ?? w?.webkitSpeechRecognition) as
-    | (new () => SpeechRecognitionLike)
-    | undefined;
-  const supported = Boolean(SR);
+export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange }: Props) {
+  const [supported, setSupported] = useState(false);
+
+  useEffect(() => {
+    const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
+    const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | undefined;
+    if (!Ctor) return;
+    const rec = new Ctor();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    recognitionRef.current = rec;
+    setSupported(true);
+  }, []);
   const [micPhase, setMicPhase] = useState<MicPhase>("idle");
   const [utterances, setUtterances] = useState<Utterance[]>([]);
   const [botPromptIdx, setBotPromptIdx] = useState(0);
@@ -78,6 +99,74 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
   const [typedDraft, setTypedDraft] = useState("");
   /** Mirrored for UI; logic also uses typedOnlyRef inside callbacks. */
   const [typedAnswersOnly, setTypedAnswersOnly] = useState(false);
+
+  const [timerStarted, setTimerStarted] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
+  const [timeExpired, setTimeExpired] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [abandoning, setAbandoning] = useState(false);
+  const [manipulationCount, setManipulationCount] = useState(0);
+  const timerIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const hasBotQuestion = utterances.some(u => u.speaker === "BOT");
+    if (hasBotQuestion && !timerStarted) {
+      setTimerStarted(true);
+      timerIntervalRef.current = setInterval(() => {
+        setSecondsLeft(prev => {
+          if (prev <= 1) {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            setTimeExpired(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  }, [utterances, timerStarted]);
+
+  useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const sec = (s % 60).toString().padStart(2, "0");
+    return `${m}:${sec}`;
+  };
+
+  async function abandonInterview(
+    currentUtterances: { speaker: string; text: string; at: string }[],
+    reason: "not_prepared" | "time_expired" | "ai_manipulation"
+  ) {
+    if (abandoning) return;
+    setAbandoning(true);
+
+    try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+    releaseMicStream();
+
+    const transcriptJson = JSON.stringify({ utterances: currentUtterances });
+    try {
+      await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/abandon`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcriptJson, reason }),
+      });
+    } catch (e) {
+      // best effort
+    }
+    window.location.href = "/candidate/dashboard";
+  }
+
+  useEffect(() => {
+    if (!timeExpired) return;
+    const timeUpMessage: Utterance = {
+      speaker: "BOT",
+      text: `Your ${durationMinutes} minutes are up — we're stopping the interview here. Thank you for your time, your responses have been recorded.`,
+      at: nowIso(),
+    };
+    const finalUtterances = [...utterancesRef.current, timeUpMessage];
+    void abandonInterview(finalUtterances, "time_expired");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeExpired, durationMinutes]);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const utterancesRef = useRef<Utterance[]>([]);
@@ -100,23 +189,12 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
   /** Latest “user left view” cleanup (avoids stale closures in document listeners). */
   const silentEndBecauseUserLeftRef = useRef<() => void>(() => {});
 
-  type SpeechRecognitionLike = {
-    continuous: boolean;
-    interimResults: boolean;
-    lang: string;
-    start: () => void;
-    stop: () => void;
-    abort?: () => void;
-    onresult: ((event: unknown) => void) | null;
-    onerror: ((event: unknown) => void) | null;
-    onend: (() => void) | null;
-  };
-
   async function fetchNextQuestion(args: {
     slot: number;
     lastAnswer: string;
     transcript: Utterance[];
-  }): Promise<string | null> {
+    manipulationCount: number;
+  }): Promise<{ question: string; manipulationDetected?: boolean; terminateInterview?: boolean } | null> {
     try {
       const res = await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/next-question`, {
         method: "POST",
@@ -125,27 +203,25 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
           slot: args.slot,
           lastAnswer: args.lastAnswer,
           utterances: args.transcript,
+          manipulationCount: args.manipulationCount,
+          rubricJson: rubricJson ?? undefined,
+          candidateProfileJson: candidateProfileJson ?? undefined,
         }),
       });
       if (!res.ok) return null;
-      const data = (await res.json()) as { question?: string };
-      return typeof data.question === "string" ? data.question : null;
+      const data = (await res.json()) as { question?: string; manipulationDetected?: boolean; terminateInterview?: boolean };
+      if (typeof data.question === "string") {
+        return {
+          question: data.question,
+          manipulationDetected: data.manipulationDetected,
+          terminateInterview: data.terminateInterview,
+        };
+      }
+      return null;
     } catch {
       return null;
     }
   }
-
-  useEffect(() => {
-    if (!SR) return;
-    const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = "en-US";
-    recognitionRef.current = rec;
-    return () => {
-      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-    };
-  }, [SR]);
 
   useEffect(() => {
     utterancesRef.current = utterances;
@@ -289,12 +365,25 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
     if (!clean) return;
 
     const nextSlot = botPromptIdxRef.current + 1;
+    const nextQ = await fetchNextQuestion({
+      slot: nextSlot,
+      lastAnswer: clean,
+      transcript: utterancesRef.current,
+      manipulationCount,
+    });
+
+    if (nextQ) {
+      if (nextQ.manipulationDetected) {
+        setManipulationCount((prev) => prev + 1);
+      }
+      if (nextQ.terminateInterview) {
+        void abandonInterview(utterancesRef.current, "ai_manipulation");
+        return;
+      }
+    }
+
     const q =
-      (await fetchNextQuestion({
-        slot: nextSlot,
-        lastAnswer: clean,
-        transcript: utterancesRef.current,
-      })) ??
+      nextQ?.question ??
       "I didn’t quite catch the next prompt from the server—staying on what you just said, could you give me one concrete example and what made it tricky?";
 
     botPromptIdxRef.current = nextSlot;
@@ -419,11 +508,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
       }
       if (commitAfterEndRef.current) {
         commitAfterEndRef.current = false;
-        const stitch = `${finalBufferRef.current.trim()} ${interimRef.current.trim()}`.trim();
-        if (stitch) {
-          finalBufferRef.current = stitch + " ";
-          interimRef.current = "";
-          setInterimText("");
+        // Only stitch if not already pre-stitched by the Send button click handler.
+        if (!finalBufferRef.current.trim()) {
+          const stitch = `${finalBufferRef.current.trim()} ${interimRef.current.trim()}`.trim();
+          if (stitch) {
+            finalBufferRef.current = stitch + " ";
+            interimRef.current = "";
+            setInterimText("");
+          }
         }
         const stitched = finalBufferRef.current.trim();
         const hadSpeech = stitched.length > 0;
@@ -481,8 +573,16 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
 
     if (utterancesRef.current.length === 0) {
       setMicPhase("bot_speaking");
+      const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount });
+      if (nextQ) {
+        if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
+        if (nextQ.terminateInterview) {
+          void abandonInterview(utterancesRef.current, "ai_manipulation");
+          return;
+        }
+      }
       const q =
-        (await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [] })) ??
+        nextQ?.question ??
         `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
       const row: Utterance = { speaker: "BOT", text: q, at: nowIso() };
       syncUtterances([...utterancesRef.current, row]);
@@ -523,8 +623,16 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
 
     if (utterancesRef.current.length === 0) {
       setMicPhase("bot_speaking");
+      const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount });
+      if (nextQ) {
+        if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
+        if (nextQ.terminateInterview) {
+          void abandonInterview(utterancesRef.current, "ai_manipulation");
+          return;
+        }
+      }
       const q =
-        (await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [] })) ??
+        nextQ?.question ??
         `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
       const row: Utterance = { speaker: "BOT", text: q, at: nowIso() };
       syncUtterances([...utterancesRef.current, row]);
@@ -620,6 +728,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
     document.addEventListener("visibilitychange", onHidden);
     window.addEventListener("pagehide", onPageHide);
     return () => {
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
       document.removeEventListener("visibilitychange", onHidden);
       window.removeEventListener("pagehide", onPageHide);
       silentEndBecauseUserLeftRef.current();
@@ -638,7 +747,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
       {speechError ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="font-medium">Microphone / speech</div>
@@ -650,39 +759,82 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="font-medium">Voice interview (demo)</div>
-          <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            The microphone stays off while the bot speaks so speakers do not feed junk into recognition. When
-            you see <span className="font-medium">Mic on</span>, speak your answer, then click{" "}
-            <span className="font-medium">Send answer</span> to continue. Say things like{" "}
-            <span className="font-medium">stop the interview</span> before sending, or press{" "}
-            <span className="font-medium">Stop session</span>, to end with a goodbye—no further questions.{" "}
-            <span className="font-medium">Leaving this tab, hiding the browser, or navigating away</span> stops the
-            session automatically (no goodbye audio).
-          </div>
-          <div
-            className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-              botSpeaking
-                ? "bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100"
-                : listening
-                  ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100"
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="font-medium">Voice interview ({interviewMode})</div>
+            {timerStarted && (
+              <div className={`text-sm font-mono font-semibold px-3 py-0.5 rounded-full ${
+                secondsLeft < 300
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
                   : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-            }`}
-            role="status"
-            aria-live="polite"
-          >
-            {botSpeaking
-              ? "Bot is speaking — mic paused"
-              : listening
-                ? typedAnswersOnly
-                  ? "Typed answers mode — write below, then submit"
-                  : "Mic on — speak, or type below"
-                : "Mic off — press Start"}
+              }`}>
+                ⏱ {formatTime(secondsLeft)}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {!timeExpired && (
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="text-xs text-red-600 underline hover:text-red-800 dark:text-red-400"
+              >
+                I&apos;m not prepared — end interview
+              </button>
+            )}
+            <div
+              className={`shrink-0 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                botSpeaking
+                  ? "bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100"
+                  : listening
+                    ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100"
+                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              {botSpeaking
+                ? "Bot speaking…"
+                : listening
+                  ? typedAnswersOnly
+                    ? "Typed mode"
+                    : "Mic on"
+                  : "Mic off"}
+            </div>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+
+        {showConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="w-full max-w-sm rounded-xl bg-white p-6 dark:bg-zinc-900 shadow-xl space-y-4">
+              <h2 className="text-lg font-semibold">End interview?</h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                This will be recorded. Your partial responses will still be assessed.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void abandonInterview(utterances, "not_prepared")}
+                  disabled={abandoning}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {abandoning ? "Ending..." : "Yes, end interview"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Mic pauses while bot speaks. Click <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> after speaking, or say <span className="font-medium text-zinc-700 dark:text-zinc-300">stop the interview</span> to end.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
           {micPhase === "idle" ? (
             <>
               <button
@@ -697,7 +849,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
                 type="button"
                 onClick={() => void startTypedOnly()}
               >
-                Use typed answers only
+                Typed answers only
               </button>
             </>
           ) : (
@@ -717,7 +869,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
           utterances.map((u, idx) => (
             <div key={idx} className="mb-2">
               <span className="font-medium">{u.speaker === "BOT" ? "Bot" : "You"}:</span>{" "}
-              <span>{u.text}</span>
+              <span className="break-words">{u.text}</span>
             </div>
           ))
         ) : (
@@ -759,21 +911,12 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
         </div>
       ) : null}
 
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-xs text-zinc-500">
-          {typedAnswersOnly ? (
-            <>
-              <span className="font-medium">Submit typed reply</span> continues the interview.{" "}
-              <span className="font-medium">Stop session</span> ends with a goodbye.
-            </>
-          ) : (
-            <>
-              <span className="font-medium">Send answer (voice)</span> finalizes what the mic heard.{" "}
-              <span className="font-medium">Submit typed reply</span> uses the text box for that turn.{" "}
-              <span className="font-medium">Stop session</span> ends (no next question).
-            </>
-          )}
-        </div>
+      <div className="mt-3 flex flex-col gap-2">
+        <p className="text-xs text-zinc-500">
+          {typedAnswersOnly
+            ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
+            : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box · <span className="font-medium">Stop session</span> ends</>}
+        </p>
         <button
           type="button"
           disabled={!listening || typedAnswersOnly}
@@ -781,6 +924,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, onTranscriptChange 
           onClick={() => {
             const rec = recognitionRef.current;
             if (!rec || !sessionActiveRef.current) return;
+            // Stitch any live interim text into the final buffer NOW before stopping,
+            // because Chrome with continuous=true rarely fires isFinal while mic is open.
+            const pending = `${finalBufferRef.current.trim()} ${interimRef.current.trim()}`.trim();
+            if (pending) {
+              finalBufferRef.current = pending + " ";
+              interimRef.current = "";
+              setInterimText("");
+            }
             commitAfterEndRef.current = true;
             try {
               rec.stop();

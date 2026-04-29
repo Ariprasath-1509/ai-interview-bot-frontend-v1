@@ -6,10 +6,18 @@ import { VoiceInterviewClient } from "./VoiceInterviewClient";
 export function VoiceInterviewForm({
   interviewId,
   jdTitle,
+  rubricJson,
+  candidateProfileJson,
+  durationMinutes,
+  interviewMode,
   completeInterview,
 }: {
   interviewId: string;
   jdTitle: string;
+  rubricJson: string | null;
+  candidateProfileJson: string | null;
+  durationMinutes: number;
+  interviewMode: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
@@ -20,44 +28,55 @@ export function VoiceInterviewForm({
   }, []);
 
   return (
-    <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-      <div className="font-medium">Voice interview</div>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        Technical questions from the first turn. Mark complete to save the transcript; an AI pass scores{" "}
-        <span className="font-medium">TechnicalKnowledge</span> and <span className="font-medium">Communication</span>{" "}
-        from your answers vs the JD and resume summary from setup (needs <span className="font-medium">OPENAI_API_KEY</span>
-        ; otherwise a heuristic placeholder runs).
-      </p>
-
-      <div className="mt-4">
-        <VoiceInterviewClient
-          jdTitle={jdTitle}
-          interviewId={interviewId}
-          onTranscriptChange={onTranscriptChange}
-        />
+    <div className="flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+      <div>
+        <div className="flex items-center gap-2">
+          <svg className="h-5 w-5 text-zinc-700 dark:text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          <h2 className="text-base font-semibold">Voice Interview</h2>
+        </div>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+          AI-scored on <span className="font-medium text-zinc-700 dark:text-zinc-300">Technical Knowledge</span> and{" "}
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">Communication</span> vs the JD.
+          Requires <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-800">CLAUDE_API_KEY</code>;
+          otherwise a heuristic placeholder runs.
+        </p>
       </div>
 
-      <form action={completeInterview} className="mt-4 grid gap-3">
+      <VoiceInterviewClient
+        jdTitle={jdTitle}
+        interviewId={interviewId}
+        rubricJson={rubricJson}
+        candidateProfileJson={candidateProfileJson}
+        durationMinutes={durationMinutes}
+        interviewMode={interviewMode}
+        onTranscriptChange={onTranscriptChange}
+      />
+
+      <form action={completeInterview} className="grid gap-4 border-t border-zinc-100 pt-5 dark:border-zinc-800">
         <input type="hidden" name="interviewId" value={interviewId} />
         <input type="hidden" name="transcriptJson" value={transcriptJson} />
 
-        <label className="grid gap-2 text-sm">
-          Candidate notes (optional)
+        <label className="grid gap-1.5 text-sm font-medium">
+          Candidate notes
+          <span className="text-xs font-normal text-zinc-500">Optional — visible to the reviewer</span>
           <textarea
-            className="min-h-[120px] rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+            className="min-h-[100px] rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm font-normal transition-colors focus:border-zinc-400 focus:bg-white focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-500 dark:focus:bg-zinc-950"
             name="candidateNotes"
             placeholder="Anything you want the reviewer to know…"
           />
         </label>
 
-        <div className="pt-1">
-          <button
-            className="rounded-full bg-foreground px-6 py-2 text-sm font-medium text-background hover:bg-zinc-800 dark:hover:bg-zinc-200"
-            type="submit"
-          >
-            Mark complete
-          </button>
-        </div>
+        <button
+          className="inline-flex w-fit items-center gap-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          type="submit"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Mark complete
+        </button>
       </form>
     </div>
   );
