@@ -159,35 +159,12 @@ export default function DashboardClient() {
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Interview Pipeline</h3>
                 <p className="text-xs text-zinc-400 mt-0.5">Current status of all interviews in the system</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatusCard
-                  title="Scheduled"
-                  description="Interviews booked but not yet started"
-                  count={analytics?.statusCounts.scheduled || 0}
-                  color="blue" icon="📅"
-                  linkTo="/admin/review?status=SCHEDULED"
-                />
-                <StatusCard
-                  title="In Progress"
-                  description="Interviews being conducted or awaiting review"
-                  count={(analytics?.statusCounts.inProgress || 0) + reviewPendingCount}
-                  color="yellow" icon="⏳"
-                  linkTo="/admin/review?status=IN_PROGRESS"
-                />
-                <StatusCard
-                  title="Completed"
-                  description="Finished interviews awaiting manager review"
-                  count={analytics?.statusCounts.completed || 0}
-                  color="green" icon="✅"
-                  linkTo="/admin/review?status=COMPLETED"
-                />
-                <StatusCard
-                  title="Signed Off"
-                  description="Manager has submitted final verdict"
-                  count={analytics?.statusCounts.signedOff || 0}
-                  color="purple" icon="✍️"
-                  linkTo="/admin/review?status=SIGNED_OFF"
-                />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <StatusCard title="Draft" description="Created but not yet scheduled" count={analytics?.statusCounts.scheduled || 0} color="indigo" icon="📝" linkTo="/admin/review?status=DRAFT" />
+                <StatusCard title="Scheduled" description="Booked but not yet started" count={analytics?.statusCounts.scheduled || 0} color="blue" icon="📅" linkTo="/admin/review?status=SCHEDULED" />
+                <StatusCard title="Review Pending" description="Awaiting manager sign-off" count={reviewPendingCount} color="yellow" icon="⏳" linkTo="/admin/review?status=REVIEW_PENDING" />
+                <StatusCard title="Completed" description="Fully assessed by AI" count={analytics?.statusCounts.completed || 0} color="green" icon="✅" linkTo="/admin/review?status=COMPLETED" />
+                <StatusCard title="Signed Off" description="Final verdict submitted" count={analytics?.statusCounts.signedOff || 0} color="purple" icon="✍️" linkTo="/admin/review?status=SIGNED_OFF" />
               </div>
             </div>
 
@@ -198,25 +175,9 @@ export default function DashboardClient() {
                 <p className="text-xs text-zinc-400 mt-0.5">Interview volume and readiness results</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatusCard
-                  title="Interviews Today"
-                  description="Total interviews created or updated today"
-                  count={analytics?.timePeriods.today || 0}
-                  color="indigo" icon="📊"
-                />
-                <StatusCard
-                  title="Interviews This Week"
-                  description="Total interviews created or updated this week"
-                  count={analytics?.timePeriods.thisWeek || 0}
-                  color="teal" icon="📈"
-                />
-                <StatusCard
-                  title="Bench Readiness Rate"
-                  description="Candidates marked Ready out of all assessed"
-                  count={`${analytics?.successMetrics.successRate || 0}%`}
-                  color="emerald" icon="🎯"
-                  subtitle={`${analytics?.successMetrics.readyCount || 0} ready out of ${analytics?.successMetrics.totalAssessed || 0} assessed`}
-                />
+                <StatusCard title="Interviews Today" description="Created or updated today" count={analytics?.timePeriods.today || 0} color="indigo" icon="📊" />
+                <StatusCard title="Interviews This Week" description="Created or updated this week" count={analytics?.timePeriods.thisWeek || 0} color="teal" icon="📈" />
+                <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="🎯" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
               </div>
             </div>
 
@@ -523,22 +484,26 @@ function StatusCard({ title, description, count, color, icon, subtitle, linkTo }
   };
 
   const content = (
-    <div className={`p-5 rounded-xl border shadow-sm transition-all duration-200 ${colorClasses[color as keyof typeof colorClasses]} ${linkTo ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold">{title}</p>
-          {description && <p className="text-xs opacity-60 mt-0.5 leading-snug">{description}</p>}
-          <p className="text-3xl font-bold mt-2">{count}</p>
-          {subtitle && <p className="text-xs mt-1.5 opacity-70">{subtitle}</p>}
-          {linkTo && <p className="text-xs mt-2 opacity-60 font-medium">Click to view →</p>}
+    <div className={`h-full p-5 rounded-xl border shadow-sm transition-all duration-200 ${colorClasses[color as keyof typeof colorClasses]} ${linkTo ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}`}>
+      <div className="flex h-full flex-col justify-between">
+        <div>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-semibold leading-snug">{title}</p>
+            <span className="text-xl opacity-70 shrink-0">{icon}</span>
+          </div>
+          {description && <p className="text-xs opacity-55 mt-1 leading-snug">{description}</p>}
         </div>
-        <div className="text-2xl opacity-70 shrink-0">{icon}</div>
+        <div className="mt-3">
+          <p className="text-3xl font-bold tabular-nums">{count}</p>
+          {subtitle && <p className="text-xs mt-1 opacity-65">{subtitle}</p>}
+          {linkTo && <p className="text-xs mt-2 opacity-55 font-medium">View →</p>}
+        </div>
       </div>
     </div>
   );
 
   if (linkTo) {
-    return <Link href={linkTo} className="block">{content}</Link>;
+    return <Link href={linkTo} className="block h-full">{content}</Link>;
   }
   return content;
 }

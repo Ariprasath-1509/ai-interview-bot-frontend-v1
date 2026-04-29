@@ -27,7 +27,7 @@ function StaffLogin() {
 
   async function onLogin() {
     setError(null);
-    const res = await fetch("/api/demo/login", {
+    const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ username: email, password }),
@@ -66,7 +66,7 @@ function CandidateLogin() {
 
   async function onLogin() {
     setError(null);
-    const res = await fetch("/api/demo/login", {
+    const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ username: email, password, role: "CANDIDATE" }),
