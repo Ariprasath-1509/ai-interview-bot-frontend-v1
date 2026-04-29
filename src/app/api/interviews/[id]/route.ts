@@ -3,14 +3,15 @@ import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getSession();
   if (!session || session.role !== "BENCH_MANAGER") {
     return new NextResponse("Unauthorized", { status: 403 });
   }
 
   try {
-    const response = await fetch(`http://localhost:6002/interviews/${params.id}`, {
+    const response = await fetch(`http://localhost:6002/interviews/${id}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${session.token}`,
