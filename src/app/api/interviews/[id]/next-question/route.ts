@@ -16,6 +16,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  console.log("[next-question] Route called");
   const p = await params;
   const id = z.string().min(1).safeParse(p?.id).data;
   if (!id) return Response.json({ error: "Missing interview id" }, { status: 400 });
@@ -26,14 +27,22 @@ export async function POST(
 
   const jar = await cookies();
   const token = jar.get("br_jwt")?.value;
+  console.log("[next-question] Token found:", token ? "YES" : "NO");
+  if (!token) {
+    console.error("[next-question] No JWT token found in cookies");
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  headers["Authorization"] = `Bearer ${token}`;
 
   // 1. Fetch interview
   const interviewRes = await fetch(`${GATEWAY}/interviews/${id}`, {
     headers,
   }).catch(() => null);
-  if (!interviewRes?.ok) return Response.json({ error: "Interview not found" }, { status: 404 });
+  if (!interviewRes?.ok) {
+    console.error(`[next-question] Failed to fetch interview ${id}, status: ${interviewRes?.status}`);
+    return Response.json({ error: "Interview not found" }, { status: interviewRes?.status ?? 404 });
+  }
 
   const interview = (await interviewRes.json()) as { jdId: string; planId: string | null; interviewMode?: string };
 

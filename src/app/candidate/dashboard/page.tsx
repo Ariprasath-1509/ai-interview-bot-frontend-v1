@@ -29,7 +29,6 @@ function isUpcoming(i: Interview): boolean {
   return (
     i.status === "DRAFT" ||
     i.status === "IN_PROGRESS" ||
-    i.status === "REVIEW_PENDING" ||
     (i.status === "SCHEDULED" && !isPast(i))
   );
 }

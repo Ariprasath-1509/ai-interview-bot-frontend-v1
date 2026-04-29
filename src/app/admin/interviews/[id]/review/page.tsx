@@ -144,9 +144,9 @@ export default async function InterviewReviewPage({
 
         <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
           <div className="font-medium mb-3">Scores</div>
-          <div className="grid gap-3 text-sm">
+          <div className="max-h-[600px] overflow-y-auto pr-2 space-y-3">
             {scores.length ? scores.map((s) => (
-              <div key={s.id} className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/30">
+              <div key={s.id} className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/30 text-sm">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-zinc-900 dark:text-zinc-100">{s.dimension}</span>
                   <div className="flex items-center gap-2 text-xs">
@@ -255,11 +255,11 @@ export default async function InterviewReviewPage({
               <div className="space-y-2 text-sm">
                 <div>
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Covered:</span>
-                  <span className="ml-2 text-zinc-600 dark:text-zinc-400">{ai.interviewQuality.covered?.join(", ") || "None"}</span>
+                  <span className="ml-2 text-zinc-600 dark:text-zinc-400">{(ai.interviewQuality.categoriesCovered || ai.interviewQuality.covered)?.join(", ") || "None"}</span>
                 </div>
                 <div>
                   <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ Missed:</span>
-                  <span className="ml-2 text-zinc-600 dark:text-zinc-400">{ai.interviewQuality.missed?.join(", ") || "None"}</span>
+                  <span className="ml-2 text-zinc-600 dark:text-zinc-400">{(ai.interviewQuality.categoriesMissed || ai.interviewQuality.missed)?.join(", ") || "None"}</span>
                 </div>
                 {ai.interviewQuality.note && (
                   <p className="mt-3 text-xs italic text-zinc-500">Note: {ai.interviewQuality.note}</p>

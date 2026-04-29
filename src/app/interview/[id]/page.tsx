@@ -135,7 +135,7 @@ async function completeInterview(formData: FormData) {
   // Fetch interview + JD + plan for assessment context
   const interviewRes = await apiServer(`/interviews/${parsed.interviewId}`, session.token);
   if (!interviewRes.ok) redirect("/admin/setup?error=Interview%20not%20found");
-  const interview = (await interviewRes.json()) as { jdId: string; planId: string | null };
+  const interview = (await interviewRes.json()) as { jdId: string; planId: string | null; interviewMode?: string };
 
   let jdTitle = "Target role";
   let jdText = "";
@@ -165,7 +165,16 @@ async function completeInterview(formData: FormData) {
   // Call ai-service for assessment
   const assessRes = await apiServer("/ai/assess", session.token, {
     method: "POST",
-    body: JSON.stringify({ jdTitle, jdText, resumeSummary, transcriptJson, rubricJson, candidateProfileJson }),
+    body: JSON.stringify({ 
+      interviewId: parsed.interviewId,
+      jdTitle, 
+      jdText, 
+      resumeSummary, 
+      transcriptJson, 
+      rubricJson, 
+      candidateProfileJson,
+      interviewMode: interview.interviewMode ?? "L3"
+    }),
   });
 
   let proposedVerdict = "NEEDS_1_WEEK_PREP";

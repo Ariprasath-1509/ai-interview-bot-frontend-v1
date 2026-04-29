@@ -14,7 +14,7 @@ const ROUTE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/interview", roles: ["CANDIDATE", "BENCH_MANAGER", "INTERVIEWER"] },
 ];
 
-const PUBLIC = ["/login", "/register", "/api/demo", "/api/health", "/_next", "/favicon"];
+const PUBLIC = ["/login", "/register", "/api", "/_next", "/favicon"];
 
 function isPublic(pathname: string) {
   return PUBLIC.some((p) => pathname.startsWith(p));
@@ -50,5 +50,14 @@ export default function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/health).*)"],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
 };
