@@ -10,7 +10,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   }
 
   try {
-    const response = await fetch(`http://localhost:8080/interviews/${params.id}`, {
+    const response = await fetch(`http://localhost:6002/interviews/${params.id}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${session.token}`,

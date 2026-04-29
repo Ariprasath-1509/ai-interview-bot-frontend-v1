@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    const response = await fetch("http://localhost:8080/interviews", {
+    const response = await fetch("http://localhost:6002/interviews", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${session.token}`,

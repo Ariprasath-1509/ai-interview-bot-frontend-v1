@@ -7,13 +7,13 @@ AI-led voice interview and assessment platform. Candidates take structured techn
 ## Architecture
 
 ```
-Next.js 16 (App Router)  ←→  API Gateway (localhost:8080)  ←→  Services
+Next.js 16 (App Router)  ←→  API Gateway (localhost:6002)  ←→  Services
         ↓
   PostgreSQL (bench_readiness DB)
 ```
 
 - **Frontend** — this repo, Next.js 16, Tailwind CSS v4, TypeScript
-- **API Gateway** — runs at `http://localhost:8080`, handles all business logic, auth, and DB writes
+- **API Gateway** — runs at `http://localhost:6002`, handles all business logic, auth, and DB writes
 - **Auth** — cookie-based session (`br_jwt`, `br_role`, `br_username`). JWT decoded client-side for username display. SSO/OIDC is disabled.
 
 ---
@@ -71,7 +71,7 @@ Unauthenticated users are redirected to `/login?next=<path>`.
 
 - Node.js 18+
 - PostgreSQL running (default: `localhost:3308`)
-- API Gateway running at `http://localhost:8080`
+- API Gateway running at `http://localhost:6002`
 
 ### 2. Install dependencies
 
@@ -86,7 +86,7 @@ Create a `.env` file in the project root:
 ```env
 DATABASE_URL="postgresql://postgres:<password>@localhost:<port>/bench_readiness"
 AUTH_SECRET="your-secret-here"
-NEXT_PUBLIC_API_URL="http://localhost:8080"
+NEXT_PUBLIC_API_URL="http://localhost:6002"
 ```
 
 > `AUTH_SECRET` is used to sign demo session cookies. Change it in production.
@@ -157,7 +157,7 @@ All calls go through the gateway at `NEXT_PUBLIC_API_URL`.
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `AUTH_SECRET` | Yes | Secret for signing session cookies |
-| `NEXT_PUBLIC_API_URL` | Yes | API gateway base URL (e.g. `http://localhost:8080`) |
+| `NEXT_PUBLIC_API_URL` | Yes | API gateway base URL (e.g. `http://localhost:6002`) |
 
 ---
 

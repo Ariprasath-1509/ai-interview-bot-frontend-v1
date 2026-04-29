@@ -6,7 +6,7 @@ import { useState } from "react";
 const inputCls =
   "rounded-lg border border-zinc-200 px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700";
 
-const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");

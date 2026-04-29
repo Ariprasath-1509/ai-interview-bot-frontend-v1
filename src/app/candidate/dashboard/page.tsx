@@ -18,7 +18,7 @@ type Interview = {
 };
 
 function isPast(i: Interview): boolean {
-  if (["COMPLETED", "REVIEW_PENDING", "SIGNED_OFF"].includes(i.status)) return true;
+  if (["COMPLETED", "SIGNED_OFF"].includes(i.status)) return true;
   if (i.status === "SCHEDULED" && i.scheduledAt) {
     return (Date.now() - new Date(i.scheduledAt).getTime()) / 36e5 > 24;
   }
@@ -26,7 +26,11 @@ function isPast(i: Interview): boolean {
 }
 
 function isUpcoming(i: Interview): boolean {
-  return i.status === "IN_PROGRESS" || (i.status === "SCHEDULED" && !isPast(i));
+  return (
+    i.status === "IN_PROGRESS" ||
+    i.status === "REVIEW_PENDING" ||
+    (i.status === "SCHEDULED" && !isPast(i))
+  );
 }
 
 async function getJdTitle(jdId: string, token: string | undefined): Promise<string> {
@@ -116,9 +120,11 @@ export default async function CandidateDashboard() {
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           i.status === "IN_PROGRESS"
                             ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : i.status === "REVIEW_PENDING"
+                            ? "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300"
                             : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300"
                         }`}>
-                          {i.status === "IN_PROGRESS" ? "In Progress" : "Scheduled"}
+                          {i.status === "IN_PROGRESS" ? "In Progress" : i.status === "REVIEW_PENDING" ? "Under Review" : "Scheduled"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">

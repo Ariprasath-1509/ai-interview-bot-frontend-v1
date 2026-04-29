@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch("http://localhost:8080/tokens/check-limit", {
+    const response = await fetch("http://localhost:6002/tokens/check-limit", {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"

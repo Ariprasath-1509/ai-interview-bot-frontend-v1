@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);

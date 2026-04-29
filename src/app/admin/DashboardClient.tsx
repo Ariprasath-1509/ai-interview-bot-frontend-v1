@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 // Interfaces
 interface AnalyticsData {
-  statusCounts: { scheduled: number; inProgress: number; completed: number; signedOff: number; total: number; };
+  statusCounts: { scheduled: number; inProgress: number; completed: number; signedOff: number; reviewPending: number; total: number; };
   timePeriods: { today: number; thisWeek: number; total: number; };
   successMetrics: { readyCount: number; totalAssessed: number; successRate: number; };
   lastUpdated: string;
@@ -24,6 +24,17 @@ interface VerdictAnalytics {
   READY: number; NEEDS_1_WEEK_PREP: number; NEEDS_RESKILLING: number; MISMATCH_WITH_JD: number; WITHDRAWN: number;
 }
 
+interface CandidateAnalytics {
+  performanceByVerdict: Record<string, number>;
+  performanceByMode: Record<string, { totalCandidates: number; readyCandidates: number; successRate: number; }>;
+  topCandidates: Array<{ candidateName: string; candidateEmail: string; averageScore: number; verdict: string; interviewMode: string; jdTitle: string; }>;
+  commonWeaknesses: Array<{ skill: string; candidateCount: number; percentage: number; }>;
+  averageScoresBySkill: Record<string, number>;
+  totalAssessedCandidates: number;
+  overallSuccessRate: number;
+  hasData: boolean;
+}
+
 interface Interviewer {
   name: string; interviewCount: number; successRate: number;
 }
@@ -40,19 +51,21 @@ export default function DashboardClient() {
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
   const [modeAnalytics, setModeAnalytics] = useState<ModeAnalytics | null>(null);
   const [verdicts, setVerdicts] = useState<VerdictAnalytics | null>(null);
-  const [interviewers, setInterviewers] = useState<Interviewer[] | null>(null);
+  const [candidateAnalytics, setCandidateAnalytics] = useState<CandidateAnalytics | null>(null);
   const [trends, setTrends] = useState<TrendData | null>(null);
+  const [reviewPendingCount, setReviewPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchAnalytics = async () => {
     try {
-      const [analyticsRes, tokenRes, modeRes, verdictsRes, interviewersRes, trendsRes] = await Promise.all([
+      const [analyticsRes, tokenRes, modeRes, verdictsRes, candidatesRes, trendsRes, reviewRes] = await Promise.all([
         fetch('/api/analytics/realtime').catch(() => null),
         fetch('/api/tokens/check-limit').catch(() => null),
         fetch('/api/analytics/modes').catch(() => null),
         fetch('/api/analytics/verdicts').catch(() => null),
-        fetch('/api/analytics/interviewers').catch(() => null),
-        fetch('/api/analytics/trends').catch(() => null)
+        fetch('/api/analytics/candidates').catch(() => null),
+        fetch('/api/analytics/trends').catch(() => null),
+        fetch('/api/interviews/summary').catch(() => null),
       ]);
 
       if (analyticsRes?.ok) setAnalytics(await analyticsRes.json());
@@ -60,19 +73,20 @@ export default function DashboardClient() {
       if (modeRes?.ok) setModeAnalytics(await modeRes.json());
       if (verdictsRes?.ok) {
         const vData = await verdictsRes.json();
-        // The real API might nest the verdict stats (e.g. { data: { READY: 1... } })
         let extracted = vData;
         if (vData && typeof vData === 'object' && !vData.READY && Object.values(vData).some(v => typeof v === 'object' && v !== null && 'READY' in v)) {
           extracted = Object.values(vData).find(v => typeof v === 'object' && v !== null && 'READY' in v);
         }
         setVerdicts(extracted.verdicts || extracted.data || extracted);
       }
-      if (interviewersRes?.ok) {
-        const iData = await interviewersRes.json();
-        // Backend returns { hasData: true, topInterviewers: [...] }
-        setInterviewers(iData.topInterviewers || []);
-      }
+      if (candidatesRes?.ok) setCandidateAnalytics(await candidatesRes.json());
       if (trendsRes?.ok) setTrends(await trendsRes.json());
+      if (reviewRes?.ok) {
+        const summaryData = await reviewRes.json() as Array<{ status?: string }>;
+        if (Array.isArray(summaryData)) {
+          setReviewPendingCount(summaryData.filter(i => i.status === 'REVIEW_PENDING').length);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
     } finally {
@@ -93,7 +107,7 @@ export default function DashboardClient() {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'status', label: 'Status & Flow' },
-    { id: 'performance', label: 'Performance' },
+    { id: 'performance', label: 'Candidate Performance' },
     { id: 'modes', label: 'Interview Modes' },
     { id: 'trends', label: 'Trends' },
     { id: 'tokens', label: 'Token Usage' }
@@ -138,17 +152,74 @@ export default function DashboardClient() {
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatusCard title="Scheduled" count={analytics?.statusCounts.scheduled || 0} color="blue" icon="📅" linkTo="/admin/review?status=SCHEDULED" />
-              <StatusCard title="In Progress" count={analytics?.statusCounts.inProgress || 0} color="yellow" icon="⏳" linkTo="/admin/review?status=IN_PROGRESS" />
-              <StatusCard title="Completed" count={analytics?.statusCounts.completed || 0} color="green" icon="✅" linkTo="/admin/review?status=COMPLETED" />
-              <StatusCard title="Signed Off" count={analytics?.statusCounts.signedOff || 0} color="purple" icon="✍️" linkTo="/admin/review?status=SIGNED_OFF" />
+
+            {/* Interview Pipeline */}
+            <div>
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Interview Pipeline</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">Current status of all interviews in the system</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <StatusCard
+                  title="Scheduled"
+                  description="Interviews booked but not yet started"
+                  count={analytics?.statusCounts.scheduled || 0}
+                  color="blue" icon="📅"
+                  linkTo="/admin/review?status=SCHEDULED"
+                />
+                <StatusCard
+                  title="In Progress"
+                  description="Interviews being conducted or awaiting review"
+                  count={(analytics?.statusCounts.inProgress || 0) + reviewPendingCount}
+                  color="yellow" icon="⏳"
+                  linkTo="/admin/review?status=IN_PROGRESS"
+                />
+                <StatusCard
+                  title="Completed"
+                  description="Finished interviews awaiting manager review"
+                  count={analytics?.statusCounts.completed || 0}
+                  color="green" icon="✅"
+                  linkTo="/admin/review?status=COMPLETED"
+                />
+                <StatusCard
+                  title="Signed Off"
+                  description="Manager has submitted final verdict"
+                  count={analytics?.statusCounts.signedOff || 0}
+                  color="purple" icon="✍️"
+                  linkTo="/admin/review?status=SIGNED_OFF"
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatusCard title="Today" count={analytics?.timePeriods.today || 0} color="indigo" icon="📊" />
-              <StatusCard title="This Week" count={analytics?.timePeriods.thisWeek || 0} color="teal" icon="📈" />
-              <StatusCard title="Success Rate" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="🎯" subtitle={`${analytics?.successMetrics.readyCount || 0} ready out of ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
+
+            {/* Activity & Outcomes */}
+            <div>
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Activity & Outcomes</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">Interview volume and readiness results</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatusCard
+                  title="Interviews Today"
+                  description="Total interviews created or updated today"
+                  count={analytics?.timePeriods.today || 0}
+                  color="indigo" icon="📊"
+                />
+                <StatusCard
+                  title="Interviews This Week"
+                  description="Total interviews created or updated this week"
+                  count={analytics?.timePeriods.thisWeek || 0}
+                  color="teal" icon="📈"
+                />
+                <StatusCard
+                  title="Bench Readiness Rate"
+                  description="Candidates marked Ready out of all assessed"
+                  count={`${analytics?.successMetrics.successRate || 0}%`}
+                  color="emerald" icon="🎯"
+                  subtitle={`${analytics?.successMetrics.readyCount || 0} ready out of ${analytics?.successMetrics.totalAssessed || 0} assessed`}
+                />
+              </div>
             </div>
+
           </div>
         )}
 
@@ -179,38 +250,146 @@ export default function DashboardClient() {
           </div>
         )}
 
-        {/* PERFORMANCE TAB */}
+        {/* CANDIDATE PERFORMANCE TAB */}
         {activeTab === 'performance' && (
-          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
-            <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Interviewer Performance</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
-                  <tr>
-                    <th className="px-4 py-3 font-medium rounded-l-lg">Interviewer Name</th>
-                    <th className="px-4 py-3 font-medium">Interviews Conducted</th>
-                    <th className="px-4 py-3 font-medium rounded-r-lg">Candidate Success Rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {Array.isArray(interviewers) && interviewers.map((interviewer, idx) => (
-                    <tr key={idx}>
-                      <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">{interviewer.name}</td>
-                      <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">{interviewer.interviewCount}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-2 max-w-[100px]">
-                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${interviewer.successRate}%` }}></div>
-                          </div>
-                          <span className="text-zinc-600 dark:text-zinc-400 font-mono text-xs">{interviewer.successRate}%</span>
+          <div className="space-y-6">
+            {candidateAnalytics?.hasData ? (
+              <>
+                {/* Top Candidates */}
+                <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                  <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Top Performing Candidates</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
+                        <tr>
+                          <th className="px-4 py-3 font-medium rounded-l-lg">Candidate</th>
+                          <th className="px-4 py-3 font-medium">Mode</th>
+                          <th className="px-4 py-3 font-medium">Avg Score</th>
+                          <th className="px-4 py-3 font-medium">Verdict</th>
+                          <th className="px-4 py-3 font-medium rounded-r-lg">Role</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        {candidateAnalytics.topCandidates.map((candidate, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-3">
+                              <div>
+                                <div className="font-medium text-zinc-900 dark:text-zinc-100">{candidate.candidateName}</div>
+                                <div className="text-xs text-zinc-500">{candidate.candidateEmail}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded">
+                                {candidate.interviewMode}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-12 bg-zinc-200 dark:bg-zinc-800 rounded-full h-2">
+                                  <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${(candidate.averageScore / 5) * 100}%` }}></div>
+                                </div>
+                                <span className="font-mono text-sm">{candidate.averageScore}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                candidate.verdict === 'READY' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                                candidate.verdict === 'NEEDS_1_WEEK_PREP' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                                'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                              }`}>
+                                {candidate.verdict.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 text-xs">{candidate.jdTitle}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Performance by Mode */}
+                <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                  <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Success Rate by Interview Mode</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {Object.entries(candidateAnalytics.performanceByMode).map(([mode, stats]) => (
+                      <div key={mode} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">{mode}</div>
+                        <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">{stats.successRate}%</div>
+                        <div className="text-xs text-zinc-500">{stats.readyCandidates}/{stats.totalCandidates} ready</div>
+                        <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5 mt-2">
+                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${stats.successRate}%` }}></div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {(!interviewers || !Array.isArray(interviewers) || interviewers.length === 0) && <tr><td colSpan={3} className="px-4 py-4 text-center text-zinc-500">No interviewer data available</td></tr>}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Skill Gaps */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                    <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Common Skill Gaps</h3>
+                    <div className="space-y-3">
+                      {candidateAnalytics.commonWeaknesses.map((weakness, idx) => (
+                        <div key={idx} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                            <span className="font-medium text-zinc-900 dark:text-zinc-100 capitalize">{weakness.skill}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{weakness.candidateCount} candidates</div>
+                            <div className="text-xs text-zinc-500">{weakness.percentage}%</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                    <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Average Scores by Skill</h3>
+                    <div className="space-y-3">
+                      {Object.entries(candidateAnalytics.averageScoresBySkill).map(([skill, score]) => (
+                        <div key={skill} className="flex items-center justify-between">
+                          <span className="font-medium text-zinc-900 dark:text-zinc-100 capitalize">{skill}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-zinc-200 dark:bg-zinc-800 rounded-full h-2">
+                              <div className={`h-2 rounded-full ${
+                                score >= 4 ? 'bg-green-500' : score >= 3 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`} style={{ width: `${(score / 5) * 100}%` }}></div>
+                            </div>
+                            <span className="font-mono text-sm w-8">{score}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary Stats */}
+                <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">{candidateAnalytics.totalAssessedCandidates}</div>
+                      <div className="text-sm text-zinc-500 mt-1">Total Assessed</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{candidateAnalytics.overallSuccessRate}%</div>
+                      <div className="text-sm text-zinc-500 mt-1">Overall Success Rate</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{candidateAnalytics.performanceByVerdict.READY || 0}</div>
+                      <div className="text-sm text-zinc-500 mt-1">Ready Candidates</div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white dark:bg-zinc-950 p-12 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
+                <div className="text-zinc-400 text-6xl mb-4">📊</div>
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">No Candidate Data Available</h3>
+                <p className="text-zinc-500 dark:text-zinc-400">Complete some interviews to see candidate performance analytics.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -324,8 +503,15 @@ export default function DashboardClient() {
   );
 }
 
-// Reuse the same StatusCard as before
-function StatusCard({ title, count, color, icon, subtitle, linkTo }: { title: string; count: number | string; color: string; icon: string; subtitle?: string; linkTo?: string; }) {
+function StatusCard({ title, description, count, color, icon, subtitle, linkTo }: {
+  title: string;
+  description?: string;
+  count: number | string;
+  color: string;
+  icon: string;
+  subtitle?: string;
+  linkTo?: string;
+}) {
   const colorClasses = {
     blue: 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-900/30 dark:text-blue-100',
     yellow: 'bg-yellow-50 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:border-yellow-900/30 dark:text-yellow-100',
@@ -338,13 +524,15 @@ function StatusCard({ title, count, color, icon, subtitle, linkTo }: { title: st
 
   const content = (
     <div className={`p-5 rounded-xl border shadow-sm transition-all duration-200 ${colorClasses[color as keyof typeof colorClasses]} ${linkTo ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium opacity-80">{title}</p>
-          <p className="text-3xl font-bold mt-1">{count}</p>
-          {subtitle && <p className="text-xs mt-2 opacity-75">{subtitle}</p>}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">{title}</p>
+          {description && <p className="text-xs opacity-60 mt-0.5 leading-snug">{description}</p>}
+          <p className="text-3xl font-bold mt-2">{count}</p>
+          {subtitle && <p className="text-xs mt-1.5 opacity-70">{subtitle}</p>}
+          {linkTo && <p className="text-xs mt-2 opacity-60 font-medium">Click to view →</p>}
         </div>
-        <div className="text-3xl opacity-80">{icon}</div>
+        <div className="text-2xl opacity-70 shrink-0">{icon}</div>
       </div>
     </div>
   );

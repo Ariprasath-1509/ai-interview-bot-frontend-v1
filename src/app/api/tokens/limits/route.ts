@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    const response = await fetch("http://localhost:8080/tokens/limits", {
+    const response = await fetch("http://localhost:6002/tokens/limits", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${session.token}`,

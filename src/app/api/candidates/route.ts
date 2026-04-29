@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const search = searchParams.get("search") ?? "";
 
   try {
-    const response = await fetch(`http://localhost:8080/auth/candidates?search=${encodeURIComponent(search)}`, {
+    const response = await fetch(`http://localhost:6002/auth/candidates?search=${encodeURIComponent(search)}`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"

@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch("http://localhost:6002/analytics/realtime", {
+    const response = await fetch("http://localhost:6002/analytics/candidates", {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"
@@ -24,7 +24,7 @@ export async function GET() {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Analytics error:", error);
+    console.error("Candidate analytics error:", error);
     return new NextResponse("Service unavailable", { status: 503 });
   }
 }

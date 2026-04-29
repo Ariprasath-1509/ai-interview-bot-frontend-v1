@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch("http://localhost:8080/interviews/summary", {
+    const response = await fetch("http://localhost:6002/interviews/summary", {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"
