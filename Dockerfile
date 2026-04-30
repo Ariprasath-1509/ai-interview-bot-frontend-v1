@@ -3,4 +3,4 @@ COPY . .
 RUN npm install
 RUN npm run build
 EXPOSE 6001
-CMD ["npm","start"] 
+CMD ["npm","run","dev"] 
