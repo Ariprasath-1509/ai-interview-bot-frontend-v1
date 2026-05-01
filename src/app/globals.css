@@ -33,3 +33,11 @@ body {
 .card {
   @apply rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black;
 }
+
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(1rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-in {
+  animation: slide-in-from-bottom 0.2s ease-out;
+}

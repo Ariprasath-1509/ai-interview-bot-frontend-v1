@@ -12,7 +12,7 @@ function MobileMenu({ links, username, role }: { links: NavLink[]; username?: st
     <>
       <button
         type="button"
-        className="flex items-center justify-center rounded-md p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900 md:hidden"
+        className="flex items-center justify-center rounded-md p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900 lg:hidden"
         aria-label="Toggle menu"
         onClick={() => setOpen((v) => !v)}
       >
@@ -28,7 +28,7 @@ function MobileMenu({ links, username, role }: { links: NavLink[]; username?: st
       </button>
 
       {open && (
-        <div className="absolute inset-x-0 top-full z-20 border-b border-white/20 bg-white/90 backdrop-blur-xl px-4 py-3 shadow-md dark:border-zinc-800/50 dark:bg-[#050505]/90 md:hidden">
+        <div className="absolute inset-x-0 top-full z-20 border-b border-white/20 bg-white/90 backdrop-blur-xl px-4 py-3 shadow-md dark:border-zinc-800/50 dark:bg-[#050505]/90 lg:hidden">
           <nav className="flex flex-col gap-1">
             {links.map((l) => (
               <Link
@@ -76,29 +76,28 @@ export function AppShellClient({
       <div className="pointer-events-none absolute -right-40 top-1/4 -z-10 h-[600px] w-[600px] rounded-full bg-emerald-500/10 blur-[150px] dark:bg-emerald-500/10" />
 
       <header className="sticky top-0 z-10 border-b border-white/20 bg-white/70 backdrop-blur-xl dark:border-zinc-800/50 dark:bg-[#050505]/70 shadow-sm">
-        <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="font-semibold tracking-tight">
-              Bench Readiness
-            </Link>
-            <nav className="hidden gap-1 md:flex">
-              {links.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="rounded-md px-2.5 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-50"
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
+        <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5 sm:px-6">
+          <Link href="/" className="shrink-0 font-semibold tracking-tight">
+            Bench Readiness
+          </Link>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <nav className="hidden items-center gap-0.5 lg:flex">
+            {links.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2">
             {username ? (
-              <div className="hidden text-sm text-zinc-600 dark:text-zinc-300 md:block">
-                {username} <span className="text-zinc-400">({role})</span>
-              </div>
+              <span className="hidden text-[13px] text-zinc-500 dark:text-zinc-400 lg:inline">
+                {username} <span className="text-zinc-400 dark:text-zinc-500">· {role}</span>
+              </span>
             ) : null}
             {username ? <LogoutButton /> : null}
             <MobileMenu links={links} username={username} role={role} />

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 export async function deleteStaffAction(id: string) {
   const session = await getSession();
-  if (!session || session.role !== "BENCH_MANAGER") return;
+  if (!session || session.role !== "SUPER_ADMIN") return;
 
   await apiServer(`/auth/staff/${id}`, session.token, { method: "DELETE" });
   revalidatePath("/admin/staff");

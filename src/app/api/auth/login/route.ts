@@ -29,8 +29,11 @@ export async function POST(req: Request) {
     jar.set("br_jwt", data.token, opts);
     jar.set("br_role", data.role, { ...opts, httpOnly: false });
     jar.set("br_username", data.name ?? "", { ...opts, httpOnly: false });
+    if (data.adminSource) {
+      jar.set("br_admin_source", data.adminSource, { ...opts, httpOnly: false });
+    }
 
-    return NextResponse.json({ ok: true, role: data.role, name: data.name });
+    return NextResponse.json({ ok: true, role: data.role, name: data.name, adminSource: data.adminSource });
   } catch {
     return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
   }

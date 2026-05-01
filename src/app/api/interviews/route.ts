@@ -12,13 +12,18 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
+    // Remove undefined fields to avoid backend issues
+    const cleanBody = Object.fromEntries(
+      Object.entries(body).filter(([_, value]) => value !== undefined)
+    );
+    
     const response = await fetch("http://localhost:6002/interviews", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(cleanBody)
     });
 
     if (!response.ok) {

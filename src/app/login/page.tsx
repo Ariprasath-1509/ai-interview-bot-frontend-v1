@@ -6,14 +6,15 @@ import { useMemo, useState } from "react";
 const inputCls =
   "rounded-lg border border-zinc-200 px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700";
 
+const ROLE_ROUTES: Record<string, string> = {
+  CANDIDATE: "/candidate/dashboard",
+  SUPER_ADMIN: "/admin",
+  ADMIN: "/admin",
+  RECRUITER: "/admin/review",
+};
+
 function redirectForRole(role: string, fallback: string) {
-  if (role === "CANDIDATE") return "/candidate/dashboard";
-  if (role === "BENCH_MANAGER") return "/admin";
-  if (role === "ADMIN") return "/admin/review";
-  if (role === "INTERVIEWER") return "/admin/review";
-  if (role === "HR") return "/admin/review";
-  if (role === "COMPLIANCE") return "/compliance";
-  return fallback || "/dashboard";
+  return ROLE_ROUTES[role] ?? (fallback || "/dashboard");
 }
 
 function StaffLogin() {
@@ -38,7 +39,7 @@ function StaffLogin() {
       return;
     }
     const data = (await res.json()) as { role?: string; name?: string };
-    window.location.href = redirectForRole(data.role ?? "BENCH_MANAGER", next);
+    window.location.href = redirectForRole(data.role ?? "ADMIN", next);
   }
 
   return (
@@ -128,7 +129,7 @@ export default function LoginPage() {
       <main className="z-10 w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold tracking-tight text-black dark:text-zinc-50">Bench Readiness</h1>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">AI-led voice interviews with bench-manager sign-off.</p>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">AI-led voice interviews with admin sign-off.</p>
         </div>
 
         <div className="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">

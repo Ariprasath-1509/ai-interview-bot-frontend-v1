@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CandidateSearch } from './CandidateSearch';
+import { PositionSearch } from './PositionSearch';
 
 import { INTERVIEW_MODES, DURATION_OPTIONS } from '@/lib/constants';
 
@@ -14,11 +15,13 @@ export default function InterviewSetupClient() {
     focusAreas: '',
     resumeSummary: '',
     interviewMode: 'SCREENING',
-    customDurationMinutes: null as number | null
+    customDurationMinutes: null as number | null,
+    positionId: null as number | null
   });
 
   const [locked, setLocked] = useState(false);
   const [pending, setPending] = useState(false);
+  const [autoFillMode, setAutoFillMode] = useState(false);
 
   const selectedMode = INTERVIEW_MODES.find(mode => mode.value === formData.interviewMode);
   const defaultDuration = selectedMode?.defaultDuration || 15;
@@ -49,6 +52,40 @@ export default function InterviewSetupClient() {
     setLocked(false);
   };
 
+  const onPositionSelect = async (position: { id: number; title: string; description: string; requiredSkills: string[]; experienceLevel: string }) => {
+    setFormData(prev => ({
+      ...prev,
+      jdTitle: position.title,
+      jdText: position.description,
+      focusAreas: position.requiredSkills.join(', '),
+      positionId: position.id,
+      interviewMode: getRecommendedMode(position.experienceLevel)
+    }));
+    setAutoFillMode(true);
+  };
+
+  const onPositionClear = () => {
+    setFormData(prev => ({
+      ...prev,
+      jdTitle: '',
+      jdText: '',
+      focusAreas: '',
+      positionId: null,
+      interviewMode: 'SCREENING'
+    }));
+    setAutoFillMode(false);
+  };
+
+  const getRecommendedMode = (experienceLevel: string): string => {
+    switch (experienceLevel) {
+      case 'JUNIOR': return 'SCREENING';
+      case 'MID': return 'L1';
+      case 'SENIOR': return 'L2';
+      case 'LEAD': return 'L3';
+      default: return 'SCREENING';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pending) return;
@@ -68,7 +105,11 @@ export default function InterviewSetupClient() {
         if (!proceed) { setPending(false); return; }
       }
 
-      const payload = { ...formData, customDurationMinutes: formData.customDurationMinutes || undefined };
+      const payload = { 
+        ...formData, 
+        customDurationMinutes: formData.customDurationMinutes || undefined,
+        positionId: formData.positionId || undefined
+      };
 
       const response = await fetch('/api/interviews', {
         method: 'POST',
@@ -96,6 +137,9 @@ export default function InterviewSetupClient() {
   return (
     <div className="max-w-4xl p-6 bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Position Search for Auto-fill */}
+        <PositionSearch onSelect={onPositionSelect} onClear={onPositionClear} />
+        
         {/* Candidate Search */}
         <CandidateSearch onSelect={onCandidateSelect} onClear={onCandidateClear} />
         
@@ -122,7 +166,7 @@ export default function InterviewSetupClient() {
           />
         </div>
         <div className="grid gap-2">
-          <label className="text-sm font-medium">JD title</label>
+          <label className="text-sm font-medium">JD title {autoFillMode && <span className="text-green-600">(Auto-filled)</span>}</label>
           <input
             className={inputCls}
             type="text" required
@@ -132,7 +176,7 @@ export default function InterviewSetupClient() {
           />
         </div>
         <div className="grid gap-2">
-          <label className="text-sm font-medium">JD text</label>
+          <label className="text-sm font-medium">JD text {autoFillMode && <span className="text-green-600">(Auto-filled)</span>}</label>
           <textarea
             className={`${inputCls} min-h-[120px]`}
             required
@@ -142,7 +186,7 @@ export default function InterviewSetupClient() {
           />
         </div>
         <div className="grid gap-2">
-          <label className="text-sm font-medium">Special focus areas (optional)</label>
+          <label className="text-sm font-medium">Special focus areas (optional) {autoFillMode && <span className="text-green-600">(Auto-filled)</span>}</label>
           <input
             className={inputCls}
             type="text"
@@ -164,7 +208,7 @@ export default function InterviewSetupClient() {
 
         {/* Interview Mode Selection */}
         <div>
-          <label className="block text-sm font-medium mb-2">Interview Mode</label>
+          <label className="block text-sm font-medium mb-2">Interview Mode {autoFillMode && <span className="text-green-600">(Recommended)</span>}</label>
           <select
             value={formData.interviewMode}
             onChange={(e) => handleModeChange(e.target.value)}
@@ -177,7 +221,7 @@ export default function InterviewSetupClient() {
             ))}
           </select>
           <p className="text-sm text-gray-500 mt-1">
-            Default: {selectedMode?.questions} questions in {defaultDuration} minutes ({selectedMode?.difficulty} difficulty)
+            {autoFillMode ? 'Recommended based on position experience level' : `Default: ${selectedMode?.questions} questions in ${defaultDuration} minutes (${selectedMode?.difficulty} difficulty)`}
           </p>
         </div>
 

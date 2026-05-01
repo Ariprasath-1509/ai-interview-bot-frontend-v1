@@ -31,8 +31,8 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
 
   const session = await getSession();
   const isCandidate = session?.role === "CANDIDATE";
-  const isOwner = session?.role === "INTERVIEWER";
-  const isManager = session?.role === "BENCH_MANAGER" || session?.role === "INTERVIEWER";
+  const isOwner = session?.role === "RECRUITER";
+  const isManager = session?.role === "ADMIN" || session?.role === "SUPER_ADMIN" || session?.role === "RECRUITER";
   if (!isCandidate && !isOwner && !isManager) redirect("/login");
 
   const interviewRes = await apiServer(`/interviews/${id}`, session?.token);
@@ -134,7 +134,7 @@ async function completeInterview(formData: FormData) {
 
   // Fetch interview + JD + plan for assessment context
   const interviewRes = await apiServer(`/interviews/${parsed.interviewId}`, session.token);
-  if (!interviewRes.ok) redirect("/admin/setup?error=Interview%20not%20found");
+  if (!interviewRes.ok) redirect("/admin/interviews/create?error=Interview%20not%20found");
   const interview = (await interviewRes.json()) as { jdId: string; planId: string | null; interviewMode?: string };
 
   let jdTitle = "Target role";

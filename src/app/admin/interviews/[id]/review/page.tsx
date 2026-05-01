@@ -342,10 +342,10 @@ export default async function InterviewReviewPage({
           </div>
         )}
 
-        {session?.role === "BENCH_MANAGER" ? (
+        {session?.role === "ADMIN" || session?.role === "SUPER_ADMIN" ? (
           <>
             <p className="mt-3 text-sm text-zinc-600">
-              {existingSignOff.signedOff ? "Update sign-off:" : "Bench manager can override and must leave a note."}
+              {existingSignOff.signedOff ? "Update sign-off:" : "Admin can override and must leave a note."}
             </p>
             <form action={signOff} className="mt-3 grid gap-3">
               <input type="hidden" name="interviewId" value={interview.id} />
@@ -384,7 +384,7 @@ export default async function InterviewReviewPage({
           </>
         ) : (
           <p className="mt-4 text-sm text-zinc-500">
-            Sign-off is restricted to Bench Managers.
+            Sign-off is restricted to Admins.
           </p>
         )}
       </div>
@@ -396,7 +396,7 @@ async function signOff(formData: FormData) {
   "use server";
 
   const session = await getSession();
-  if (!session || session.role !== "BENCH_MANAGER") redirect("/unauthorized");
+  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN")) redirect("/unauthorized");
 
   const parsed = SignOffSchema.parse({
     interviewId: formData.get("interviewId"),

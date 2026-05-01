@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session || session.role !== "BENCH_MANAGER") {
+  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN")) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

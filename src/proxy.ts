@@ -3,15 +3,18 @@ import type { NextRequest } from "next/server";
 import type { UserRole } from "@/server/roles";
 
 const ROUTE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> = [
-  { prefix: "/admin/staff", roles: ["BENCH_MANAGER"] },
-  { prefix: "/admin/setup", roles: ["BENCH_MANAGER"] },
-  { prefix: "/admin/review", roles: ["BENCH_MANAGER", "ADMIN", "INTERVIEWER", "HR"] },
-  { prefix: "/admin/interviews", roles: ["BENCH_MANAGER", "ADMIN", "INTERVIEWER"] },
-  { prefix: "/admin", roles: ["BENCH_MANAGER", "ADMIN", "INTERVIEWER", "HR"] },
-  { prefix: "/observer", roles: ["BENCH_MANAGER", "INTERVIEWER"] },
-  { prefix: "/compliance", roles: ["COMPLIANCE", "ADMIN"] },
+  { prefix: "/admin/staff", roles: ["SUPER_ADMIN"] },
+  { prefix: "/admin/setup", roles: ["ADMIN", "SUPER_ADMIN"] },
+  { prefix: "/admin/review", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
+  { prefix: "/admin/interviews", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
+  { prefix: "/admin/candidates", roles: ["ADMIN", "SUPER_ADMIN"] },
+  { prefix: "/admin/calendar", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
+  { prefix: "/admin/settings", roles: ["ADMIN", "SUPER_ADMIN"] },
+  { prefix: "/admin", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
+  { prefix: "/observer", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
+  { prefix: "/compliance", roles: ["SUPER_ADMIN", "ADMIN"] },
   { prefix: "/candidate", roles: ["CANDIDATE"] },
-  { prefix: "/interview", roles: ["CANDIDATE", "BENCH_MANAGER", "INTERVIEWER"] },
+  { prefix: "/interview", roles: ["CANDIDATE", "ADMIN", "SUPER_ADMIN", "RECRUITER"] },
 ];
 
 const PUBLIC = ["/login", "/register", "/api", "/_next", "/favicon"];
@@ -51,13 +54,6 @@ export default function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

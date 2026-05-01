@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { SkeletonDashboard } from '@/components/common/Skeleton';
 
 // Interfaces
 interface AnalyticsData {
@@ -35,6 +36,13 @@ interface CandidateAnalytics {
   hasData: boolean;
 }
 
+interface ClientAnalytics {
+  totalClients: number;
+  totalMatchingCandidates: number;
+  clientsWithMatches: number;
+  averageMatchesPerClient: number;
+}
+
 interface Interviewer {
   name: string; interviewCount: number; successRate: number;
 }
@@ -52,18 +60,20 @@ export default function DashboardClient() {
   const [modeAnalytics, setModeAnalytics] = useState<ModeAnalytics | null>(null);
   const [verdicts, setVerdicts] = useState<VerdictAnalytics | null>(null);
   const [candidateAnalytics, setCandidateAnalytics] = useState<CandidateAnalytics | null>(null);
+  const [clientAnalytics, setClientAnalytics] = useState<ClientAnalytics | null>(null);
   const [trends, setTrends] = useState<TrendData | null>(null);
   const [reviewPendingCount, setReviewPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchAnalytics = async () => {
     try {
-      const [analyticsRes, tokenRes, modeRes, verdictsRes, candidatesRes, trendsRes, reviewRes] = await Promise.all([
+      const [analyticsRes, tokenRes, modeRes, verdictsRes, candidatesRes, clientRes, trendsRes, reviewRes] = await Promise.all([
         fetch('/api/analytics/realtime').catch(() => null),
         fetch('/api/tokens/check-limit').catch(() => null),
         fetch('/api/analytics/modes').catch(() => null),
         fetch('/api/analytics/verdicts').catch(() => null),
         fetch('/api/analytics/candidates').catch(() => null),
+        fetch('/api/analytics/clients').catch(() => null),
         fetch('/api/analytics/trends').catch(() => null),
         fetch('/api/interviews/summary').catch(() => null),
       ]);
@@ -80,6 +90,7 @@ export default function DashboardClient() {
         setVerdicts(extracted.verdicts || extracted.data || extracted);
       }
       if (candidatesRes?.ok) setCandidateAnalytics(await candidatesRes.json());
+      if (clientRes?.ok) setClientAnalytics(await clientRes.json());
       if (trendsRes?.ok) setTrends(await trendsRes.json());
       if (reviewRes?.ok) {
         const summaryData = await reviewRes.json() as Array<{ status?: string }>;
@@ -89,6 +100,7 @@ export default function DashboardClient() {
       }
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
+      // Don't retry immediately on error - wait for next interval
     } finally {
       setLoading(false);
     }
@@ -96,12 +108,12 @@ export default function DashboardClient() {
 
   useEffect(() => {
     fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 30000);
+    const interval = setInterval(fetchAnalytics, 60000); // Increased to 60 seconds
     return () => clearInterval(interval);
   }, []);
 
   if (loading) {
-    return <div className="p-6">Loading comprehensive dashboard...</div>;
+    return <SkeletonDashboard />;
   }
 
   const tabs = [
@@ -172,12 +184,14 @@ export default function DashboardClient() {
             <div>
               <div className="mb-3">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Activity & Outcomes</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Interview volume and readiness results</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Interview volume, client positions, and readiness results</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <StatusCard title="Interviews Today" description="Created or updated today" count={analytics?.timePeriods.today || 0} color="indigo" icon="📊" />
                 <StatusCard title="Interviews This Week" description="Created or updated this week" count={analytics?.timePeriods.thisWeek || 0} color="teal" icon="📈" />
-                <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="🎯" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
+                <StatusCard title="Total Clients" description="Active client positions" count={clientAnalytics?.totalClients || 0} color="blue" icon="🏢" linkTo="/admin/clients" />
+                <StatusCard title="Matching Candidates" description="Candidates matched to client positions" count={clientAnalytics?.totalMatchingCandidates || 0} color="purple" icon="🎯" subtitle={`${clientAnalytics?.averageMatchesPerClient || 0} avg per client`} linkTo="/admin/matching" />
+                <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="✅" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
               </div>
             </div>
 

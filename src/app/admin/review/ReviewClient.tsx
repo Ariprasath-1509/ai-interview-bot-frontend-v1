@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { Pagination, usePagination } from '@/components/common/Pagination';
+import { SkeletonTable } from '@/components/common/Skeleton';
+import { useToast } from '@/components/common/Toast';
+import { useConfirm } from '@/components/common/ConfirmDialog';
 
 interface InterviewSummary {
   id: string;
@@ -23,6 +27,9 @@ export default function InterviewReviewClient() {
   const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
   const [loading, setLoading] = useState(true);
   
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
+
   // Read initial filters from URL params for reactivity with dashboard cards
   const [filter, setFilter] = useState({
     status: searchParams?.get('status') || '',
@@ -62,9 +69,13 @@ export default function InterviewReviewClient() {
   };
 
   const handleDelete = async (interviewId: string) => {
-    if (!confirm('Are you sure you want to delete this interview? This action cannot be undone.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Delete Interview",
+      message: "Are you sure you want to delete this interview? This action cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/interviews/${interviewId}`, {
@@ -72,16 +83,15 @@ export default function InterviewReviewClient() {
       });
 
       if (response.ok) {
-        // Refresh the interviews list
         fetchInterviews();
-        alert('Interview deleted successfully');
+        toast('Interview deleted successfully', 'success');
       } else {
         const error = await response.text();
-        alert(`Failed to delete interview: ${error}`);
+        toast(`Failed to delete interview: ${error}`, 'error');
       }
     } catch (error) {
       console.error('Delete error:', error);
-      alert('Error deleting interview');
+      toast('Error deleting interview', 'error');
     }
   };
 
@@ -129,9 +139,13 @@ export default function InterviewReviewClient() {
     );
   });
 
+  const paginationState = usePagination(filteredInterviews, 12);
+
   if (loading) {
-    return <div className="p-6">Loading interviews...</div>;
+    return <SkeletonTable rows={8} cols={6} />;
   }
+
+  const { page, totalPages, paginated, setPage } = paginationState;
 
   const inputCls = "w-full p-2 border rounded-lg bg-white dark:bg-zinc-950 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100";
 
@@ -215,7 +229,7 @@ export default function InterviewReviewClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {filteredInterviews.length > 0 ? filteredInterviews.map((interview) => (
+            {paginated.length > 0 ? paginated.map((interview) => (
               <tr key={interview.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
                 <td className="px-4 py-3">
                   <div>
@@ -274,6 +288,7 @@ export default function InterviewReviewClient() {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

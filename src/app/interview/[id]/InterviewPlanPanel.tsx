@@ -31,8 +31,8 @@ export function InterviewPlanPanel({ slotsJson }: { slotsJson: string | null }) 
         This is the <span className="font-medium">saved snapshot</span> from when this interview was created: slot
         themes, difficulty, and minutes. It is not the live voice bot script—the voice side uses the same interview id
         plus your answers to ask the next question. If you still see older themes (e.g. “Behavioral STAR”), create a{" "}
-        <Link className="underline" href="/admin/setup">
-          new interview from Admin → Setup
+        <Link className="underline" href="/admin/interviews/create">
+          new interview from Admin → Create Interview
         </Link>{" "}
         to pick up the latest technical-first template.
       </p>

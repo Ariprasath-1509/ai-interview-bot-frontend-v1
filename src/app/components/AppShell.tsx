@@ -1,5 +1,7 @@
 import { getSession } from "@/lib/session";
-import { AppShellClient } from "./AppShellClient";
+import { SidebarLayout } from "@/components/common/SidebarLayout";
+import { getSidebarItems } from "@/config/roleConfig";
+import type { UserRole } from "@/server/roles";
 
 export async function AppShell({
   title,
@@ -11,28 +13,22 @@ export async function AppShell({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  const role = session?.role ?? null;
+  const role = (session?.role ?? "CANDIDATE") as UserRole;
+  const items = getSidebarItems(role);
 
-  const links = [
-    { href: "/admin", label: "Dashboard", show: role === "BENCH_MANAGER" || role === "INTERVIEWER" || role === "HR" },
-    { href: "/admin/setup", label: "Setup", show: role === "BENCH_MANAGER" },
-    { href: "/admin/review", label: "Review", show: role === "BENCH_MANAGER" },
-    { href: "/admin/staff", label: "Manage Staff", show: role === "BENCH_MANAGER" },
-    { href: "/admin/settings/tokens", label: "Token Settings", show: role === "BENCH_MANAGER" },
-    { href: "/compliance", label: "Compliance", show: role === "COMPLIANCE" },
-  ]
-    .filter((l) => l.show)
-    .map(({ href, label }) => ({ href, label }));
+  const displayRole = role === "ADMIN" && session?.adminSource
+    ? `${role} (${session.adminSource})`
+    : role;
 
   return (
-    <AppShellClient
+    <SidebarLayout
       title={title}
       subtitle={subtitle}
-      links={links}
+      items={items}
       username={session?.username}
-      role={session?.role}
+      role={displayRole}
     >
       {children}
-    </AppShellClient>
+    </SidebarLayout>
   );
 }

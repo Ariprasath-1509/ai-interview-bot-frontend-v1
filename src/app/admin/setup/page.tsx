@@ -1,10 +1,6 @@
-import { AppShell } from "@/app/components/AppShell";
-import InterviewSetupClient from "./SetupClient";
+import { redirect } from 'next/navigation';
 
 export default function AdminSetupPage() {
-  return (
-    <AppShell title="Create Interview" subtitle="Setup a new technical interview with customized mode and duration.">
-      <InterviewSetupClient />
-    </AppShell>
-  );
+  // Redirect to new interview creation page
+  redirect('/admin/interviews/create');
 }

@@ -121,7 +121,7 @@ export default async function ObserverInterviewPage({
 async function inject(formData: FormData) {
   "use server";
   const session = await getSession();
-  if (!session || (session.role !== "BENCH_MANAGER" && session.role !== "INTERVIEWER")) redirect("/unauthorized");
+  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN" && session.role !== "RECRUITER")) redirect("/unauthorized");
 
   const parsed = InjectSchema.parse({
     interviewId: formData.get("interviewId"),
@@ -140,7 +140,7 @@ async function inject(formData: FormData) {
 async function flag(formData: FormData) {
   "use server";
   const session = await getSession();
-  if (!session || session.role !== "BENCH_MANAGER") redirect("/unauthorized");
+  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN")) redirect("/unauthorized");
 
   const parsed = FlagSchema.parse({
     interviewId: formData.get("interviewId"),

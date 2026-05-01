@@ -7,7 +7,7 @@ import { DeleteButton } from "./DeleteButton";
 
 export default async function StaffPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await getSession();
-  if (!session || session.role !== "BENCH_MANAGER") redirect("/unauthorized");
+  if (!session || session.role !== "SUPER_ADMIN") redirect("/unauthorized");
 
   const sp = await searchParams;
   const error = sp?.error as string | undefined;
@@ -18,21 +18,28 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
   async function createStaff(formData: FormData) {
     "use server";
     const s = await getSession();
-    if (!s || s.role !== "BENCH_MANAGER") return;
+    if (!s || s.role !== "SUPER_ADMIN") return;
     
     const name = formData.get("name");
     const email = formData.get("email");
     const password = formData.get("password");
     const role = formData.get("role");
+    const adminSource = formData.get("adminSource") || undefined;
+
+    const body: Record<string, unknown> = { name, email, password, role };
+    if (role === "ADMIN" && adminSource) {
+      body.adminSource = adminSource;
+    }
 
     const r = await apiServer("/auth/staff", s.token, {
       method: "POST",
-      body: JSON.stringify({ name, email, password, role })
+      body: JSON.stringify(body)
     });
 
     if (!r.ok) {
-      if (r.status === 409) redirect("/admin/staff?error=Email+already+registered");
-      redirect("/admin/staff?error=Failed+to+create+staff");
+      const data = await r.json().catch(() => null);
+      const msg = data?.error ?? "Failed to create staff";
+      redirect(`/admin/staff?error=${encodeURIComponent(msg)}`);
     }
     revalidatePath("/admin/staff");
     redirect("/admin/staff");
@@ -56,6 +63,7 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
                   <th className="pb-3 font-medium">Name</th>
                   <th className="pb-3 font-medium">Email</th>
                   <th className="pb-3 font-medium">Role</th>
+                  <th className="pb-3 font-medium">Source</th>
                   <th className="pb-3 font-medium">Action</th>
                 </tr>
               </thead>
@@ -69,6 +77,17 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
                         {u.role}
                       </span>
                     </td>
+                    <td className="py-3 text-zinc-500 dark:text-zinc-400 text-xs">
+                      {u.adminSource ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          u.adminSource === "BENCH" 
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+                            : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                        }`}>
+                          {u.adminSource}
+                        </span>
+                      ) : "—"}
+                    </td>
                     <td className="py-3">
                        <DeleteButton id={u.id} />
                     </td>
@@ -76,7 +95,7 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
                 ))}
                 {staff.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-zinc-500">No staff found</td>
+                    <td colSpan={5} className="py-8 text-center text-zinc-500">No staff found</td>
                   </tr>
                 )}
               </tbody>
@@ -102,11 +121,17 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Role
               <select required name="role" className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700">
-                <option value="INTERVIEWER">Interviewer</option>
-                <option value="HR">HR</option>
-                <option value="COMPLIANCE">Compliance</option>
-                <option value="BENCH_MANAGER">Bench Manager</option>
+                <option value="RECRUITER">Recruiter</option>
                 <option value="ADMIN">Admin</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Admin Source <span className="font-normal text-zinc-400">(required for Admin role)</span>
+              <select name="adminSource" className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700">
+                <option value="">Not applicable</option>
+                <option value="BENCH">Bench (manages Bench candidates)</option>
+                <option value="BD">BD (manages B2B candidates)</option>
+                <option value="RECRUITMENT">Recruitment (manages Market candidates)</option>
               </select>
             </label>
             <button className="mt-4 w-full rounded-full bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80">

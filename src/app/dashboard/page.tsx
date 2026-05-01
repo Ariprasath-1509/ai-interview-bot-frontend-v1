@@ -7,10 +7,8 @@ export default async function Dashboard() {
 
   const role = session.role;
   const target =
-    role === "BENCH_MANAGER" || role === "INTERVIEWER" || role === "HR"
+    role === "SUPER_ADMIN" || role === "ADMIN" || role === "RECRUITER"
       ? "/admin"
-      : role === "COMPLIANCE"
-        ? "/compliance"
-        : "/candidate/dashboard";
+      : "/candidate/dashboard";
   redirect(target);
 }

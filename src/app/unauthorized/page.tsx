@@ -1,22 +1,21 @@
 import Link from "next/link";
-import { getDemoSession } from "@/server/demoAuth";
+import { getSession } from "@/lib/session";
 
 export default async function Unauthorized() {
-  const session = await getDemoSession();
+  const session = await getSession();
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
       <h1 className="text-2xl font-semibold">Not authorized</h1>
       <p className="mt-2 text-zinc-600">
         {session
-          ? `Your role (${session.role}) doesn’t have access to this area.`
-          : "You’re not signed in."}
+          ? `Your role (${session.role}) doesn't have access to this area.`
+          : "You're not signed in."}
       </p>
       <p className="mt-4">
-        <Link className="underline" href="/dashboard">
-          Go to dashboard
+        <Link className="underline" href="/login">
+          Go to login
         </Link>
       </p>
     </div>
   );
 }
-
