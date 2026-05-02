@@ -10,6 +10,7 @@ import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 interface Candidate {
   id: string;
@@ -158,6 +159,9 @@ export default function CandidatesClient() {
   };
 
   const filtered = candidates.filter(c => {
+    // Exclude DEPLOYED candidates from All Candidates tab
+    if (c.candidateStatus === 'DEPLOYED') return false;
+    
     const q = search.toLowerCase();
     const matchesSearch = !q || c.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.batch?.toLowerCase().includes(q);
     const matchesSkill = !filterSkill || c.skillSet === filterSkill;
@@ -204,8 +208,8 @@ export default function CandidatesClient() {
     }
   }
 
-  const inputCls = 'w-full p-2 border rounded-lg bg-white dark:bg-zinc-950 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm';
-  const selectSmCls = 'px-2 py-1 text-xs border rounded bg-white dark:bg-zinc-950 dark:border-zinc-700 dark:text-zinc-100';
+  const inputCls = 'input-base';
+  const selectSmCls = 'px-2 py-1 text-xs border rounded-md bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-700 dark:text-zinc-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500';
 
   const handleBulkImportDeployment = async (file: File) => {
     setUploadingFile(true);
@@ -299,12 +303,29 @@ export default function CandidatesClient() {
     15
   );
 
-  if (loading) return <SkeletonTable rows={8} cols={6} />;
+  if (loading) return <LoadingSpinner message="Loading candidates..." />;
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Candidates</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Manage candidate profiles and deployments</p>
+        </div>
+        {activeTab === 'deployed' && (
+          <Button
+            onClick={() => setShowBulkImportDialog(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Bulk Import Deployments
+          </Button>
+        )}
+      </div>
+
       {/* Tabs */}
-      <div className="bg-white dark:bg-zinc-950 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <div className="card">
         <div className="flex border-b border-zinc-200 dark:border-zinc-800">
           <button
             onClick={() => setActiveTab('all')}
@@ -334,45 +355,52 @@ export default function CandidatesClient() {
       {activeTab === 'all' ? (
         <>
           {/* Search & Filters */}
-          <div className="bg-white dark:bg-zinc-950 p-4 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <div className="md:col-span-2">
-            <input
-              className={inputCls}
-              placeholder="Search by name, email, or batch…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div className="card p-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="md:col-span-2">
+                <input
+                  className={inputCls}
+                  placeholder="Search by name, email, or batch…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+              <select className={inputCls} value={filterSkill} onChange={e => setFilterSkill(e.target.value)}>
+                <option value="">All Skills</option>
+                <option value="JAVA_SB">Java + SB</option>
+                <option value="JFSR">JFSR</option>
+                <option value="REACT_JS">React JS</option>
+              </select>
+              <select className={inputCls} value={filterSource} onChange={e => setFilterSource(e.target.value)}>
+                <option value="">All Sources</option>
+                <option value="B2B">B2B</option>
+                <option value="BENCH">Bench</option>
+                <option value="MARKET">Market</option>
+              </select>
+              <select className={inputCls} value={filterRating} onChange={e => setFilterRating(e.target.value)}>
+                <option value="">All Ratings</option>
+                <option value="ASSET">Asset</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LIABILITY">Liability</option>
+              </select>
+            </div>
           </div>
-          <select className={inputCls} value={filterSkill} onChange={e => setFilterSkill(e.target.value)}>
-            <option value="">All Skills</option>
-            <option value="JAVA_SB">Java + SB</option>
-            <option value="JFSR">JFSR</option>
-            <option value="REACT_JS">React JS</option>
-          </select>
-          <select className={inputCls} value={filterSource} onChange={e => setFilterSource(e.target.value)}>
-            <option value="">All Sources</option>
-            <option value="B2B">B2B</option>
-            <option value="BENCH">Bench</option>
-            <option value="MARKET">Market</option>
-          </select>
-          <select className={inputCls} value={filterRating} onChange={e => setFilterRating(e.target.value)}>
-            <option value="">All Ratings</option>
-            <option value="ASSET">Asset</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="LIABILITY">Liability</option>
-          </select>
-        </div>
-      </div>
 
-      {/* Summary */}
-      <div className="flex items-center justify-between text-sm text-zinc-500">
-        <span>{filtered.length} candidate{filtered.length !== 1 ? 's' : ''}</span>
-        <button onClick={fetchCandidates} className="text-blue-600 hover:underline text-sm">Refresh</button>
-      </div>
+          {/* Summary */}
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-zinc-600 dark:text-zinc-400">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">{filtered.length}</span> candidate{filtered.length !== 1 ? 's' : ''} found
+            </div>
+            <button 
+              onClick={fetchCandidates} 
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-zinc-950 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
             <tr>
@@ -462,7 +490,6 @@ export default function CandidatesClient() {
                         <option value="RFD">RFD</option>
                         <option value="WFD">WFD</option>
                         <option value="DOB">DOB</option>
-                        <option value="DEPLOYED">DEPLOYED</option>
                       </select>
                     </td>
                     <td className="px-3 py-3">
@@ -533,6 +560,12 @@ export default function CandidatesClient() {
                         >
                           Edit
                         </button>
+                        <button
+                          onClick={() => handleViewHistory(c.id)}
+                          className="text-purple-600 dark:text-purple-400 hover:underline text-xs font-medium"
+                        >
+                          History
+                        </button>
                         {c.resumeSummary && (
                           <button
                             onClick={() => handleCreateInterview(c)}
@@ -563,82 +596,112 @@ export default function CandidatesClient() {
         <>
           {/* Deployed Candidates Tab */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-500">{deployedCandidates.length} deployed candidate{deployedCandidates.length !== 1 ? 's' : ''}</span>
+            <div className="text-sm text-zinc-600 dark:text-zinc-400">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">{deployedCandidates.length}</span> deployed candidate{deployedCandidates.length !== 1 ? 's' : ''}
+            </div>
+            <button 
+              onClick={fetchDeployedCandidates} 
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            >
+              Refresh
+            </button>
           </div>
 
           {/* Deployed Table */}
-          <div className="bg-white dark:bg-zinc-950 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
-                <tr>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">No.</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Emp ID</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Name</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Contact</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Email</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Personal Email</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">YOE</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Technology</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Client Name</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Deployed Date</th>
-                  <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Mentor</th>
-                  <th className="px-3 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {deployedCandidates.length > 0 ? deployedCandidates.map((c, idx) => (
-                  <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400">{idx + 1}</td>
-                    <td className="px-3 py-3 font-mono text-xs">{c.empId || '—'}</td>
-                    <td className="px-3 py-3 font-medium text-zinc-900 dark:text-zinc-100">{c.name || '—'}</td>
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.contactNumber || '—'}</td>
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.officialEmail || '—'}</td>
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.personalEmail || '—'}</td>
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.yoeActual ?? '—'}</td>
-                    <td className="px-3 py-3">
-                      {c.skillSet ? (
-                        <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                          {SKILL_LABEL[c.skillSet] ?? c.skillSet}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.deployedClientName || '—'}</td>
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">
-                      {c.deployedDate ? new Date(c.deployedDate).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.mentor || '—'}</td>
-                    <td className="px-3 py-3 text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewHistory(c.id)}
-                          className="text-xs"
-                        >
-                          <Eye className="h-3 w-3 mr-1" />
-                          History
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleEndDeployment(c.id, c.name || 'Candidate')}
-                          disabled={endingDeployment === c.id}
-                          className="text-xs"
-                        >
-                          {endingDeployment === c.id ? 'Ending...' : 'End Deployment'}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )) : (
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 border-b border-zinc-200 dark:border-zinc-800">
                   <tr>
-                    <td colSpan={12} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
-                      No deployed candidates found.
-                    </td>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">No.</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Emp ID</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Name</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Contact</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Official Email</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Personal Email</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">YOE</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Technology</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Client Name</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Deployed Date</th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Mentor</th>
+                    <th className="px-4 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {deployedCandidates.length > 0 ? deployedCandidates.map((c, idx) => (
+                    <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+                      <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 font-medium">{idx + 1}</td>
+                      <td className="px-4 py-4">
+                        {c.empId ? (
+                          <span className="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{c.empId}</span>
+                        ) : (
+                          <span className="text-zinc-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-zinc-900 dark:text-zinc-100">{c.name || '—'}</div>
+                        <div className="text-[11px] text-zinc-400 mt-0.5">{c.email}</div>
+                      </td>
+                      <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.contactNumber || '—'}</td>
+                      <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.officialEmail || '—'}</td>
+                      <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.personalEmail || '—'}</td>
+                      <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs font-mono">{c.yoeActual ?? '—'}</td>
+                      <td className="px-4 py-4">
+                        {c.skillSet ? (
+                          <span className="px-2.5 py-1 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                            {SKILL_LABEL[c.skillSet] ?? c.skillSet}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="font-medium text-zinc-900 dark:text-zinc-100">{c.deployedClientName || '—'}</div>
+                      </td>
+                      <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">
+                        {c.deployedDate ? new Date(c.deployedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                      </td>
+                      <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.mentor || '—'}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewHistory(c.id)}
+                            className="text-xs h-8 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            History
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleEndDeployment(c.id, c.name || 'Candidate')}
+                            disabled={endingDeployment === c.id}
+                            className="text-xs h-8 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            {endingDeployment === c.id ? 'Ending...' : 'End Deployment'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={12} className="px-4 py-12 text-center">
+                        <Briefcase className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400">No deployed candidates found.</p>
+                        <Button
+                          onClick={() => setShowBulkImportDialog(true)}
+                          variant="outline"
+                          className="mt-4"
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Import Deployments
+                        </Button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
@@ -665,21 +728,28 @@ export default function CandidatesClient() {
 
       {/* Bulk Import Deployment Dialog */}
       <Dialog open={showBulkImportDialog} onOpenChange={setShowBulkImportDialog}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Bulk Import Deployment Data</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Bulk Import Deployment Data</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                <strong>Template Format:</strong> Emp ID, Email, Client Name, Deployed Date (YYYY-MM-DD), Mentor (optional)
-              </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                Candidates will be matched by email (official or personal). Only existing candidates can be deployed.
-              </p>
+          <div className="space-y-5">
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-lg p-5">
+              <div className="flex items-start gap-3">
+                <div className="bg-blue-600 text-white rounded-full p-2 mt-0.5">
+                  <Upload className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                    <strong>Template Format:</strong> Emp ID, Email, Client Name, Deployed Date (YYYY-MM-DD), Mentor (optional)
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    Candidates will be matched by email (official or personal). Only existing candidates can be deployed.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-8 text-center">
+            <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl p-10 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-colors bg-zinc-50 dark:bg-zinc-900/50">
               <input
                 type="file"
                 accept=".xlsx,.csv"
@@ -689,65 +759,75 @@ export default function CandidatesClient() {
                 }}
                 className="hidden"
                 id="deployment-file-upload"
+                disabled={uploadingFile}
               />
               <label
                 htmlFor="deployment-file-upload"
-                className="cursor-pointer inline-flex flex-col items-center"
+                className={`cursor-pointer inline-flex flex-col items-center ${uploadingFile ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <Upload className="h-12 w-12 text-zinc-400 mb-3" />
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {uploadingFile ? (
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-3"></div>
+                ) : (
+                  <Upload className="h-12 w-12 text-blue-500 mb-3" />
+                )}
+                <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                   {uploadingFile ? 'Uploading...' : 'Click to upload Excel file'}
                 </span>
-                <span className="text-xs text-zinc-500 mt-1">Supports .xlsx and .csv</span>
+                <span className="text-xs text-zinc-500 mt-1">Supports .xlsx and .csv formats</span>
               </label>
             </div>
 
             {importResult && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-green-700 dark:text-green-300">{importResult.successCount}</div>
-                    <div className="text-xs text-green-600 dark:text-green-400">Success</div>
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-green-700 dark:text-green-300">{importResult.successCount}</div>
+                    <div className="text-xs font-medium text-green-600 dark:text-green-400 mt-1">Success</div>
                   </div>
-                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{importResult.warningCount}</div>
-                    <div className="text-xs text-amber-600 dark:text-amber-400">Warnings</div>
+                  <div className="bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-amber-700 dark:text-amber-300">{importResult.warningCount}</div>
+                    <div className="text-xs font-medium text-amber-600 dark:text-amber-400 mt-1">Warnings</div>
                   </div>
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-red-700 dark:text-red-300">{importResult.failureCount}</div>
-                    <div className="text-xs text-red-600 dark:text-red-400">Failed</div>
+                  <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-red-700 dark:text-red-300">{importResult.failureCount}</div>
+                    <div className="text-xs font-medium text-red-600 dark:text-red-400 mt-1">Failed</div>
                   </div>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                  <table className="w-full text-xs">
-                    <thead className="bg-zinc-50 dark:bg-zinc-900 sticky top-0">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Row</th>
-                        <th className="px-3 py-2 text-left">Status</th>
-                        <th className="px-3 py-2 text-left">Details</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                      {importResult.details?.map((detail: any, idx: number) => (
-                        <tr key={idx}>
-                          <td className="px-3 py-2">{detail.row}</td>
-                          <td className="px-3 py-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                              detail.status === 'SUCCESS' ? 'bg-green-100 text-green-800' :
-                              detail.status === 'WARNING' ? 'bg-amber-100 text-amber-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {detail.status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                            {detail.name || detail.email || detail.message}
-                          </td>
+                <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+                  <div className="bg-zinc-50 dark:bg-zinc-900 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Import Details</h4>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-zinc-100 dark:bg-zinc-800 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">Row</th>
+                          <th className="px-4 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">Status</th>
+                          <th className="px-4 py-2 text-left font-semibold text-zinc-700 dark:text-zinc-300">Details</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                        {importResult.details?.map((detail: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                            <td className="px-4 py-2 font-mono text-zinc-600 dark:text-zinc-400">{detail.row}</td>
+                            <td className="px-4 py-2">
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${
+                                detail.status === 'SUCCESS' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                                detail.status === 'WARNING' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' :
+                                'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                              }`}>
+                                {detail.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
+                              {detail.name || detail.email || detail.message}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
@@ -757,45 +837,61 @@ export default function CandidatesClient() {
 
       {/* Deployment History Dialog */}
       <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Deployment History</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Deployment History</DialogTitle>
           </DialogHeader>
           {loadingHistory ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-zinc-500">Loading history...</div>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+                <div className="text-sm text-zinc-500">Loading history...</div>
+              </div>
             </div>
           ) : deploymentHistory.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {deploymentHistory.map((history, idx) => (
-                <div key={history.id} className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium text-zinc-900 dark:text-zinc-100">{history.clientName}</h4>
-                      <p className="text-xs text-zinc-500">
-                        {history.empId && <span className="font-mono">{history.empId} • </span>}
-                        {history.candidateName} ({history.candidateEmail})
+                <div 
+                  key={history.id} 
+                  className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 hover:shadow-md transition-shadow bg-white dark:bg-zinc-900"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold text-base text-zinc-900 dark:text-zinc-100">{history.clientName}</h4>
+                        <Badge 
+                          variant={history.status === 'ACTIVE' ? 'default' : 'secondary'}
+                          className={history.status === 'ACTIVE' ? 'bg-green-100 text-green-800 border-green-200' : ''}
+                        >
+                          {history.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {history.empId && <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{history.empId}</span>}
+                        {history.empId && ' • '}
+                        {history.candidateName} <span className="text-zinc-400">({history.candidateEmail})</span>
                       </p>
                     </div>
-                    <Badge variant={history.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                      {history.status}
-                    </Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-2 gap-4 text-sm bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3">
                     <div>
-                      <span className="text-zinc-500">Deployed:</span>
-                      <span className="ml-2 font-medium">{new Date(history.deployedDate).toLocaleDateString()}</span>
+                      <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">Deployed Date</span>
+                      <div className="font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
+                        {new Date(history.deployedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </div>
                     </div>
                     <div>
-                      <span className="text-zinc-500">End Date:</span>
-                      <span className="ml-2 font-medium">
-                        {history.endDate ? new Date(history.endDate).toLocaleDateString() : 'Currently Active'}
-                      </span>
+                      <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">End Date</span>
+                      <div className="font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
+                        {history.endDate ? new Date(history.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : (
+                          <span className="text-green-600 dark:text-green-400">Currently Active</span>
+                        )}
+                      </div>
                     </div>
                     {history.mentor && (
                       <div className="col-span-2">
-                        <span className="text-zinc-500">Mentor:</span>
-                        <span className="ml-2 font-medium">{history.mentor}</span>
+                        <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">Mentor</span>
+                        <div className="font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">{history.mentor}</div>
                       </div>
                     )}
                   </div>
@@ -803,8 +899,9 @@ export default function CandidatesClient() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-zinc-500">
-              No deployment history found.
+            <div className="text-center py-12">
+              <Briefcase className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No deployment history found.</p>
             </div>
           )}
         </DialogContent>

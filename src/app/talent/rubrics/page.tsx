@@ -49,7 +49,7 @@ export default async function TalentRubricsPage({
               <label className="grid gap-2 text-sm">
                 Role type
                 <input
-                  className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                  className="input-base"
                   name="roleType"
                   required
                   placeholder="Backend Engineer"
@@ -58,7 +58,7 @@ export default async function TalentRubricsPage({
               <label className="grid gap-2 text-sm">
                 Level
                 <input
-                  className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                  className="input-base"
                   name="level"
                   required
                   placeholder="Senior"
@@ -67,7 +67,7 @@ export default async function TalentRubricsPage({
               <label className="grid gap-2 text-sm md:col-span-2">
                 Version (integer)
                 <input
-                  className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                  className="input-base"
                   name="version"
                   required
                   placeholder="1"
@@ -78,7 +78,7 @@ export default async function TalentRubricsPage({
             <label className="grid gap-2 text-sm">
               Definition (JSON or text)
               <textarea
-                className="min-h-[180px] rounded-lg border border-zinc-200 px-3 py-2 font-mono text-xs dark:border-zinc-800 dark:bg-black"
+                className="input-base min-h-[180px] font-mono text-xs"
                 name="definition"
                 required
                 placeholder='{"dimensions":{"TechnicalDepth":{"scale":"1-5","anchors":{}}}}'
@@ -86,7 +86,7 @@ export default async function TalentRubricsPage({
             </label>
 
             <button
-              className="w-fit rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-zinc-800 dark:hover:bg-zinc-200"
+              className="w-fit rounded-lg bg-foreground px-5 py-2 text-sm font-medium text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
               type="submit"
             >
               Create

@@ -44,10 +44,24 @@ export function SidebarLayout({
   }, [currentPathname]);
 
   const isActive = (href: string) => {
-    if (href === "/admin" || href === "/candidate/dashboard") return pathname === href;
-    // Exact match for paths to avoid parent highlighting when on child routes
-    if (href === "/admin/candidates" && (pathname.startsWith("/admin/candidates/bulk-import") || pathname.startsWith("/admin/candidates/deployment-bulk-import"))) return false;
-    return pathname.startsWith(href);
+    // Exact match always wins
+    if (pathname === href) return true;
+
+    // For prefix matches, only highlight if no other nav item is a longer
+    // prefix of the current pathname (i.e. a more-specific sibling is active)
+    if (pathname.startsWith(href + "/") || pathname.startsWith(href + "?")) {
+      const hasMoreSpecificMatch = items.some(
+        (item) =>
+          item.href !== href &&
+          item.href.startsWith(href) &&
+          (pathname === item.href ||
+            pathname.startsWith(item.href + "/") ||
+            pathname.startsWith(item.href + "?"))
+      );
+      return !hasMoreSpecificMatch;
+    }
+
+    return false;
   };
 
   const sidebarContent = (
@@ -78,7 +92,7 @@ export function SidebarLayout({
               href={item.href}
               onClick={() => setMobileOpen(false)}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 ${
                 active
                   ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
                   : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"

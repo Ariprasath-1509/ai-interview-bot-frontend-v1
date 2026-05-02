@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { SkeletonDashboard } from '@/components/common/Skeleton';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 // Interfaces
 interface AnalyticsData {
@@ -112,9 +113,7 @@ export default function DashboardClient() {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
-    return <SkeletonDashboard />;
-  }
+  if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -136,7 +135,7 @@ export default function DashboardClient() {
             </div>
           )}
         </div>
-        <div className="text-sm text-gray-500 dark:text-gray-400">
+        <div className="text-sm text-zinc-500 dark:text-zinc-400">
           Last updated: {analytics?.lastUpdated ? new Date(analytics.lastUpdated).toLocaleTimeString() : 'Never'}
         </div>
       </div>
@@ -201,7 +200,7 @@ export default function DashboardClient() {
         {/* STATUS & FLOW TAB */}
         {activeTab === 'status' && (
           <div className="space-y-6">
-            <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <div className="card p-6">
               <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Assessment Verdict Distribution</h3>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {verdicts && Object.keys(verdicts).length > 0 ? (
@@ -231,7 +230,7 @@ export default function DashboardClient() {
             {candidateAnalytics?.hasData ? (
               <>
                 {/* Top Candidates */}
-                <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                <div className="card p-6">
                   <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Top Performing Candidates</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
@@ -284,7 +283,7 @@ export default function DashboardClient() {
                 </div>
 
                 {/* Performance by Mode */}
-                <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                <div className="card p-6">
                   <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Success Rate by Interview Mode</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     {Object.entries(candidateAnalytics.performanceByMode).map(([mode, stats]) => (
@@ -302,7 +301,7 @@ export default function DashboardClient() {
 
                 {/* Skill Gaps */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                  <div className="card p-6">
                     <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Common Skill Gaps</h3>
                     <div className="space-y-3">
                       {candidateAnalytics.commonWeaknesses.map((weakness, idx) => (
@@ -320,7 +319,7 @@ export default function DashboardClient() {
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                  <div className="card p-6">
                     <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Average Scores by Skill</h3>
                     <div className="space-y-3">
                       {Object.entries(candidateAnalytics.averageScoresBySkill).map(([skill, score]) => (
@@ -341,7 +340,7 @@ export default function DashboardClient() {
                 </div>
 
                 {/* Summary Stats */}
-                <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                <div className="card p-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="text-center">
                       <div className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">{candidateAnalytics.totalAssessedCandidates}</div>
@@ -359,7 +358,7 @@ export default function DashboardClient() {
                 </div>
               </>
             ) : (
-              <div className="bg-white dark:bg-zinc-950 p-12 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
+              <div className="card p-12 text-center">
                 <div className="text-zinc-400 text-6xl mb-4">📊</div>
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">No Candidate Data Available</h3>
                 <p className="text-zinc-500 dark:text-zinc-400">Complete some interviews to see candidate performance analytics.</p>
@@ -370,7 +369,7 @@ export default function DashboardClient() {
 
         {/* MODES TAB */}
         {activeTab === 'modes' && (
-          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+          <div className="card p-6">
             <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-zinc-100">Interview Mode Distribution</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {modeAnalytics && Object.entries(modeAnalytics.modeDistribution).map(([mode, count]) => (
@@ -388,7 +387,7 @@ export default function DashboardClient() {
 
         {/* TRENDS TAB */}
         {activeTab === 'trends' && (
-          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+          <div className="card p-6">
             <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Weekly Trends</h3>
             {trends?.labels && trends.labels.length > 0 ? (
               <div className="h-64 flex items-end gap-2 justify-between">
@@ -437,7 +436,7 @@ export default function DashboardClient() {
 
         {/* TOKENS TAB */}
         {activeTab === 'tokens' && (
-          <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 max-w-2xl">
+          <div className="card p-6 max-w-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Daily Token Usage</h3>
               <Link href="/admin/settings/tokens" className="text-sm text-blue-600 hover:underline">Manage Settings</Link>

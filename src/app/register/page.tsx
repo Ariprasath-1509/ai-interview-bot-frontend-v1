@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
-const inputCls =
-  "rounded-lg border border-zinc-200 px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700";
-const selectCls = `${inputCls} appearance-none bg-white dark:bg-zinc-950`;
+const inputCls = "input-base";
+const selectCls = "input-base appearance-none bg-white dark:bg-zinc-950";
 
 const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
@@ -92,7 +91,7 @@ export default function RegisterPage() {
   }
 
   const sectionCls = "space-y-3";
-  const sectionTitle = "text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500";
+  const sectionTitle = "section-label";
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-zinc-50 px-4 py-8 dark:bg-[#050505] sm:px-6">
@@ -194,7 +193,7 @@ export default function RegisterPage() {
               )}
 
               <button
-                className="mt-1 w-full rounded-full bg-foreground py-2.5 text-sm font-medium text-background hover:opacity-80"
+                className="mt-1 w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-opacity duration-200 hover:opacity-80"
                 type="button"
                 onClick={onRegister}
               >

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Pagination, usePagination } from '@/components/common/Pagination';
 import { SkeletonTable } from '@/components/common/Skeleton';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 
@@ -141,27 +142,25 @@ export default function InterviewReviewClient() {
 
   const paginationState = usePagination(filteredInterviews, 12);
 
-  if (loading) {
-    return <SkeletonTable rows={8} cols={6} />;
-  }
+  if (loading) return <LoadingSpinner message="Loading interviews..." />;
 
   const { page, totalPages, paginated, setPage } = paginationState;
 
-  const inputCls = "w-full p-2 border rounded-lg bg-white dark:bg-zinc-950 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100";
+  const inputCls = "input-base";
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <button
           onClick={fetchInterviews}
-          className="bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200"
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
           Refresh Data
         </button>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-zinc-950 p-4 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <div className="card p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1.5 text-zinc-700 dark:text-zinc-300">Status</label>
@@ -215,7 +214,7 @@ export default function InterviewReviewClient() {
       </div>
 
       {/* Interview Table */}
-      <div className="bg-white dark:bg-zinc-950 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
             <tr>
@@ -292,3 +291,4 @@ export default function InterviewReviewClient() {
     </div>
   );
 }
+

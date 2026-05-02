@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -11,7 +11,9 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const response = await fetch(`http://localhost:6002/auth/candidates/${params.id}/deployment-history`, {
+    const { id } = await params;
+
+    const response = await fetch(`http://localhost:6002/auth/candidates/${id}/deployment-history`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${session.token}`,

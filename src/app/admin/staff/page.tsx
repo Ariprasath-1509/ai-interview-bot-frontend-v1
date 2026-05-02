@@ -108,33 +108,33 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
           <form action={createStaff} className="grid gap-4">
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Full Name
-              <input required name="name" placeholder="Jane Smith" className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700" />
+              <input required name="name" placeholder="Jane Smith" className="input-base" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Email
-              <input required type="email" name="email" placeholder="jane@company.com" className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700" />
+              <input required type="email" name="email" placeholder="jane@company.com" className="input-base" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Password
-              <input required type="password" minLength={6} name="password" placeholder="Min 6 characters" className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700" />
+              <input required type="password" minLength={6} name="password" placeholder="Min 6 characters" className="input-base" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Role
-              <select required name="role" className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700">
+              <select required name="role" className="input-base">
                 <option value="RECRUITER">Recruiter</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Admin Source <span className="font-normal text-zinc-400">(required for Admin role)</span>
-              <select name="adminSource" className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700">
+              <select name="adminSource" className="input-base">
                 <option value="">Not applicable</option>
                 <option value="BENCH">Bench (manages Bench candidates)</option>
                 <option value="BD">BD (manages B2B candidates)</option>
                 <option value="RECRUITMENT">Recruitment (manages Market candidates)</option>
               </select>
             </label>
-            <button className="mt-4 w-full rounded-full bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80">
+            <button className="mt-4 w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-opacity duration-200 hover:opacity-80">
               Create Account
             </button>
           </form>

@@ -7,7 +7,7 @@ const ROUTE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/admin/setup", roles: ["ADMIN", "SUPER_ADMIN"] },
   { prefix: "/admin/review", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
   { prefix: "/admin/interviews", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/admin/candidates", roles: ["ADMIN", "SUPER_ADMIN"] },
+  { prefix: "/admin/candidates", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
   { prefix: "/admin/calendar", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
   { prefix: "/admin/settings", roles: ["ADMIN", "SUPER_ADMIN"] },
   { prefix: "/admin", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },

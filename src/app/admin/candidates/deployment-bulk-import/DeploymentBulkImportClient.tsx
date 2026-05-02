@@ -87,7 +87,7 @@ export default function DeploymentBulkImportClient() {
   };
 
   const downloadTemplate = () => {
-    const headers = ['No.', 'Emp ID', 'Name', 'Contact Number', 'E Mail ID', 'Personal Mail ID', 'YOE', 'Technology', 'Client Name', 'Deployed Date', 'Mentor'];
+    const headers = ['No.', 'Emp ID', 'Name', 'Contact Number', 'Official Mail ID', 'Personal Mail ID', 'YOE', 'Technology', 'Client Name', 'Deployed Date', 'Mentor'];
     const sampleData = [
       ['1', 'EMP001', 'John Doe', '9876543210', 'john@company.com', 'john@personal.com', '5', 'Java + SB', 'TechCorp', '2024-01-15', 'Jane Smith'],
       ['2', '', 'Alice Brown', '9876543211', 'alice@company.com', 'alice@personal.com', '3', 'React JS', 'StartupXYZ', '2024-02-01', '']
@@ -135,7 +135,7 @@ export default function DeploymentBulkImportClient() {
               Upload Excel File
             </CardTitle>
             <CardDescription>
-              Select an Excel (.xlsx) file with deployment data. Required columns: No., Emp ID (optional), Name, Contact Number, E Mail ID, Personal Mail ID, YOE, Technology, Client Name, Deployed Date (YYYY-MM-DD), Mentor (optional)
+              Select an Excel (.xlsx) file with deployment data. Required columns: No., Emp ID (optional), Name, Contact Number, Official Mail ID, Personal Mail ID, YOE, Technology, Client Name, Deployed Date (YYYY-MM-DD), Mentor (optional)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -250,27 +250,30 @@ export default function DeploymentBulkImportClient() {
                     }`}
                   >
                     <Badge 
-                      variant={
-                        detail.status === 'SUCCESS' ? 'default' :
-                        detail.status === 'WARNING' ? 'secondary' :
-                        'destructive'
-                      }
-                      className="mt-0.5"
+                      variant="outline"
+                      className="mt-0.5 shrink-0"
                     >
-                      Row {detail.rowNumber}
+                      Row {detail.rowNumber || detail.row}
                     </Badge>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium">{detail.email}</span>
+                        {detail.name && (
+                          <span className="text-sm font-medium">{detail.name}</span>
+                        )}
+                        {detail.email && (
+                          <span className="text-xs text-gray-600">{detail.email}</span>
+                        )}
                         {detail.empId && (
                           <Badge variant="outline" className="text-xs">{detail.empId}</Badge>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600">
-                        {detail.clientName} • {detail.deployedDate}
-                        {detail.mentor && ` • Mentor: ${detail.mentor}`}
-                      </div>
-                      <p className={`text-sm mt-1 ${
+                      {detail.clientName && detail.deployedDate && (
+                        <div className="text-xs text-gray-600 mb-1">
+                          {detail.clientName} • {detail.deployedDate}
+                          {detail.mentor && ` • Mentor: ${detail.mentor}`}
+                        </div>
+                      )}
+                      <p className={`text-sm ${
                         detail.status === 'SUCCESS' ? 'text-green-700' :
                         detail.status === 'WARNING' ? 'text-yellow-700' :
                         'text-red-700'

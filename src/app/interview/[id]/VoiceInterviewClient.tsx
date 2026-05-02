@@ -747,7 +747,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="card p-4">
       {speechError ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="font-medium">Microphone / speech</div>
@@ -814,14 +814,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setShowConfirm(false)}
-                  className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => void abandonInterview(utterances, "not_prepared")}
                   disabled={abandoning}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700 disabled:opacity-50"
                 >
                   {abandoning ? "Ending..." : "Yes, end interview"}
                 </button>
@@ -838,14 +838,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
           {micPhase === "idle" ? (
             <>
               <button
-                className="rounded-full bg-foreground px-4 py-2 text-sm text-background hover:bg-zinc-800 dark:hover:bg-zinc-200"
+                className="rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
                 type="button"
                 onClick={() => void start()}
               >
                 Start (mic)
               </button>
               <button
-                className="rounded-full border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
                 type="button"
                 onClick={() => void startTypedOnly()}
               >
@@ -854,7 +854,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
             </>
           ) : (
             <button
-              className="rounded-full border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
               type="button"
               onClick={stop}
             >
@@ -896,14 +896,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
           </label>
           <textarea
             id="typed-interview-reply"
-            className="mt-1 min-h-[88px] w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-black"
+            className="input-base mt-1 min-h-[88px]"
             value={typedDraft}
             onChange={(e) => setTypedDraft(e.target.value)}
             placeholder="Write your technical answer here…"
           />
           <button
             type="button"
-            className="mt-2 rounded-full bg-foreground px-4 py-2 text-sm text-background hover:bg-zinc-800 dark:hover:bg-zinc-200"
+            className="mt-2 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
             onClick={() => void submitTypedReply()}
           >
             Submit typed reply
@@ -920,7 +920,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         <button
           type="button"
           disabled={!listening || typedAnswersOnly}
-          className="w-fit rounded-full border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          className="w-fit rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
           onClick={() => {
             const rec = recognitionRef.current;
             if (!rec || !sessionActiveRef.current) return;

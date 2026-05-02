@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -11,9 +11,10 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json().catch(() => ({}));
     
-    const response = await fetch(`http://localhost:6002/auth/candidates/${params.id}/end-deployment`, {
+    const response = await fetch(`http://localhost:6002/auth/candidates/${id}/end-deployment`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.token}`,

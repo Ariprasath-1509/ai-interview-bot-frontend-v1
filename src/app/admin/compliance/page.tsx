@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
-import { SidebarLayout } from '@/components/common/SidebarLayout';
-import { getAdminSidebarItems } from '@/config/roleConfig';
+import { AppShell } from '@/app/components/AppShell';
 import ComplianceClient from './ComplianceClient';
 
 export default async function CompliancePage() {
@@ -11,14 +10,11 @@ export default async function CompliancePage() {
   }
 
   return (
-    <SidebarLayout
+    <AppShell
       title="Compliance"
       subtitle="Audit logs and retention policies"
-      items={getAdminSidebarItems()}
-      username={session.username}
-      role={session.role}
     >
       <ComplianceClient />
-    </SidebarLayout>
+    </AppShell>
   );
 }

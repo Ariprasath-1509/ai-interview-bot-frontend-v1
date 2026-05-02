@@ -84,17 +84,20 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
     ],
   },
   RECRUITER: {
-    defaultRoute: "/admin/review",
+    defaultRoute: "/admin",
     sidebar: [
       { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
+      { href: "/admin/interviews/create", label: "Create Interview", icon: "UserPlus" },
       { href: "/admin/review", label: "Review", icon: "ClipboardList" },
+      { href: "/admin/candidates", label: "Candidates", icon: "Users" },
       { href: "/admin/matching", label: "AI Matching", icon: "Sparkles" },
       { href: "/admin/clients", label: "Clients", icon: "Building2" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
     ],
     permissions: [
-      "dashboard.view", "interviews.review", "interviews.observe", "interviews.inject",
-      "clients.manage", "matching.view", "analytics.view", "calendar.view",
+      "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
+      "interviews.observe", "interviews.inject", "candidates.view", "clients.manage",
+      "matching.view", "analytics.view", "calendar.view",
     ],
   },
   CANDIDATE: {

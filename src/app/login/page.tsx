@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
-const inputCls =
-  "rounded-lg border border-zinc-200 px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-zinc-700";
+const inputCls = "input-base";
 
 const ROLE_ROUTES: Record<string, string> = {
   CANDIDATE: "/candidate/dashboard",
@@ -20,6 +20,7 @@ function redirectForRole(role: string, fallback: string) {
 function StaffLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const next = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -50,10 +51,20 @@ function StaffLogin() {
       </label>
       <label className="grid gap-1.5 text-sm font-medium">
         Password
-        <input className={inputCls} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <div className="relative">
+          <input className={`${inputCls} pr-10`} type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="button" onClick={() => setShowPwd((v) => !v)} aria-label={showPwd ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 transition-colors duration-150 hover:text-zinc-600 dark:hover:text-zinc-300">
+            {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
       </label>
+      <div className="text-right">
+        <Link href="/forgot-password" className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+          Forgot password?
+        </Link>
+      </div>
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">{error}</p>}
-      <button className="mt-1 w-full rounded-full bg-foreground py-2.5 text-sm font-medium text-background hover:opacity-80" type="button" onClick={onLogin}>
+      <button className="mt-1 w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-opacity duration-200 hover:opacity-80" type="button" onClick={onLogin}>
         Sign in
       </button>
     </div>
@@ -63,6 +74,7 @@ function StaffLogin() {
 function CandidateLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function onLogin() {
@@ -91,8 +103,18 @@ function CandidateLogin() {
       </label>
       <label className="grid gap-1.5 text-sm font-medium">
         Password
-        <input className={inputCls} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <div className="relative">
+          <input className={`${inputCls} pr-10`} type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="button" onClick={() => setShowPwd((v) => !v)} aria-label={showPwd ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 transition-colors duration-150 hover:text-zinc-600 dark:hover:text-zinc-300">
+            {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
       </label>
+      <div className="text-right">
+        <Link href="/forgot-password" className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+          Forgot password?
+        </Link>
+      </div>
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
           {isNotRegistered ? (
@@ -100,7 +122,7 @@ function CandidateLogin() {
           ) : error}
         </p>
       )}
-      <button className="mt-1 w-full rounded-full bg-foreground py-2.5 text-sm font-medium text-background hover:opacity-80" type="button" onClick={onLogin}>
+      <button className="mt-1 w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-opacity duration-200 hover:opacity-80" type="button" onClick={onLogin}>
         Sign in
       </button>
       <p className="text-center text-sm text-zinc-500">
@@ -115,7 +137,7 @@ export default function LoginPage() {
   const [tab, setTab] = useState<"staff" | "candidate">("candidate");
 
   const tabCls = (active: boolean) =>
-    `flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+    `flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
       active ? "bg-white shadow-sm dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
     }`;
 

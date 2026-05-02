@@ -105,8 +105,8 @@ export default async function CandidateDashboard() {
           {profile && <ProfileCompletionCard profile={profile} />}
 
           {/* Quick stats */}
-          <div className="rounded-2xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 mb-3">Quick Stats</h3>
+          <div className="card p-5">
+            <h3 className="section-label mb-3">Quick Stats</h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{upcoming.length}</p>
@@ -145,7 +145,7 @@ export default async function CandidateDashboard() {
                 </div>
                 <Link
                   href={`/candidate/matches`}
-                  className="rounded-full bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white transition-colors duration-200 hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
                 >
                   View All Matches
                 </Link>
@@ -187,7 +187,7 @@ export default async function CandidateDashboard() {
                       <td className="px-4 py-3 text-right">
                         <Link
                           href={`/interview/${i.id}`}
-                          className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                          className="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white transition-colors duration-200 hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
                         >
                           Attend
                         </Link>
@@ -243,7 +243,7 @@ export default async function CandidateDashboard() {
                       <td className="px-4 py-3 text-right">
                         <Link
                           href={`/candidate/feedback/${i.id}`}
-                          className="rounded-full border border-zinc-300 px-4 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                          className="rounded-lg border border-zinc-200 px-4 py-1.5 text-xs font-medium transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
                         >
                           View Feedback
                         </Link>

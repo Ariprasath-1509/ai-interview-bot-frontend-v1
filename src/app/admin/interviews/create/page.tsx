@@ -12,7 +12,7 @@ interface PageProps {
 
 export default async function CreateInterviewPage({ searchParams }: PageProps) {
   const session = await getSession();
-  if (!session || !['ADMIN', 'SUPER_ADMIN'].includes(session.role)) {
+  if (!session || !['ADMIN', 'SUPER_ADMIN', 'RECRUITER'].includes(session.role)) {
     redirect('/login');
   }
 

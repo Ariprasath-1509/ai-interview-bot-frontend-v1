@@ -50,7 +50,7 @@ export default async function TalentQuestionsPage({
             <label className="grid gap-2 text-sm">
               Prompt
               <textarea
-                className="min-h-[120px] rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                className="input-base min-h-[120px]"
                 name="prompt"
                 required
                 minLength={10}
@@ -61,7 +61,7 @@ export default async function TalentQuestionsPage({
               <label className="grid gap-2 text-sm">
                 Skill track
                 <input
-                  className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                  className="input-base"
                   name="skillTrack"
                   placeholder="backend"
                 />
@@ -69,7 +69,7 @@ export default async function TalentQuestionsPage({
               <label className="grid gap-2 text-sm">
                 Level
                 <input
-                  className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                  className="input-base"
                   name="level"
                   placeholder="senior"
                 />
@@ -77,7 +77,7 @@ export default async function TalentQuestionsPage({
               <label className="grid gap-2 text-sm">
                 Slot (1–10)
                 <input
-                  className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                  className="input-base"
                   name="slot"
                   placeholder="7"
                 />
@@ -85,14 +85,14 @@ export default async function TalentQuestionsPage({
               <label className="grid gap-2 text-sm">
                 Theme
                 <input
-                  className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-black"
+                  className="input-base"
                   name="theme"
                   placeholder="system design"
                 />
               </label>
             </div>
             <button
-              className="w-fit rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-zinc-800 dark:hover:bg-zinc-200"
+              className="w-fit rounded-lg bg-foreground px-5 py-2 text-sm font-medium text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
               type="submit"
             >
               Create

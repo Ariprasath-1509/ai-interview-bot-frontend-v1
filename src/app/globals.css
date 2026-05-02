@@ -2,14 +2,60 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── Design tokens ─────────────────────────────────────────────────── */
 :root {
   --background: #fafafa;
   --foreground: #09090b;
+
+  /* Typography */
+  --text-heading:   #18181b;   /* zinc-900  */
+  --text-body:      #3f3f46;   /* zinc-700  */
+  --text-secondary: #71717a;   /* zinc-500  */
+  --text-muted:     #a1a1aa;   /* zinc-400  */
+
+  /* Brand */
+  --color-primary:       #2563eb;  /* blue-600  */
+  --color-primary-hover: #1d4ed8;  /* blue-700  */
+  --color-danger:        #dc2626;  /* red-600   */
+  --color-danger-hover:  #b91c1c;  /* red-700   */
+  --color-success:       #16a34a;  /* green-600 */
+  --color-warning:       #d97706;  /* amber-600 */
+
+  /* Surface */
+  --surface:        #ffffff;
+  --surface-subtle: #f4f4f5;  /* zinc-100 */
+  --border:         #e4e4e7;  /* zinc-200 */
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+  /* Transitions */
+  --transition-fast:   150ms ease;
+  --transition-base:   200ms ease;
+  --transition-slow:   300ms ease;
 }
 
 .dark {
   --background: #0a0a0a;
   --foreground: #ededed;
+
+  --text-heading:   #fafafa;
+  --text-body:      #d4d4d8;
+  --text-secondary: #a1a1aa;
+  --text-muted:     #71717a;
+
+  --surface:        #09090b;
+  --surface-subtle: #18181b;
+  --border:         #27272a;
 }
 
 @theme inline {
@@ -19,25 +65,78 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ── Base ───────────────────────────────────────────────────────────── */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(24, 24, 27, 0.15);
+  background: rgba(37, 99, 235, 0.15);
 }
 
+/* ── Typography scale ───────────────────────────────────────────────── */
+h1 { @apply text-2xl font-bold   tracking-tight text-zinc-900 dark:text-zinc-50; }
+h2 { @apply text-xl  font-semibold tracking-tight text-zinc-900 dark:text-zinc-50; }
+h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
+
+/* ── Shared component classes ───────────────────────────────────────── */
+
+/* Card — single source of truth */
 .card {
-  @apply rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black;
+  @apply rounded-xl border border-zinc-200 bg-white shadow-sm
+         dark:border-zinc-800 dark:bg-zinc-950;
 }
 
+/* Glass card (login / register / candidate dashboard) */
+.card-glass {
+  @apply rounded-2xl border border-white/20 bg-white/70 shadow-lg backdrop-blur-xl
+         dark:border-zinc-800/50 dark:bg-zinc-950/60;
+}
+
+/* Form field wrapper */
+.field {
+  @apply grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300;
+}
+
+/* Shared input / select / textarea base */
+.input-base {
+  @apply flex w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm
+         text-zinc-900 placeholder:text-zinc-400
+         transition-[border-color,box-shadow] duration-150
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1
+         disabled:cursor-not-allowed disabled:opacity-50
+         dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100
+         dark:placeholder:text-zinc-500 dark:focus-visible:ring-blue-400;
+}
+
+/* Section label (uppercase small caps) */
+.section-label {
+  @apply text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500;
+}
+
+/* Status / verdict badge pill */
+.badge-pill {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────── */
 @keyframes slide-in-from-bottom {
-  from { transform: translateY(1rem); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from { transform: translateY(0.75rem); opacity: 0; }
+  to   { transform: translateY(0);       opacity: 1; }
 }
 .animate-in {
   animation: slide-in-from-bottom 0.2s ease-out;
+}
+
+@keyframes spin-smooth {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  @apply inline-block h-10 w-10 rounded-full border-[3px] border-zinc-200 border-t-blue-600
+         dark:border-zinc-700 dark:border-t-blue-400;
+  animation: spin-smooth 0.75s linear infinite;
 }
