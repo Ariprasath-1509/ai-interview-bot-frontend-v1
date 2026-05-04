@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
@@ -17,7 +19,7 @@ export async function GET(
     const { candidateId } = await params;
 
     // Download resume from backend
-    const response = await fetch(`http://localhost:6002/resumes/${candidateId}/download`, {
+    const response = await fetch(`${GATEWAY}/resumes/${candidateId}/download`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },

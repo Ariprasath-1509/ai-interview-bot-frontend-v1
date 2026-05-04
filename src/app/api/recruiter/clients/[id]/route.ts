@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -9,7 +11,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const response = await fetch(`http://localhost:6002/recruiter/clients/${id}`, {
+    const response = await fetch(`${GATEWAY}/recruiter/clients/${id}`, {
       headers: {
         'Authorization': `Bearer ${session.token}`,
         'Content-Type': 'application/json'
@@ -40,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const body = await request.json();
 
-    const response = await fetch(`http://localhost:6002/recruiter/clients/${id}`, {
+    const response = await fetch(`${GATEWAY}/recruiter/clients/${id}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${session.token}`,
@@ -71,7 +73,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const response = await fetch(`http://localhost:6002/recruiter/clients/${id}`, {
+    const response = await fetch(`${GATEWAY}/recruiter/clients/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${session.token}`,

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
@@ -23,7 +25,7 @@ export async function PATCH(
     }
 
     // Update resume summary in backend
-    const response = await fetch(`http://localhost:6002/resumes/${candidateId}/summary`, {
+    const response = await fetch(`${GATEWAY}/resumes/${candidateId}/summary`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,

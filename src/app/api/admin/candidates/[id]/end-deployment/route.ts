@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,7 +16,7 @@ export async function POST(
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     
-    const response = await fetch(`http://localhost:6002/auth/candidates/${id}/end-deployment`, {
+    const response = await fetch(`${GATEWAY}/auth/candidates/${id}/end-deployment`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.token}`,

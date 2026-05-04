@@ -5,7 +5,7 @@ const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) {
@@ -13,9 +13,10 @@ export async function PATCH(
   }
 
   try {
+    const { id } = await params;
     const body = await req.json();
     
-    const response = await fetch(`${GATEWAY}/drives/${params.id}/status`, {
+    const response = await fetch(`${GATEWAY}/drives/${id}/status`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${session.token}`,

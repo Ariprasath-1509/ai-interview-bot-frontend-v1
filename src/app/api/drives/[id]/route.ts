@@ -7,11 +7,12 @@ const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Public access - no auth required for viewing drive details
   try {
-    const response = await fetch(`${GATEWAY}/drives/${params.id}`);
+    const { id } = await params;
+    const response = await fetch(`${GATEWAY}/drives/${id}`);
 
     if (!response.ok) {
       return new NextResponse('Drive not found', { status: 404 });
@@ -27,7 +28,7 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) {
@@ -35,9 +36,10 @@ export async function PUT(
   }
 
   try {
+    const { id } = await params;
     const body = await req.json();
     
-    const response = await fetch(`${GATEWAY}/drives/${params.id}`, {
+    const response = await fetch(`${GATEWAY}/drives/${id}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${session.token}`,
@@ -60,7 +62,7 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) {
@@ -68,7 +70,8 @@ export async function DELETE(
   }
 
   try {
-    const response = await fetch(`${GATEWAY}/drives/${params.id}`, {
+    const { id } = await params;
+    const response = await fetch(`${GATEWAY}/drives/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${session.token}`
