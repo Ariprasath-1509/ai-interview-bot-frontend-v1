@@ -329,7 +329,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
           updatedFormData.interviewMode = value;
           fieldsPopulated.push('interviewMode');
         } else {
-          updatedFormData[key as keyof InterviewFormData] = value as any;
+          (updatedFormData as Record<string, unknown>)[key] = value;
           fieldsPopulated.push(key);
         }
       }
