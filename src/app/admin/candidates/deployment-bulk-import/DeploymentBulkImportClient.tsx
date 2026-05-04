@@ -11,6 +11,7 @@ import { Upload, Download, CheckCircle, XCircle, AlertTriangle, Users, FileSprea
 interface DeploymentDetail {
   rowNumber: number;
   empId: string | null;
+  name?: string | null;
   email: string;
   clientName: string;
   deployedDate: string;
@@ -253,7 +254,7 @@ export default function DeploymentBulkImportClient() {
                       variant="outline"
                       className="mt-0.5 shrink-0"
                     >
-                      Row {detail.rowNumber || detail.row}
+                      Row {detail.rowNumber}
                     </Badge>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
