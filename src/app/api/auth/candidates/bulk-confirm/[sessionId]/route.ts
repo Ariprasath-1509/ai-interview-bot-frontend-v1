@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ sessionId: string }> }) {
   try {
     const { sessionId } = await params;
@@ -11,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ ok: false, error: 'Authentication required' }, { status: 401 });
     }
 
-    const response = await fetch(`http://localhost:6002/auth/candidates/bulk-confirm/${sessionId}`, {
+    const response = await fetch(`${GATEWAY}/auth/candidates/bulk-confirm/${sessionId}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

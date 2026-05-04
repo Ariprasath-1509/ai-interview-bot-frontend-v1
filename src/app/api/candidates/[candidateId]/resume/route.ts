@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
@@ -33,9 +35,9 @@ export async function POST(
     const backendFormData = new FormData();
     backendFormData.append('resume', file);
 
-    console.log('Forwarding to backend:', `http://localhost:6002/resumes/upload`);
+    console.log('Forwarding to backend:', `${GATEWAY}/resumes/upload`);
 
-    const response = await fetch(`http://localhost:6002/resumes/upload`, {
+    const response = await fetch(`${GATEWAY}/resumes/upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -76,7 +78,7 @@ export async function GET(
     const { candidateId } = await params;
 
     // Get resume info from backend
-    const response = await fetch(`http://localhost:6002/resumes/${candidateId}`, {
+    const response = await fetch(`${GATEWAY}/resumes/${candidateId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'X-User-Id': candidateId,

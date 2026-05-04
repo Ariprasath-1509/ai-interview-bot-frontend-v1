@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { positionId: string } }
+  { params }: { params: Promise<{ positionId: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -10,7 +10,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { positionId } = params;
+    const { positionId } = await params;
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/matching/find-matches/${positionId}`, {
       headers: {
