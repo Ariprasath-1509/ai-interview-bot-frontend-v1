@@ -1,6 +1,6 @@
 "use client";
 
-type TimelineStep = {
+export type TimelineStep = {
   label: string;
   status: "completed" | "current" | "upcoming";
   date?: string;
