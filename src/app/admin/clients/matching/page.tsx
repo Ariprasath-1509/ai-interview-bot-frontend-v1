@@ -3,7 +3,7 @@ import ClientMatchingDashboard from './ClientMatchingDashboard';
 
 export default function ClientMatchingDashboardPage() {
   return (
-    <AppShell>
+    <AppShell title="Client Matching">
       <ClientMatchingDashboard />
     </AppShell>
   );
