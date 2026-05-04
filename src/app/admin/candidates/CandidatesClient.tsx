@@ -270,10 +270,12 @@ export default function CandidatesClient() {
   };
 
   const handleEndDeployment = async (candidateId: string, candidateName: string) => {
-    const confirmed = await confirm(
-      `End deployment for ${candidateName}?`,
-      'This will move the candidate back to B2B (RFD status) and mark the deployment as completed.'
-    );
+    const confirmed = await confirm({
+      title: `End deployment for ${candidateName}?`,
+      message: 'This will move the candidate back to B2B (RFD status) and mark the deployment as completed.',
+      confirmLabel: 'End Deployment',
+      variant: 'danger',
+    });
     
     if (!confirmed) return;
 
