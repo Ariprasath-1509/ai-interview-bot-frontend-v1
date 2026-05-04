@@ -3,7 +3,7 @@ import AIMatchingClient from './AIMatchingClient';
 
 export default function AIMatchingPage() {
   return (
-    <AppShell>
+    <AppShell title="AI Matching">
       <AIMatchingClient />
     </AppShell>
   );
