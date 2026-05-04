@@ -1,9 +1,9 @@
-import { AppShell } from '@/components/layout/AppShell';
+import { AppShell } from '@/app/components/AppShell';
 import AIMatchingClient from './AIMatchingClient';
 
 export default function AIMatchingPage() {
   return (
-    <AppShell>
+    <AppShell title="AI Matching">
       <AIMatchingClient />
     </AppShell>
   );

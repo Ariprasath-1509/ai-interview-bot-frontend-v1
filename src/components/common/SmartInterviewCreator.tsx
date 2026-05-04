@@ -163,7 +163,7 @@ export function SmartInterviewCreator({ positionId, positionTitle, onInterviewCr
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger>
         <Button className="w-full">
           <Zap className="h-4 w-4 mr-2" />
           Smart Interview Creation
