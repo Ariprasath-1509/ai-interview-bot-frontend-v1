@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,7 +15,7 @@ export async function GET(
 
     const { id: candidateId } = await params;
 
-    const clientsRes = await fetch('http://localhost:6002/recruiter/clients', {
+    const clientsRes = await fetch(`${GATEWAY}/recruiter/clients`, {
       headers: {
         'Authorization': `Bearer ${session.token}`,
         'Content-Type': 'application/json'
@@ -30,7 +32,7 @@ export async function GET(
     for (const client of clients) {
       try {
         const matchRes = await fetch(
-          `http://localhost:6002/clients/matching/${client.id}?source=BENCH_B2B`,
+          `${GATEWAY}/clients/matching/${client.id}?source=BENCH_B2B`,
           {
             headers: {
               'Authorization': `Bearer ${session.token}`,

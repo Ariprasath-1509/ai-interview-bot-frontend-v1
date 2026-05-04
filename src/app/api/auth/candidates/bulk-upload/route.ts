@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -21,7 +23,7 @@ export async function POST(request: NextRequest) {
     const backendFormData = new FormData();
     backendFormData.append('file', file);
 
-    const response = await fetch('http://localhost:6002/auth/candidates/bulk-upload', {
+    const response = await fetch(`${GATEWAY}/auth/candidates/bulk-upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

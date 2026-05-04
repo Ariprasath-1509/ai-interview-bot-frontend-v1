@@ -7,7 +7,7 @@ const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) {
@@ -15,7 +15,8 @@ export async function GET(
   }
 
   try {
-    const response = await fetch(`${GATEWAY}/drives/${params.id}/candidates`, {
+    const { id } = await params;
+    const response = await fetch(`${GATEWAY}/drives/${id}/candidates`, {
       headers: {
         'Authorization': `Bearer ${session.token}`,
         'Content-Type': 'application/json'

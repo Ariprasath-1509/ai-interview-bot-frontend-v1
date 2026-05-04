@@ -4,13 +4,14 @@ const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Public endpoint - no authentication required
   try {
+    const { id } = await params;
     const body = await req.json();
     
-    const response = await fetch(`${GATEWAY}/drives/${params.id}/register`, {
+    const response = await fetch(`${GATEWAY}/drives/${id}/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

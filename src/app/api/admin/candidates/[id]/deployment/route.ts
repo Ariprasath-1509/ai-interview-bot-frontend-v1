@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,7 +16,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     
-    const response = await fetch(`http://localhost:6002/auth/candidates/${id}/deployment`, {
+    const response = await fetch(`${GATEWAY}/auth/candidates/${id}/deployment`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${session.token}`,
@@ -49,7 +51,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const response = await fetch(`http://localhost:6002/auth/candidates/${id}/deployment`, {
+    const response = await fetch(`${GATEWAY}/auth/candidates/${id}/deployment`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${session.token}`,

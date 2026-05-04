@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { region: string } }
+  { params }: { params: Promise<{ region: string }> }
 ) {
   try {
     const session = await getSession();
@@ -12,10 +14,10 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const region = params.region;
+    const { region } = await params;
 
     const response = await fetch(
-      `http://localhost:6002/compliance/retention-policies/${region}`,
+      `${GATEWAY}/compliance/retention-policies/${region}`,
       {
         method: 'PUT',
         headers: {

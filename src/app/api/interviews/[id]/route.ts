@@ -3,6 +3,8 @@ import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
@@ -11,7 +13,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 
   try {
-    const response = await fetch(`http://localhost:6002/interviews/${id}`, {
+    const response = await fetch(`${GATEWAY}/interviews/${id}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${session.token}`,
