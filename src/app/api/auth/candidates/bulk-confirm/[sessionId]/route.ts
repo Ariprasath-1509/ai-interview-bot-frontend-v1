@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ sessionId: string }> }) {
   try {

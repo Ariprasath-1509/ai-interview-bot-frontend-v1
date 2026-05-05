@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
     if (clientId) queryString.append('clientId', clientId);
 
     const response = await fetch(
-      `${process.env.BACKEND_URL || 'http://localhost:6002'}/interviews/auto-fill/preview?${queryString.toString()}`,
+      `${process.env.BACKEND_URL || `${GATEWAY}`}/interviews/auto-fill/preview?${queryString.toString()}`,
       {
         method: 'GET',
         headers: {

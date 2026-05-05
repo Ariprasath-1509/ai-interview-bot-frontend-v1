@@ -12,7 +12,7 @@ export async function GET(
 
     const { positionId } = await params;
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/matching/find-matches/${positionId}`, {
+    const response = await fetch(`${process.env.API_URL}/matching/find-matches/${positionId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'

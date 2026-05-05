@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
@@ -12,7 +14,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    const response = await fetch("http://localhost:6002/tokens/limits", {
+    const response = await fetch(`${GATEWAY}/tokens/limits`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${session.token}`,

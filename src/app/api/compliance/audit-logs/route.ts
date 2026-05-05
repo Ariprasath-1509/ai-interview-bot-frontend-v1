@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -14,7 +16,7 @@ export async function GET(request: NextRequest) {
     const size = searchParams.get('size') || '50';
 
     console.log(`[API] Fetching audit logs: page=${page}, size=${size}`);
-    const url = `http://localhost:6002/compliance/audit-logs?page=${page}&size=${size}`;
+    const url = `${GATEWAY}/compliance/audit-logs?page=${page}&size=${size}`;
     console.log('[API] Calling:', url);
 
     const response = await fetch(url, {
