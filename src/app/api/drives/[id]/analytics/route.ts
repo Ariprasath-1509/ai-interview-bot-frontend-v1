@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export async function GET(
   req: Request,

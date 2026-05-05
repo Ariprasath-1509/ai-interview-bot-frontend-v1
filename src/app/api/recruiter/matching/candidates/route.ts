@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -13,7 +15,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Matching request body:', body);
     
-    const backendUrl = `${process.env.BACKEND_URL || 'http://localhost:6002'}/matching/candidates`;
+    const backendUrl = `${process.env.BACKEND_URL || `${GATEWAY}`}/matching/candidates`;
     console.log('Calling backend URL:', backendUrl);
     
     const response = await fetch(backendUrl, {

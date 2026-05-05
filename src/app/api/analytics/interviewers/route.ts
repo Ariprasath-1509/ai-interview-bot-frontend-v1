@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -10,7 +12,7 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch("http://localhost:6002/analytics/interviewers", {
+    const response = await fetch(`${GATEWAY}/analytics/interviewers`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"

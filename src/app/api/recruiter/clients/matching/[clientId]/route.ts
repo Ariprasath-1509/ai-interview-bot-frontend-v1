@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:6002';
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export async function GET(
   request: NextRequest,

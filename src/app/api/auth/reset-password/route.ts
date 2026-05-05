@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const GATEWAY_URL = process.env.GATEWAY_URL || "http://localhost:6002";
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email, OTP, and new password are required" }, { status: 400 });
     }
 
-    const res = await fetch(`${GATEWAY_URL}/auth/reset-password`, {
+    const res = await fetch(`${GATEWAY}/auth/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, otp, newPassword }),

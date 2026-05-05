@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -12,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     
-    const response = await fetch(`${process.env.BACKEND_URL || 'http://localhost:6002'}/interviews`, {
+    const response = await fetch(`${process.env.BACKEND_URL || `${GATEWAY}`}/interviews`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

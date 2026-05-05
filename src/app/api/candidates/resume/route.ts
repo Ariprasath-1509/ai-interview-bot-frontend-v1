@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
       hasToken: !!session.token
     });
     
-    const response = await fetch('http://localhost:6002/resumes/upload', {
+    const response = await fetch(`${GATEWAY}/resumes/upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.token}`,

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -10,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     
-    const response = await fetch('http://localhost:6002/auth/candidates/deployment/bulk-import', {
+    const response = await fetch(`${GATEWAY}/auth/candidates/deployment/bulk-import`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.token}`,
