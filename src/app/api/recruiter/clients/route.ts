@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -12,7 +14,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     // If no search parameter, return all clients
-    let backendUrl = 'http://localhost:6002/recruiter/clients';
+    let backendUrl = `${GATEWAY}/recruiter/clients`;
     if (search) {
       backendUrl += `?search=${encodeURIComponent(search)}`;
     }
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const response = await fetch('http://localhost:6002/recruiter/clients', {
+    const response = await fetch(`${GATEWAY}/recruiter/clients`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.token}`,

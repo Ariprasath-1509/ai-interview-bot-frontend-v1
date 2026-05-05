@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -10,13 +12,13 @@ export async function GET(request: NextRequest) {
 
     // Get all clients with matching overview
     const [overviewResponse, allClientsResponse] = await Promise.all([
-      fetch('http://localhost:6002/clients/matching/overview', {
+      fetch(`${GATEWAY}/clients/matching/overview`, {
         headers: {
           'Authorization': `Bearer ${session.token}`,
           'Content-Type': 'application/json'
         }
       }),
-      fetch('http://localhost:6002/recruiter/clients', {
+      fetch(`${GATEWAY}/recruiter/clients`, {
         headers: {
           'Authorization': `Bearer ${session.token}`,
           'Content-Type': 'application/json'

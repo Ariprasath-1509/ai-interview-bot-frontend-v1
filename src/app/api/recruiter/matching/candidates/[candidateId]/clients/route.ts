@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 interface PageProps {
   params: Promise<{ candidateId: string }>;
 }
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest, { params }: PageProps) {
     }
 
     // Get all clients with matching overview to find which ones have this candidate
-    const response = await fetch('http://localhost:6002/clients/matching/overview', {
+    const response = await fetch(`${GATEWAY}/clients/matching/overview`, {
       headers: {
         'Authorization': `Bearer ${session.token}`,
         'Content-Type': 'application/json'
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest, { params }: PageProps) {
         const sources = ['BENCH_B2B', 'MARKET'];
         
         for (const source of sources) {
-          const matchResponse = await fetch(`http://localhost:6002/clients/matching/${client.clientId}?source=${source}`, {
+          const matchResponse = await fetch(`${GATEWAY}/clients/matching/${client.clientId}?source=${source}`, {
             headers: {
               'Authorization': `Bearer ${session.token}`,
               'Content-Type': 'application/json'
@@ -56,7 +58,7 @@ export async function GET(request: NextRequest, { params }: PageProps) {
             
             if (candidateMatch) {
               // Get full client details from the backend
-              const clientDetailResponse = await fetch(`http://localhost:6002/recruiter/clients/${client.clientId}`, {
+              const clientDetailResponse = await fetch(`${GATEWAY}/recruiter/clients/${client.clientId}`, {
                 headers: {
                   'Authorization': `Bearer ${session.token}`,
                   'Content-Type': 'application/json'

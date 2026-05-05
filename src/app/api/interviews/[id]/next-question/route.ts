@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 
 export const runtime = "nodejs";
 
-const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 const BodySchema = z.object({
   slot: z.number().int().min(1).max(10),

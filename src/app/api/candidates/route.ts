@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
@@ -13,7 +15,7 @@ export async function GET(req: Request) {
   const search = searchParams.get("search") ?? "";
 
   try {
-    const response = await fetch(`http://localhost:6002/auth/candidates?search=${encodeURIComponent(search)}`, {
+    const response = await fetch(`${GATEWAY}/auth/candidates?search=${encodeURIComponent(search)}`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -13,8 +15,8 @@ export async function GET(request: NextRequest) {
 
     // Build URL with search parameter only if provided
     const url = search 
-      ? `http://localhost:6002/auth/candidates?search=${encodeURIComponent(search)}`
-      : `http://localhost:6002/auth/candidates`;
+      ? `${GATEWAY}/auth/candidates?search=${encodeURIComponent(search)}`
+      : `${GATEWAY}/auth/candidates`;
 
     const response = await fetch(url, {
       headers: {

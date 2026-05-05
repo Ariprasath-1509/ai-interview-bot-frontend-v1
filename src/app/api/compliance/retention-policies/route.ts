@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -8,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const response = await fetch('http://localhost:6002/compliance/retention-policies', {
+    const response = await fetch(`${GATEWAY}/compliance/retention-policies`, {
       headers: {
         'Authorization': `Bearer ${session.token}`,
         'Content-Type': 'application/json'
