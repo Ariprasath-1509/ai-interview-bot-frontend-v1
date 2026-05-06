@@ -35,6 +35,9 @@ interface Candidate {
   deployedClientName?: string | null;
   deployedDate?: string | null;
   mentor?: string | null;
+  batchMentor?: string | null;
+  interviewMentorName?: string | null;
+  clientName?: string | null;
 }
 
 const SKILL_LABEL: Record<string, string> = { JAVA_SB: 'Java + SB', JFSR: 'JFSR', REACT_JS: 'React JS' };
@@ -50,6 +53,7 @@ const STATUS_BADGE: Record<string, string> = {
   RFD: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
   WFD: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
   DOB: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800/50',
+  TRAINING: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-800/50',
   DEPLOYED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800/50',
 };
 
@@ -358,7 +362,7 @@ export default function CandidatesClient() {
         <>
           {/* Search & Filters */}
           <div className="card p-6">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="md:col-span-2">
                 <input
                   className={inputCls}
@@ -378,6 +382,13 @@ export default function CandidatesClient() {
                 <option value="B2B">B2B</option>
                 <option value="BENCH">Bench</option>
                 <option value="MARKET">Market</option>
+              </select>
+              <select className={inputCls} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                <option value="">All Statuses</option>
+                <option value="RFD">RFD</option>
+                <option value="WFD">WFD</option>
+                <option value="DOB">DOB</option>
+                <option value="TRAINING">Training</option>
               </select>
               <select className={inputCls} value={filterRating} onChange={e => setFilterRating(e.target.value)}>
                 <option value="">All Ratings</option>
@@ -409,6 +420,7 @@ export default function CandidatesClient() {
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Name</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Contact</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Batch</th>
+              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Batch Mentor</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Source</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Skill</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">YOE (A/P)</th>
@@ -417,6 +429,8 @@ export default function CandidatesClient() {
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Status</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Rating</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Interviews</th>
+              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Interview Mentor</th>
+              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Client</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Matching</th>
               <th className="px-3 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">Actions</th>
             </tr>
@@ -432,6 +446,7 @@ export default function CandidatesClient() {
                   {c.contactNumber || '—'}
                 </td>
                 <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.batch || '—'}</td>
+                <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.batchMentor || '—'}</td>
                 <td className="px-3 py-3">
                   {c.source ? (
                     <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
@@ -492,6 +507,7 @@ export default function CandidatesClient() {
                         <option value="RFD">RFD</option>
                         <option value="WFD">WFD</option>
                         <option value="DOB">DOB</option>
+                        <option value="TRAINING">Training</option>
                       </select>
                     </td>
                     <td className="px-3 py-3">
@@ -509,6 +525,9 @@ export default function CandidatesClient() {
                         onChange={e => setEditForm(p => ({ ...p, noOfInterviews: e.target.value }))}
                       />
                     </td>
+                    <td className="px-3 py-3" />
+                    <td className="px-3 py-3" />
+                    <td className="px-3 py-3" />
                     <td className="px-3 py-3 text-right">
                       <div className="flex gap-1 justify-end">
                         <button
@@ -546,6 +565,8 @@ export default function CandidatesClient() {
                     <td className="px-3 py-3 text-center text-xs font-mono">
                       {c.noOfInterviews ?? 0}
                     </td>
+                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.interviewMentorName || '—'}</td>
+                    <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.clientName || '—'}</td>
                     <td className="px-3 py-3">
                       <a
                         href="/admin/clients/matching"
@@ -584,7 +605,7 @@ export default function CandidatesClient() {
               </tr>
             )) : (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                <td colSpan={16} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                   No candidates found.
                 </td>
               </tr>
