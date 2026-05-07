@@ -112,17 +112,13 @@ export async function assessInterviewWithAi(args: {
   transcriptJson: string;
 }): Promise<{ payload: AiAssessmentPayload; source: "claude" | "heuristic" }> {
   const utterances = parseUtterances(args.transcriptJson);
-  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return { payload: heuristicAssessment(utterances), source: "heuristic" };
-  }
+  // Prefer backend ai-service. This enables provider switching (Claude/Ollama) via backend config.
+  const gateway = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
   const dialogue = utterances
     .map((u) => `${u.speaker === "BOT" || u.speaker === "Interviewer" ? "Interviewer" : "Candidate"}: ${u.text}`)
     .join("\n")
     .slice(0, 24000);
-
-  const model = process.env.AI_MODEL ?? "claude-3-haiku-20240307";
 
   const system = [
     "You are an expert technical hiring assessor.",
@@ -149,42 +145,29 @@ export async function assessInterviewWithAi(args: {
     .join("\n\n");
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(`${gateway}/ai/assess`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model,
-        system,
-        temperature: 0.25,
-        messages: [
-          { role: "user", content: user },
-        ],
-        max_tokens: 1000,
+        interviewId: "standalone",
+        jdTitle: args.jdTitle,
+        jdText: args.jdText,
+        resumeSummary: args.resumeSummary ?? "",
+        transcriptJson: JSON.stringify({ utterances }),
+        interviewMode: "L3",
+        rubricJson: "",
+        candidateProfileJson: "",
+        // best-effort: backend will use its own system; include our system/user as extra text in jdText if needed later
+        _clientSystem: system,
+        _clientUser: user,
       }),
     });
     if (!res.ok) {
       return { payload: heuristicAssessment(utterances), source: "heuristic" };
     }
-    const data = (await res.json()) as {
-      content?: Array<{ text?: string }>;
-    };
-    const raw = data.content?.[0]?.text?.trim();
-    if (!raw) {
-      return { payload: heuristicAssessment(utterances), source: "heuristic" };
-    }
-    let json: unknown;
-    try {
-      // Find JSON block if Claude wrapped it in markdown
-      const match = raw.match(/```json\s*([\s\S]*?)\s*```/);
-      const jsonString = match ? match[1] : raw;
-      json = JSON.parse(jsonString);
-    } catch {
-      return { payload: heuristicAssessment(utterances), source: "heuristic" };
-    }
+    const json = (await res.json().catch(() => null)) as unknown;
     const parsed = AssessmentSchema.safeParse(json);
     if (!parsed.success) {
       return { payload: heuristicAssessment(utterances), source: "heuristic" };
