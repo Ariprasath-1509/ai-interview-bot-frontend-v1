@@ -3,6 +3,8 @@ import { getSession } from '@/lib/session';
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
+export const maxDuration = 120; // Allow up to 2 minutes for reassessment
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
