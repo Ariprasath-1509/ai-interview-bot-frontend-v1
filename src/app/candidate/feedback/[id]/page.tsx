@@ -109,7 +109,7 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
     scores = interview.categoryScores;
   }
 
-  const candidateFeedback = storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback;
+  const candidateFeedback: Interview["candidateFeedback"] = storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback;
   const roadmap = candidateFeedback?.roadmap ?? [];
 
   const jdRes = await apiServer(`/interviews/jd/${interview.jdId}`, session.token).catch(() => null);
