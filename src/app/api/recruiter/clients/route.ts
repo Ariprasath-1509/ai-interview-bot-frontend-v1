@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
 
-    // If no search parameter, return all clients
     let backendUrl = `${GATEWAY}/recruiter/clients`;
     if (search) {
       backendUrl += `?search=${encodeURIComponent(search)}`;
@@ -43,29 +42,60 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || !['ADMIN', 'SUPER_ADMIN'].includes(session.role)) {
+    if (!session || !['ADMIN', 'SUPER_ADMIN', 'RECRUITER'].includes(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const contentType = request.headers.get('content-type') || '';
 
-    const response = await fetch(`${GATEWAY}/recruiter/clients`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
+    if (contentType.includes('multipart/form-data')) {
+      // Handle multipart — forward as multipart to backend
+      const formData = await request.formData();
+      const clientJson = formData.get('client') as string;
+      const jdFile = formData.get('jdFile') as File | null;
 
-    if (!response.ok) {
-      console.error('Failed to create client:', response.status, response.statusText);
-      return NextResponse.json({ error: 'Failed to create client' }, { status: response.status });
+      const backendForm = new FormData();
+      backendForm.append('client', clientJson);
+      if (jdFile) {
+        backendForm.append('jdFile', jdFile);
+      }
+
+      const response = await fetch(`${GATEWAY}/recruiter/clients`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+        },
+        body: backendForm
+      });
+
+      if (!response.ok) {
+        console.error('Failed to create client:', response.status, response.statusText);
+        return NextResponse.json({ error: 'Failed to create client' }, { status: response.status });
+      }
+
+      const client = await response.json();
+      return NextResponse.json(client);
+    } else {
+      // Handle JSON — backward compatible
+      const body = await request.json();
+
+      const response = await fetch(`${GATEWAY}/recruiter/clients`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        console.error('Failed to create client:', response.status, response.statusText);
+        return NextResponse.json({ error: 'Failed to create client' }, { status: response.status });
+      }
+
+      const client = await response.json();
+      return NextResponse.json(client);
     }
-
-    const client = await response.json();
-    return NextResponse.json(client);
-
   } catch (error) {
     console.error('Error creating client:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -69,20 +69,39 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
   const session = await getSession();
   if (!session || session.role !== "CANDIDATE") redirect("/login");
 
-  const [interviewRes, scoresRes, reviewRes] = await Promise.all([
+  const [interviewRes, scoresRes, reviewRes, assessmentRes] = await Promise.all([
     apiServer(`/interviews/${id}`, session.token).catch(() => null),
     apiServer(`/scores/${id}`, session.token).catch(() => null),
     apiServer(`/reviews/${id}`, session.token).catch(() => null),
+    apiServer(`/tokens/assessment-response/${id}`, session.token).catch(() => null),
   ]);
 
   if (!interviewRes?.ok) redirect("/candidate/dashboard");
 
   const interview = (await interviewRes.json()) as Interview;
-  let scores: Score[] = scoresRes?.ok ? await scoresRes.json() : [];
-  const review: Review = reviewRes?.ok ? await reviewRes.json() : { signedOff: false };
+  let scores: Score[] = [];
+  try { if (scoresRes?.ok) scores = await scoresRes.json(); } catch {}
+  let review: Review = { signedOff: false };
+  try { if (reviewRes?.ok) review = await reviewRes.json(); } catch {}
+
+  // Try to get assessment from compliance-service
+  let storedAssessment: any = null;
+  try {
+    if (assessmentRes?.ok) {
+      const assessmentData = await assessmentRes.json();
+      if (assessmentData?.assessmentJson) {
+        storedAssessment = typeof assessmentData.assessmentJson === 'string'
+          ? JSON.parse(assessmentData.assessmentJson)
+          : assessmentData.assessmentJson;
+      }
+    }
+  } catch {}
 
   // Fallback to reading from transcriptJson if API didn't provide it
   const ai = parseAiAssessment(interview.transcriptJson);
+  if (scores.length === 0 && storedAssessment?.categoryScores) {
+    scores = storedAssessment.categoryScores;
+  }
   if (scores.length === 0 && ai?.categoryScores) {
     scores = ai.categoryScores;
   }
@@ -90,7 +109,7 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
     scores = interview.categoryScores;
   }
 
-  const candidateFeedback = interview.candidateFeedback ?? ai?.candidateFeedback;
+  const candidateFeedback: Interview["candidateFeedback"] = storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback;
   const roadmap = candidateFeedback?.roadmap ?? [];
 
   const jdRes = await apiServer(`/interviews/jd/${interview.jdId}`, session.token).catch(() => null);

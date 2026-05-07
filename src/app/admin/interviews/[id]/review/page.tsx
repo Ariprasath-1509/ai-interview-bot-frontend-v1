@@ -77,11 +77,13 @@ export default async function InterviewReviewPage({
   if (!interviewRes.ok) return <div className="mx-auto max-w-4xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
 
   const interview = (await interviewRes.json()) as Interview;
-  let scores: Score[] = scoresRes.ok ? await scoresRes.json() : [];
+  let scores: Score[] = [];
+  try { if (scoresRes.ok) scores = await scoresRes.json(); } catch {}
   const summaries: { id: string; candidateName: string; candidateEmail: string; jdTitle: string }[] =
-    summaryRes?.ok ? await summaryRes.json() : [];
+    summaryRes?.ok ? await summaryRes.json().catch(() => []) : [];
   const summary = summaries.find((s) => s.id === id);
-  const existingSignOff: SignOff = signOffRes?.ok ? await signOffRes.json() : { signedOff: false };
+  let existingSignOff: SignOff = { signedOff: false };
+  try { if (signOffRes?.ok) existingSignOff = await signOffRes.json(); } catch {}
   const ai = parseAiAssessment(interview.transcriptJson);
   const utterances = parseTranscript(interview.transcriptJson);
 

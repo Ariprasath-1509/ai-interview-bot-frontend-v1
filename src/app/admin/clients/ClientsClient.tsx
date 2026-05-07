@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp } from 'lucide-react';
+import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 interface Client {
@@ -17,6 +17,8 @@ interface Client {
   benchReviewed: boolean;
   recruitmentReviewed: boolean;
   createdAt: string;
+  docId?: string;
+  jdFileName?: string;
 }
 
 interface ClientFormData {
@@ -41,6 +43,7 @@ export default function ClientsClient() {
   const [showForm, setShowForm] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientFormData>(emptyForm);
+  const [jdFile, setJdFile] = useState<File | null>(null);
 
   useEffect(() => { fetchClients(); }, []);
 
@@ -60,7 +63,16 @@ export default function ClientsClient() {
     const url = editingClient ? `/api/recruiter/clients/${editingClient.id}` : '/api/recruiter/clients';
     const method = editingClient ? 'PUT' : 'POST';
     try {
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      let res;
+      if (!editingClient && jdFile) {
+        // Use multipart for new client with file
+        const fd = new FormData();
+        fd.append('client', JSON.stringify(formData));
+        fd.append('jdFile', jdFile);
+        res = await fetch(url, { method, body: fd });
+      } else {
+        res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      }
       if (res.ok) { await fetchClients(); resetForm(); }
     } catch (e) { console.error('Failed to save client:', e); }
   };
@@ -83,7 +95,7 @@ export default function ClientsClient() {
     setShowForm(true);
   };
 
-  const resetForm = () => { setShowForm(false); setEditingClient(null); setFormData(emptyForm); };
+  const resetForm = () => { setShowForm(false); setEditingClient(null); setFormData(emptyForm); setJdFile(null); };
 
   if (loading) return <LoadingSpinner message="Loading clients..." />;
 
@@ -163,6 +175,9 @@ export default function ClientsClient() {
                 <span className="flex items-center gap-1.5"><Target className="h-3.5 w-3.5" /> {client.positionsVacant} positions</span>
                 <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {client.benchB2bCandidatesNeeded} bench</span>
                 <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {client.marketCandidatesNeeded} market</span>
+                {client.jdFileName && (
+                  <span className="flex items-center gap-1.5 text-emerald-600"><Upload className="h-3.5 w-3.5" /> {client.jdFileName}</span>
+                )}
               </div>
 
               <div className="border-t border-zinc-100 pt-3 dark:border-zinc-800">
@@ -245,6 +260,18 @@ export default function ClientsClient() {
                   <option value="INACTIVE">Inactive</option>
                 </select>
               </label>
+              {!editingClient && (
+                <label className="field">
+                  <span className="flex items-center gap-1.5"><Upload className="h-3.5 w-3.5" /> JD File (PDF/DOCX) — optional</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.doc"
+                    onChange={(e) => setJdFile(e.target.files?.[0] || null)}
+                    className="input-base text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-300"
+                  />
+                  {jdFile && <p className="text-xs text-emerald-600 mt-1">📄 {jdFile.name}</p>}
+                </label>
+              )}
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-700">
                   {editingClient ? 'Update Client' : 'Create Client'}
