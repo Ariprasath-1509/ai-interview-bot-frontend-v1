@@ -1,7 +1,35 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { VoiceInterviewClient } from "./VoiceInterviewClient";
+import { Loader2 } from "lucide-react";
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex w-fit items-center gap-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-60 disabled:cursor-not-allowed"
+      type="submit"
+      disabled={pending}
+    >
+      {pending ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Assessing interview...
+        </>
+      ) : (
+        <>
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Mark complete
+        </>
+      )}
+    </button>
+  );
+}
 
 export function VoiceInterviewForm({
   interviewId,
@@ -68,17 +96,12 @@ export function VoiceInterviewForm({
           />
         </label>
 
-        <button
-          className="inline-flex w-fit items-center gap-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-          type="submit"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Mark complete
-        </button>
+        <SubmitButton />
+
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          This will trigger AI assessment which may take 30-60 seconds. Please wait.
+        </p>
       </form>
     </div>
   );
 }
-

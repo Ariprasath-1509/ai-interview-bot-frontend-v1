@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { TranscriptView } from "./TranscriptView";
+import { RerunAssessmentButton } from "./RerunAssessmentButton";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -109,6 +110,9 @@ export default async function InterviewReviewPage({
           </p>
         </div>
         <div className="flex shrink-0 gap-3 text-sm">
+          {(session?.role === "ADMIN" || session?.role === "SUPER_ADMIN" || session?.role === "RECRUITER") && (
+            <RerunAssessmentButton interviewId={interview.id} />
+          )}
           <Link className="underline" href={`/observer/interview/${interview.id}`}>Observer view</Link>
           <Link className="underline" href="/admin/review">Back</Link>
         </div>
