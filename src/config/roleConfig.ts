@@ -92,6 +92,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/candidates", label: "Candidates", icon: "Users" },
       { href: "/admin/matching", label: "AI Matching", icon: "Sparkles" },
       { href: "/admin/clients", label: "Clients", icon: "Building2" },
+      { href: "/admin/recruiter-bot", label: "JD Assistant", icon: "Bot" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
     ],
     permissions: [

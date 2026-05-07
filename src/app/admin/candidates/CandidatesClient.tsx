@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { UserRole } from '@/server/roles';
 import { Pagination, usePagination } from '@/components/common/Pagination';
 import { SkeletonTable } from '@/components/common/Skeleton';
 import { useToast } from '@/components/common/Toast';
@@ -31,6 +32,7 @@ interface Candidate {
   resumeFilename?: string | null;
   resumeSummary?: string | null;
   resumeUploadedAt?: string | null;
+  systemInterviewCount?: number | null;
   empId?: string | null;
   deployedClientName?: string | null;
   deployedDate?: string | null;
@@ -39,6 +41,8 @@ interface Candidate {
   interviewMentorName?: string | null;
   clientName?: string | null;
 }
+
+interface Props { role: string; }
 
 const SKILL_LABEL: Record<string, string> = { JAVA_SB: 'Java + SB', JFSR: 'JFSR', REACT_JS: 'React JS' };
 const SOURCE_LABEL: Record<string, string> = { B2B: 'B2B', BENCH: 'Bench', MARKET: 'Market' };
@@ -57,7 +61,7 @@ const STATUS_BADGE: Record<string, string> = {
   DEPLOYED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800/50',
 };
 
-export default function CandidatesClient() {
+export default function CandidatesClient({ role }: Props) {
   const [activeTab, setActiveTab] = useState<'all' | 'deployed'>('all');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [deployedCandidates, setDeployedCandidates] = useState<Candidate[]>([]);
@@ -68,7 +72,12 @@ export default function CandidatesClient() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterRating, setFilterRating] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ rating: '', candidateStatus: '', noOfInterviews: '' });
+  const [editForm, setEditForm] = useState({
+    name: '', email: '', officialEmail: '', personalEmail: '', contactNumber: '',
+    batch: '', batchMentor: '', source: '', candidateStatus: '', rating: '',
+    skillSet: '', yoeActual: '', yoePortrayed: '', yop: '', noOfInterviews: '',
+    interviewMentorName: '', clientName: '',
+  });
   const [saving, setSaving] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
@@ -178,9 +187,23 @@ export default function CandidatesClient() {
   function startEdit(c: Candidate) {
     setEditingId(c.id);
     setEditForm({
-      rating: c.rating ?? '',
+      name: c.name ?? '',
+      email: c.email ?? '',
+      officialEmail: c.officialEmail ?? '',
+      personalEmail: c.personalEmail ?? '',
+      contactNumber: c.contactNumber ?? '',
+      batch: c.batch ?? '',
+      batchMentor: c.batchMentor ?? '',
+      source: c.source ?? '',
       candidateStatus: c.candidateStatus ?? '',
+      rating: c.rating ?? '',
+      skillSet: c.skillSet ?? '',
+      yoeActual: c.yoeActual?.toString() ?? '',
+      yoePortrayed: c.yoePortrayed?.toString() ?? '',
+      yop: c.yop?.toString() ?? '',
       noOfInterviews: c.noOfInterviews?.toString() ?? '0',
+      interviewMentorName: c.interviewMentorName ?? '',
+      clientName: c.clientName ?? '',
     });
   }
 
@@ -188,9 +211,25 @@ export default function CandidatesClient() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {};
+      if (editForm.name) payload.name = editForm.name;
+      if (editForm.contactNumber !== '') payload.contactNumber = editForm.contactNumber;
+      if (editForm.officialEmail !== '') payload.officialEmail = editForm.officialEmail;
+      if (editForm.personalEmail !== '') payload.personalEmail = editForm.personalEmail;
+      if (editForm.batch !== '') payload.batch = editForm.batch;
+      if (editForm.batchMentor !== '') payload.batchMentor = editForm.batchMentor;
       if (editForm.rating) payload.rating = editForm.rating;
       if (editForm.candidateStatus) payload.candidateStatus = editForm.candidateStatus;
+      if (editForm.skillSet) payload.skillSet = editForm.skillSet;
+      if (editForm.yoeActual !== '') payload.yoeActual = parseFloat(editForm.yoeActual);
+      if (editForm.yoePortrayed !== '') payload.yoePortrayed = parseFloat(editForm.yoePortrayed);
+      if (editForm.yop !== '') payload.yop = parseInt(editForm.yop);
       if (editForm.noOfInterviews !== '') payload.noOfInterviews = parseInt(editForm.noOfInterviews);
+      if (editForm.interviewMentorName !== '') payload.interviewMentorName = editForm.interviewMentorName;
+      if (editForm.clientName !== '') payload.clientName = editForm.clientName;
+      if (role === 'SUPER_ADMIN') {
+        if (editForm.source) payload.source = editForm.source;
+        if (editForm.email) payload.email = editForm.email;
+      }
 
       const res = await fetch(`/api/candidates/${id}`, {
         method: 'PATCH',
@@ -419,7 +458,7 @@ export default function CandidatesClient() {
             <tr>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Name</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Contact</th>
-              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Batch</th>
+              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Batch (DOH)</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Batch Mentor</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Source</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Skill</th>
@@ -428,7 +467,8 @@ export default function CandidatesClient() {
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Resume</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Status</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Rating</th>
-              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Interviews</th>
+              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Ext. Interviews</th>
+              <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Sys. Interviews</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Interview Mentor</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Client</th>
               <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Matching</th>
@@ -501,46 +541,108 @@ export default function CandidatesClient() {
                 {/* Editable fields */}
                 {editingId === c.id ? (
                   <>
-                    <td className="px-3 py-3">
-                      <select className={selectSmCls} value={editForm.candidateStatus} onChange={e => setEditForm(p => ({ ...p, candidateStatus: e.target.value }))}>
-                        <option value="">—</option>
-                        <option value="RFD">RFD</option>
-                        <option value="WFD">WFD</option>
-                        <option value="DOB">DOB</option>
-                        <option value="TRAINING">Training</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-3">
-                      <select className={selectSmCls} value={editForm.rating} onChange={e => setEditForm(p => ({ ...p, rating: e.target.value }))}>
-                        <option value="">—</option>
-                        <option value="ASSET">Asset</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="LIABILITY">Liability</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-3">
-                      <input
-                        type="number" min="0" className={`${selectSmCls} w-16`}
-                        value={editForm.noOfInterviews}
-                        onChange={e => setEditForm(p => ({ ...p, noOfInterviews: e.target.value }))}
-                      />
-                    </td>
-                    <td className="px-3 py-3" />
-                    <td className="px-3 py-3" />
-                    <td className="px-3 py-3" />
-                    <td className="px-3 py-3 text-right">
-                      <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => saveEdit(c.id)}
-                          disabled={saving}
-                          className="px-2 py-1 text-xs font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
-                        >
+                    {/* Row 1: name spans full, then save/cancel */}
+                    <td className="px-3 py-2" colSpan={16}>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Name</span>
+                          <input className={selectSmCls} value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="Name" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Contact</span>
+                          <input className={selectSmCls} value={editForm.contactNumber} onChange={e => setEditForm(p => ({ ...p, contactNumber: e.target.value }))} placeholder="Contact" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Official Email</span>
+                          <input className={selectSmCls} value={editForm.officialEmail} onChange={e => setEditForm(p => ({ ...p, officialEmail: e.target.value }))} placeholder="Official Email" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Personal Email</span>
+                          <input className={selectSmCls} value={editForm.personalEmail} onChange={e => setEditForm(p => ({ ...p, personalEmail: e.target.value }))} placeholder="Personal Email" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Batch (DOH)</span>
+                          <input className={selectSmCls} value={editForm.batch} onChange={e => setEditForm(p => ({ ...p, batch: e.target.value }))} placeholder="Batch" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Batch Mentor</span>
+                          <input className={selectSmCls} value={editForm.batchMentor} onChange={e => setEditForm(p => ({ ...p, batchMentor: e.target.value }))} placeholder="Batch Mentor" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Source {role !== 'SUPER_ADMIN' && <span className="text-zinc-300">(locked)</span>}</span>
+                          <select className={selectSmCls} value={editForm.source} disabled={role !== 'SUPER_ADMIN'} onChange={e => setEditForm(p => ({ ...p, source: e.target.value }))}>
+                            <option value="">—</option>
+                            <option value="B2B">B2B</option>
+                            <option value="BENCH">Bench</option>
+                            <option value="MARKET">Market</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Status</span>
+                          <select className={selectSmCls} value={editForm.candidateStatus} onChange={e => setEditForm(p => ({ ...p, candidateStatus: e.target.value }))}>
+                            <option value="">—</option>
+                            <option value="RFD">RFD</option>
+                            <option value="WFD">WFD</option>
+                            <option value="DOB">DOB</option>
+                            <option value="TRAINING">Training</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Rating</span>
+                          <select className={selectSmCls} value={editForm.rating} onChange={e => setEditForm(p => ({ ...p, rating: e.target.value }))}>
+                            <option value="">—</option>
+                            <option value="ASSET">Asset</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="LIABILITY">Liability</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Skill Set</span>
+                          <select className={selectSmCls} value={editForm.skillSet} onChange={e => setEditForm(p => ({ ...p, skillSet: e.target.value }))}>
+                            <option value="">—</option>
+                            <option value="JAVA_SB">Java + SB</option>
+                            <option value="JFSR">JFSR</option>
+                            <option value="REACT_JS">React JS</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">YOE Actual</span>
+                          <input type="number" step="0.1" className={selectSmCls} value={editForm.yoeActual} onChange={e => setEditForm(p => ({ ...p, yoeActual: e.target.value }))} placeholder="0.0" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">YOE Portrayed</span>
+                          <input type="number" step="0.1" className={selectSmCls} value={editForm.yoePortrayed} onChange={e => setEditForm(p => ({ ...p, yoePortrayed: e.target.value }))} placeholder="0.0" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">YOP</span>
+                          <input type="number" className={selectSmCls} value={editForm.yop} onChange={e => setEditForm(p => ({ ...p, yop: e.target.value }))} placeholder="2023" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">No. of Interviews</span>
+                          <input type="number" min="0" className={selectSmCls} value={editForm.noOfInterviews} onChange={e => setEditForm(p => ({ ...p, noOfInterviews: e.target.value }))} />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Interview Mentor</span>
+                          <input className={selectSmCls} value={editForm.interviewMentorName} onChange={e => setEditForm(p => ({ ...p, interviewMentorName: e.target.value }))} placeholder="Mentor" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-zinc-400">Client</span>
+                          <input className={selectSmCls} value={editForm.clientName} onChange={e => setEditForm(p => ({ ...p, clientName: e.target.value }))} placeholder="Client" />
+                        </div>
+                        {role === 'SUPER_ADMIN' && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-zinc-400">Login Email</span>
+                            <input className={selectSmCls} value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} placeholder="Login email" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => saveEdit(c.id)} disabled={saving}
+                          className="px-3 py-1 text-xs font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">
                           {saving ? '…' : 'Save'}
                         </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="px-2 py-1 text-xs font-medium border border-zinc-300 dark:border-zinc-700 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                        >
+                        <button onClick={() => setEditingId(null)}
+                          className="px-3 py-1 text-xs font-medium border border-zinc-300 dark:border-zinc-700 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800">
                           Cancel
                         </button>
                       </div>
@@ -564,6 +666,9 @@ export default function CandidatesClient() {
                     </td>
                     <td className="px-3 py-3 text-center text-xs font-mono">
                       {c.noOfInterviews ?? 0}
+                    </td>
+                    <td className="px-3 py-3 text-center text-xs font-mono text-zinc-400">
+                      {c.systemInterviewCount ?? 0}
                     </td>
                     <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.interviewMentorName || '—'}</td>
                     <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.clientName || '—'}</td>
@@ -605,7 +710,7 @@ export default function CandidatesClient() {
               </tr>
             )) : (
               <tr>
-                <td colSpan={16} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                <td colSpan={17} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                   No candidates found.
                 </td>
               </tr>
