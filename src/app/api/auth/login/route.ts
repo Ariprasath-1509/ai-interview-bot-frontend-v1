@@ -25,10 +25,11 @@ export async function POST(req: Request) {
     }
 
     const jar = await cookies();
-    const opts = { path: "/", httpOnly: true, sameSite: "lax" as const, maxAge: 86400 };
+    const opts = { path: "/", httpOnly: true, sameSite: "lax" as const };
     jar.set("br_jwt", data.token, opts);
-    jar.set("br_role", data.role, { ...opts, httpOnly: false });
+    jar.set("br_role", data.role, { ...opts, httpOnly: true });
     jar.set("br_username", data.name ?? "", { ...opts, httpOnly: false });
+    jar.set("br_issued", Date.now().toString(), { ...opts, httpOnly: false });
     if (data.adminSource) {
       jar.set("br_admin_source", data.adminSource, { ...opts, httpOnly: false });
     }
