@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -50,11 +50,7 @@ export default function DriveDetailsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'candidates' | 'analytics'>('overview');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDriveData();
-  }, [driveId]);
-
-  const fetchDriveData = async () => {
+  const fetchDriveData = useCallback(async () => {
     try {
       const [driveRes, candidatesRes, analyticsRes] = await Promise.all([
         fetch(`/api/drives/${driveId}`),
@@ -70,7 +66,14 @@ export default function DriveDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [driveId]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void fetchDriveData();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [fetchDriveData]);
 
   const updateDriveStatus = async (newStatus: string) => {
     try {

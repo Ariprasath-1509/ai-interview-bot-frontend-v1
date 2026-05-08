@@ -48,6 +48,17 @@ const DialogContent: React.FC<{ children: React.ReactNode; className?: string }>
   if (!context) throw new Error("DialogContent must be used within Dialog")
   
   if (!context.open) return null
+
+  React.useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        context.onOpenChange(false)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [context])
   
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

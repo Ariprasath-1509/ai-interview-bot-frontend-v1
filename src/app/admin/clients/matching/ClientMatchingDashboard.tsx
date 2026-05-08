@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Users, RefreshCw, Download, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
+import { Pagination, usePagination } from '@/components/common/Pagination';
 
 interface MatchingSummary {
   totalMatches: number;
@@ -68,19 +69,23 @@ export default function ClientMatchingDashboard() {
   const [selectedSource, setSelectedSource] = useState<'BENCH_B2B' | 'MARKET'>('BENCH_B2B');
   const [matchDetails, setMatchDetails] = useState<ClientMatchingResult | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const [candidateFilter, setCandidateFilter] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Check for candidateId in URL params
-    const params = new URLSearchParams(window.location.search);
-    const candidateId = params.get('candidateId');
-    if (candidateId) {
-      setCandidateFilter(candidateId);
+  const [candidateFilter, setCandidateFilter] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('candidateId');
+    } catch {
+      return null;
     }
-    fetchOverview();
-  }, []);
+  });
+  const overviewPagination = usePagination(clients, 5);
+  const {
+    page: overviewPage,
+    totalPages: overviewTotalPages,
+    paginated: paginatedClients,
+    setPage: setOverviewPage,
+  } = overviewPagination;
 
-  const fetchOverview = async () => {
+  const fetchOverview = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/recruiter/clients/matching/overview', {
@@ -98,7 +103,17 @@ export default function ClientMatchingDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    const t = setTimeout(fetchOverview, 0);
+    return () => clearTimeout(t);
+  }, [fetchOverview]);
+
+  // Reset overview paging when dataset changes.
+  useEffect(() => {
+    setOverviewPage(1);
+  }, [clients, setOverviewPage]);
 
   const fetchMatchDetails = async (clientId: string, source: 'BENCH_B2B' | 'MARKET') => {
     setDetailsLoading(true);
@@ -192,6 +207,15 @@ export default function ClientMatchingDashboard() {
     }
   } : matchDetails;
 
+  const matches = filteredMatchDetails?.matches ?? [];
+  const paginationState = usePagination(matches, 5);
+  const { page, totalPages, paginated, setPage } = paginationState;
+
+  // keep pagination in sync with external state changes (new client/source)
+  useEffect(() => {
+    setPage(1);
+  }, [matchDetails, candidateFilter, setPage]);
+
   const getRecommendationBadge = (rec: string) => {
     const colors = {
       HIGHLY_RECOMMENDED: 'bg-green-100 text-green-800',
@@ -258,7 +282,7 @@ export default function ClientMatchingDashboard() {
 
       {/* Client Overview Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {clients.map((client) => (
+        {paginatedClients.map((client) => (
           <Card key={client.clientId} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -368,6 +392,11 @@ export default function ClientMatchingDashboard() {
           </Card>
         ))}
       </div>
+      <Pagination
+        page={overviewPage}
+        totalPages={overviewTotalPages}
+        onPageChange={setOverviewPage}
+      />
 
       {/* Match Details Panel */}
       {selectedClient && (
@@ -457,7 +486,7 @@ export default function ClientMatchingDashboard() {
 
                 {/* Candidate Table */}
                 <div className="space-y-3">
-                  {filteredMatchDetails.matches.map((candidate) => (
+                  {paginated.map((candidate) => (
                     <Card key={candidate.candidateId} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex justify-between items-start mb-3">
@@ -520,6 +549,7 @@ export default function ClientMatchingDashboard() {
                     </Card>
                   ))}
                 </div>
+                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
               </div>
             ) : (
               <div className="text-center py-12 text-gray-500">

@@ -108,9 +108,12 @@ export default function DashboardClient() {
   };
 
   useEffect(() => {
-    fetchAnalytics();
+    const t = setTimeout(fetchAnalytics, 0);
     const interval = setInterval(fetchAnalytics, 60000); // Increased to 60 seconds
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(t);
+      clearInterval(interval);
+    };
   }, []);
 
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;

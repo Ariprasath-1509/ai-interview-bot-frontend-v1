@@ -127,6 +127,18 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
 
+  useEffect(() => {
+    if (!showConfirm) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowConfirm(false);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showConfirm]);
+
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
@@ -805,7 +817,15 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         </div>
 
         {showConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => {
+              // Clicking the backdrop cancels.
+              if (e.target === e.currentTarget) setShowConfirm(false);
+            }}
+          >
             <div className="w-full max-w-sm rounded-xl bg-white p-6 dark:bg-zinc-900 shadow-xl space-y-4">
               <h2 className="text-lg font-semibold">End interview?</h2>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">

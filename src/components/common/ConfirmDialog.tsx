@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 type ConfirmOptions = {
   title: string;
@@ -31,6 +31,18 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     state?.resolve(result);
     setState(null);
   }
+
+  useEffect(() => {
+    if (!state) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleClose(false);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [state]);
 
   const btnBase = "rounded-lg px-4 py-2 text-sm font-medium transition-colors";
 
