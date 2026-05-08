@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 const BodySchema = z.object({
-  slot: z.number().int().min(1).max(10),
+  slot: z.number().int().min(1).max(30), // Increased to handle extended interviews
   lastAnswer: z.string().optional().or(z.literal("")),
   utterances: z.array(z.object({ speaker: z.enum(["BOT", "CANDIDATE"]), text: z.string(), at: z.string() })).optional(),
   manipulationCount: z.number().int().optional(),
@@ -45,6 +45,30 @@ export async function POST(
   }
 
   const interview = (await interviewRes.json()) as { jdId: string; planId: string | null; interviewMode?: string };
+
+  // Get interview mode specific limits
+  const getMaxSlots = (mode: string): number => {
+    switch (mode) {
+      case 'SCREENING': return 5;
+      case 'L1': return 7;
+      case 'L2': return 8;
+      case 'L3': return 10;
+      case 'L4': return 10;
+      default: return 10;
+    }
+  };
+
+  const maxSlots = getMaxSlots(interview.interviewMode ?? 'L3');
+  
+  // Check if interview has reached its natural end
+  if (body.data.slot > maxSlots) {
+    console.log(`[next-question] Interview ${id} reached max slots (${maxSlots}) for mode ${interview.interviewMode}`);
+    return Response.json({ 
+      question: "Thank you for your detailed responses. We've covered all the planned questions for this interview. You can now mark the interview as complete.",
+      terminateInterview: false,
+      interviewComplete: true
+    });
+  }
 
   // 2. Fetch JD
   let jdTitle = "Target role";

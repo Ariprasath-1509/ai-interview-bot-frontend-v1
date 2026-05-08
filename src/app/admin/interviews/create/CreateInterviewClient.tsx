@@ -81,6 +81,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
   const [clientResults, setClientResults] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [searchingClients, setSearchingClients] = useState(false);
+  const [clientsMessage, setClientsMessage] = useState<string>('');
   
   const [formData, setFormData] = useState<InterviewFormData>({
     engineerEmail: '',
@@ -94,6 +95,52 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     candidateId,
     clientId
   });
+
+  // Fetch all clients for interview creation
+  const fetchAllClientsForInterview = async () => {
+    setSearchingClients(true);
+    try {
+      const response = await fetch('/api/recruiter/clients/for-interview', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const clientsData = await response.json();
+        
+        const hasMatchingClients = clientsData.hasMatchingClients;
+        const message = clientsData.message;
+        const clients = clientsData.clients || [];
+        
+        // Transform clients to match expected format
+        const transformedClients = clients.map((client: any) => ({
+          id: client.id,
+          clientName: client.clientName,
+          jdRole: client.jdRole,
+          jdText: client.jdDescription || '',
+          focusAreas: client.focusAreas || '',
+          matchScore: hasMatchingClients ? 0.8 : 0.5,
+          recommendation: hasMatchingClients ? 'RECOMMENDED' : 'AVAILABLE'
+        }));
+        
+        setClientResults(transformedClients);
+        setClientsMessage(message || '');
+        
+        // Show message if no matching clients found
+        if (!hasMatchingClients && message) {
+          toast(message, 'info');
+        }
+      } else {
+        setClientResults([]);
+        setClientsMessage('Failed to load clients');
+      }
+    } catch (error) {
+      console.error('Failed to fetch clients:', error);
+      setClientResults([]);
+      setClientsMessage('Error loading clients');
+    } finally {
+      setSearchingClients(false);
+    }
+  };
 
   const triggerAutoFillAsync = async () => {
     if (!formData.candidateId && !formData.clientId) {
@@ -203,30 +250,63 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
   const fetchMatchingClients = async (candidateId: string) => {
     setSearchingClients(true);
     try {
-      const response = await fetch(`/api/recruiter/matching/candidates/${candidateId}/clients`, {
+      // First try to get clients for interview (with matching logic)
+      const response = await fetch('/api/recruiter/clients/for-interview', {
         credentials: 'include'
       });
 
       if (response.ok) {
-        const matchingData = await response.json();
+        const clientsData = await response.json();
         
-        // The API returns { candidateId, matches: [...] }
-        const clients = matchingData.matches?.map((match: any) => ({
-          id: match.id,
-          clientName: match.clientName,
-          jdRole: match.jdRole,
-          jdText: match.jdText || '',
-          focusAreas: match.focusAreas || '',
-          matchScore: match.matchScore,
-          recommendation: match.recommendation
-        })) || [];
+        // Check if we have matching clients or showing all clients
+        const hasMatchingClients = clientsData.hasMatchingClients;
+        const message = clientsData.message;
+        const clients = clientsData.clients || [];
         
-        setClientResults(clients);
+        // Transform clients to match expected format
+        const transformedClients = clients.map((client: any) => ({
+          id: client.id,
+          clientName: client.clientName,
+          jdRole: client.jdRole,
+          jdText: client.jdDescription || '',
+          focusAreas: client.focusAreas || '',
+          matchScore: hasMatchingClients ? 0.8 : 0.5, // Default scores
+          recommendation: hasMatchingClients ? 'RECOMMENDED' : 'AVAILABLE'
+        }));
+        
+        setClientResults(transformedClients);
+        setClientsMessage(message || '');
+        
+        // Show message if no matching clients found
+        if (!hasMatchingClients && message) {
+          toast(message, 'info');
+        }
       } else {
-        setClientResults([]);
+        // Fallback to candidate-specific matching
+        const matchingResponse = await fetch(`/api/recruiter/matching/candidates/${candidateId}/clients`, {
+          credentials: 'include'
+        });
+
+        if (matchingResponse.ok) {
+          const matchingData = await matchingResponse.json();
+          
+          const clients = matchingData.matches?.map((match: any) => ({
+            id: match.id,
+            clientName: match.clientName,
+            jdRole: match.jdRole,
+            jdText: match.jdText || '',
+            focusAreas: match.focusAreas || '',
+            matchScore: match.matchScore,
+            recommendation: match.recommendation
+          })) || [];
+          
+          setClientResults(clients);
+        } else {
+          setClientResults([]);
+        }
       }
     } catch (error) {
-      console.error('Failed to fetch matching clients:', error);
+      console.error('Failed to fetch clients:', error);
       setClientResults([]);
     } finally {
       setSearchingClients(false);
@@ -297,6 +377,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     // Clear client selection and results when candidate is cleared
     setSelectedClient(null);
     setClientResults([]);
+    setClientsMessage('');
     
     // Remove candidate fields from auto-filled list
     const candidateFields = ['engineerEmail', 'engineerName', 'resumeSummary'];
@@ -347,6 +428,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
       // If no URL params but candidateId/clientId exists, trigger auto-fill
       triggerAutoFillAsync();
     }
+    
+    // Load all clients on component mount
+    fetchAllClientsForInterview();
   }, []);
 
   const handleInputChange = (field: keyof InterviewFormData, value: string | number | null) => {
@@ -604,6 +688,97 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
           </CardContent>
         </Card>
 
+        {/* Client Selection - Show all clients when no candidate selected */}
+        {!selectedCandidate && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Available Client Positions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {searchingClients && (
+                <div className="flex items-center gap-2 text-gray-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading clients...</span>
+                </div>
+              )}
+              
+              {clientsMessage && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                  <p className="text-sm text-amber-800">{clientsMessage}</p>
+                </div>
+              )}
+              
+              {clientResults.length > 0 && (
+                <div className="relative">
+                  <select 
+                    value={selectedClient?.id || ''} 
+                    onChange={(e) => {
+                      const clientId = e.target.value;
+                      
+                      if (!clientId) {
+                        clearClientSelection();
+                        return;
+                      }
+                      
+                      const client = clientResults.find(c => c.id === clientId);
+                      if (client) {
+                        selectClient(client);
+                      }
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">Select a client position...</option>
+                    {clientResults.map((client, index) => (
+                      <option key={`client-${client.id}-${index}`} value={client.id}>
+                        {client.clientName} - {client.jdRole}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {selectedClient && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={clearClientSelection}
+                      className="flex items-center gap-1 mt-2"
+                    >
+                      <X className="h-4 w-4" />
+                      Clear Selection
+                    </Button>
+                  )}
+                </div>
+              )}
+              
+              {selectedClient && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Briefcase className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-green-900">Selected Client Position</span>
+                  </div>
+                  <p className="text-sm text-green-800">
+                    {selectedClient.clientName} - {selectedClient.jdRole}
+                  </p>
+                  {selectedClient.focusAreas && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Focus Areas: {selectedClient.focusAreas}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {!searchingClients && clientResults.length === 0 && (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                  <p className="text-sm text-gray-600">No clients available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Client Selection - Show matching clients for selected candidate */}
         {selectedCandidate && (
           <Card>
@@ -632,7 +807,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                   }}
                   className="w-full p-3 border border-gray-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="">Select a matching client position...</option>
+                  <option value="">Select a client position...</option>
                   {clientResults.map((client, index) => (
                     <option key={`client-${client.id}-${index}`} value={client.id}>
                       {client.clientName} - {client.jdRole} ({client.matchScore ? `${(client.matchScore * 100).toFixed(0)}%` : 'N/A'})
@@ -674,8 +849,15 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               {clientResults.length === 0 && !searchingClients && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
                   <p className="text-sm text-amber-800">
-                    No matching client positions found for this candidate.
+                    {clientsMessage || "No client positions found for this candidate."}
                   </p>
+                </div>
+              )}
+              
+              {searchingClients && (
+                <div className="flex items-center gap-2 text-gray-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading matching clients...</span>
                 </div>
               )}
               

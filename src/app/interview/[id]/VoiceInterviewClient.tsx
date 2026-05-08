@@ -42,8 +42,13 @@ function speakWhenDone(text: string): Promise<void> {
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 1.0;
     u.pitch = 1.0;
-    u.onend = () => resolve();
-    u.onerror = () => resolve();
+    let resolved = false;
+    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+    // Timeout: ~80ms per char + 5s buffer, prevents hang if onend never fires
+    const timeoutMs = Math.max(text.length * 80, 4000) + 5000;
+    const timer = setTimeout(done, timeoutMs);
+    u.onend = () => { clearTimeout(timer); done(); };
+    u.onerror = () => { clearTimeout(timer); done(); };
     synth.speak(u);
   });
 }
@@ -106,6 +111,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const [showConfirm, setShowConfirm] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [manipulationCount, setManipulationCount] = useState(0);
+  const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSpeechTimeRef = useRef<number>(0);
+  const SPEECH_TIMEOUT_MS = 3000; // 3 seconds of silence before considering speech done
   const timerIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -164,7 +172,32 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       at: nowIso(),
     };
     const finalUtterances = [...utterancesRef.current, timeUpMessage];
-    void abandonInterview(finalUtterances, "time_expired");
+    
+    // Update utterances to include the time-up message
+    syncUtterances(finalUtterances);
+    
+    // Stop the session but don't abandon - let user complete normally
+    sessionActiveRef.current = false;
+    typedOnlyRef.current = false;
+    setTypedAnswersOnly(false);
+    pausedForTtsRef.current = false;
+    commitAfterEndRef.current = false;
+    explicitStopRef.current = false;
+    finalBufferRef.current = "";
+    interimRef.current = "";
+    setInterimText("");
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+    try {
+      recognitionRef.current?.stop();
+    } catch { /* ignore */ }
+    releaseMicStream();
+    setMicPhase("idle");
+    
+    // Show time expired message and allow user to mark complete
+    void speakWhenDone(timeUpMessage.text);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeExpired, durationMinutes]);
 
@@ -194,33 +227,48 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     lastAnswer: string;
     transcript: Utterance[];
     manipulationCount: number;
-  }): Promise<{ question: string; manipulationDetected?: boolean; terminateInterview?: boolean } | null> {
-    try {
-      const res = await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/next-question`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          slot: args.slot,
-          lastAnswer: args.lastAnswer,
-          utterances: args.transcript,
-          manipulationCount: args.manipulationCount,
-          rubricJson: rubricJson ?? undefined,
-          candidateProfileJson: candidateProfileJson ?? undefined,
-        }),
-      });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { question?: string; manipulationDetected?: boolean; terminateInterview?: boolean };
-      if (typeof data.question === "string") {
-        return {
-          question: data.question,
-          manipulationDetected: data.manipulationDetected,
-          terminateInterview: data.terminateInterview,
-        };
+  }): Promise<{ question: string; manipulationDetected?: boolean; terminateInterview?: boolean; interviewComplete?: boolean } | null> {
+    const MAX_RETRIES = 3;
+    const BACKOFF_MS = [0, 1000, 2000];
+    const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+      try {
+        const res = await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/next-question`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            slot: args.slot,
+            lastAnswer: args.lastAnswer,
+            utterances: args.transcript,
+            manipulationCount: args.manipulationCount,
+            rubricJson: rubricJson ?? undefined,
+            candidateProfileJson: candidateProfileJson ?? undefined,
+          }),
+        });
+        if (!res.ok) {
+          console.warn(`[fetchNextQuestion] Attempt ${attempt + 1}/${MAX_RETRIES} failed — status ${res.status}`);
+          if (RETRYABLE_STATUSES.has(res.status) && attempt < MAX_RETRIES - 1) continue;
+          return null;
+        }
+        const data = (await res.json()) as { question?: string; manipulationDetected?: boolean; terminateInterview?: boolean; interviewComplete?: boolean };
+        if (typeof data.question === "string") {
+          return {
+            question: data.question,
+            manipulationDetected: data.manipulationDetected,
+            terminateInterview: data.terminateInterview,
+            interviewComplete: data.interviewComplete,
+          };
+        }
+        return null;
+      } catch (err) {
+        console.warn(`[fetchNextQuestion] Attempt ${attempt + 1}/${MAX_RETRIES} network error:`, err);
+        if (attempt < MAX_RETRIES - 1) continue;
+        return null;
       }
-      return null;
-    } catch {
-      return null;
     }
+    return null;
   }
 
   useEffect(() => {
@@ -380,6 +428,31 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         void abandonInterview(utterancesRef.current, "ai_manipulation");
         return;
       }
+      if (nextQ.interviewComplete) {
+        // Interview has reached its natural end
+        sessionActiveRef.current = false;
+        typedOnlyRef.current = false;
+        setTypedAnswersOnly(false);
+        pausedForTtsRef.current = false;
+        commitAfterEndRef.current = false;
+        explicitStopRef.current = false;
+        finalBufferRef.current = "";
+        interimRef.current = "";
+        setInterimText("");
+        if (restartTimerRef.current) {
+          clearTimeout(restartTimerRef.current);
+          restartTimerRef.current = null;
+        }
+        try {
+          recognitionRef.current?.stop();
+        } catch { /* ignore */ }
+        releaseMicStream();
+        setMicPhase("idle");
+        
+        // Add the completion message
+        await playClosingLine(nextQ.question);
+        return;
+      }
     }
 
     const q =
@@ -418,11 +491,23 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   function flushSpokenAnswer() {
     const clean = finalBufferRef.current.trim();
-    if (!clean) return;
+    console.log('[Speech] Flushing answer:', clean.substring(0, 100) + (clean.length > 100 ? '...' : ''));
+    
+    if (!clean) {
+      console.log('[Speech] No text to flush');
+      return;
+    }
+
+    // Clear speech timeout when flushing
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
 
     finalBufferRef.current = "";
     interimRef.current = "";
     setInterimText("");
+    lastSpeechTimeRef.current = 0;
 
     if (isEndInterviewIntent(clean)) {
       void endInterviewFromVoice(clean);
@@ -443,28 +528,76 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         resultIndex: number;
         results: ArrayLike<{ isFinal: boolean; 0: { transcript?: string } }>;
       };
+      
       let interim = "";
+      let hasNewFinal = false;
+      
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
         const text = res?.[0]?.transcript ?? "";
-        if (res?.isFinal) finalBufferRef.current += text.trim() + " ";
-        else interim += text;
+        if (res?.isFinal) {
+          finalBufferRef.current += text.trim() + " ";
+          hasNewFinal = true;
+        } else {
+          interim += text;
+        }
       }
+      
       const trimmed = interim.trim();
       interimRef.current = trimmed;
       setInterimText(trimmed);
-      if (trimmed.length > 0) {
+      
+      // Update last speech time when we get any speech (final or interim)
+      if (trimmed.length > 0 || hasNewFinal) {
+        const now = Date.now();
+        lastSpeechTimeRef.current = now;
         setSpeechError(null);
+        
+        // Clear any existing timeout
+        if (speechTimeoutRef.current) {
+          clearTimeout(speechTimeoutRef.current);
+          speechTimeoutRef.current = null;
+        }
+        
+        // Set a new timeout for when speech might be done
+        speechTimeoutRef.current = setTimeout(() => {
+          // Only auto-advance if we haven't had speech for the timeout period
+          const timeSinceLastSpeech = Date.now() - lastSpeechTimeRef.current;
+          if (timeSinceLastSpeech >= SPEECH_TIMEOUT_MS && sessionActiveRef.current) {
+            // Check if we have accumulated speech to process
+            const accumulated = finalBufferRef.current.trim();
+            if (accumulated.length > 0) {
+              console.log('[Speech] Auto-advancing after silence timeout with:', accumulated.substring(0, 50) + '...');
+              flushSpokenAnswer();
+            }
+          }
+        }, SPEECH_TIMEOUT_MS);
       }
     };
 
     rec.onerror = (event) => {
       const err = (event as { error?: string })?.error;
+      console.log('[Speech] Error:', err);
+      
       if (err === "aborted") return;
+      
+      // For no-speech errors, be more lenient - don't immediately restart
       if (err === "no-speech" && sessionActiveRef.current && !pausedForTtsRef.current) {
-        scheduleRecognitionStart("no-speech");
+        console.log('[Speech] No-speech detected, checking if we should restart...');
+        
+        // Only restart if we haven't had any speech recently and no accumulated text
+        const timeSinceLastSpeech = Date.now() - lastSpeechTimeRef.current;
+        const hasAccumulatedText = finalBufferRef.current.trim().length > 0;
+        
+        if (timeSinceLastSpeech > 5000 && !hasAccumulatedText) {
+          console.log('[Speech] Restarting after long silence with no accumulated text');
+          scheduleRecognitionStart("no-speech-long-silence");
+        } else {
+          console.log('[Speech] Not restarting - recent speech or accumulated text exists');
+        }
         return;
       }
+      
       if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
         sessionActiveRef.current = false;
         pausedForTtsRef.current = false;
@@ -475,10 +608,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         releaseMicStream();
         return;
       }
+      
       if (err === "network") {
         setSpeechError(speechErrorMessage("network"));
       }
+      
+      // For other errors, only restart if we're still in an active session
       if (sessionActiveRef.current && !pausedForTtsRef.current) {
+        console.log('[Speech] Restarting after error:', err);
         scheduleRecognitionStart(`recover ${err ?? "error"}`);
       }
     };
@@ -772,6 +909,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                 ⏱ {formatTime(secondsLeft)}
               </div>
             )}
+            {timeExpired && (
+              <div className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 text-sm font-semibold px-3 py-0.5 rounded-full">
+                ⏰ Time's up!
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {!timeExpired && (
@@ -788,7 +930,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                   ? "bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100"
                   : listening
                     ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100"
-                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    : timeExpired
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                      : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
               }`}
               role="status"
               aria-live="polite"
@@ -799,7 +943,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                   ? typedAnswersOnly
                     ? "Typed mode"
                     : "Mic on"
-                  : "Mic off"}
+                  : timeExpired
+                    ? "Time expired"
+                    : "Mic off"}
             </div>
           </div>
         </div>
@@ -835,7 +981,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         </p>
 
         <div className="flex flex-wrap gap-2">
-          {micPhase === "idle" ? (
+          {micPhase === "idle" && !timeExpired ? (
             <>
               <button
                 className="rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
@@ -852,6 +998,12 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                 Typed answers only
               </button>
             </>
+          ) : timeExpired ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+              <p className="text-sm text-red-800 dark:text-red-200 font-medium">
+                ⏰ Time's up! Your interview has ended. Please click "Mark complete" below to submit your responses for assessment.
+              </p>
+            </div>
           ) : (
             <button
               className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
@@ -881,6 +1033,16 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         {listening && !typedAnswersOnly && interimText ? (
           <div className="mt-3 border-t border-zinc-200 pt-3 text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
             <span className="font-medium text-zinc-700 dark:text-zinc-200">Heard (live):</span> {interimText}
+            {finalBufferRef.current.trim() && (
+              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
+                <span className="font-medium">Captured:</span> {finalBufferRef.current.trim().substring(0, 100)}{finalBufferRef.current.trim().length > 100 ? '...' : ''}
+              </div>
+            )}
+          </div>
+        ) : listening && !typedAnswersOnly && !interimText && finalBufferRef.current.trim() ? (
+          <div className="mt-3 border-t border-zinc-200 pt-3 text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+            <span className="font-medium text-zinc-700 dark:text-zinc-200">Captured so far:</span> {finalBufferRef.current.trim().substring(0, 150)}{finalBufferRef.current.trim().length > 150 ? '...' : ''}
+            <div className="mt-1 text-xs text-zinc-400">Continue speaking or click "Send answer" when done.</div>
           </div>
         ) : listening && !typedAnswersOnly && !interimText ? (
           <div className="mt-3 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-400">
@@ -889,7 +1051,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         ) : null}
       </div>
 
-      {listening ? (
+      {listening && !timeExpired ? (
         <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
           <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="typed-interview-reply">
             {typedAnswersOnly ? "Your answer (typed)" : "Or type your answer if the mic is flaky"}
@@ -912,40 +1074,51 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       ) : null}
 
       <div className="mt-3 flex flex-col gap-2">
-        <p className="text-xs text-zinc-500">
-          {typedAnswersOnly
-            ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
-            : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box · <span className="font-medium">Stop session</span> ends</>}
-        </p>
-        <button
-          type="button"
-          disabled={!listening || typedAnswersOnly}
-          className="w-fit rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-          onClick={() => {
-            const rec = recognitionRef.current;
-            if (!rec || !sessionActiveRef.current) return;
-            // Stitch any live interim text into the final buffer NOW before stopping,
-            // because Chrome with continuous=true rarely fires isFinal while mic is open.
-            const pending = `${finalBufferRef.current.trim()} ${interimRef.current.trim()}`.trim();
-            if (pending) {
-              finalBufferRef.current = pending + " ";
-              interimRef.current = "";
-              setInterimText("");
-            }
-            commitAfterEndRef.current = true;
-            try {
-              rec.stop();
-            } catch {
-              commitAfterEndRef.current = false;
-              flushSpokenAnswer();
-              if (sessionActiveRef.current) {
-                scheduleRecognitionStart("send answer sync fallback");
-              }
-            }
-          }}
-        >
-          Send answer (voice)
-        </button>
+        {!timeExpired && (
+          <>
+            <p className="text-xs text-zinc-500">
+              {typedAnswersOnly
+                ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
+                : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box · <span className="font-medium">Stop session</span> ends</>}
+            </p>
+            <button
+              type="button"
+              disabled={!listening || typedAnswersOnly}
+              className="w-fit rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              onClick={() => {
+                const rec = recognitionRef.current;
+                if (!rec || !sessionActiveRef.current) return;
+                // Stitch any live interim text into the final buffer NOW before stopping,
+                // because Chrome with continuous=true rarely fires isFinal while mic is open.
+                const pending = `${finalBufferRef.current.trim()} ${interimRef.current.trim()}`.trim();
+                if (pending) {
+                  finalBufferRef.current = pending + " ";
+                  interimRef.current = "";
+                  setInterimText("");
+                }
+                commitAfterEndRef.current = true;
+                try {
+                  rec.stop();
+                } catch {
+                  commitAfterEndRef.current = false;
+                  flushSpokenAnswer();
+                  if (sessionActiveRef.current) {
+                    scheduleRecognitionStart("send answer sync fallback");
+                  }
+                }
+              }}
+            >
+              Send answer (voice)
+            </button>
+          </>
+        )}
+        {timeExpired && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              💡 <span className="font-medium">Ready to submit:</span> Your interview responses have been recorded. Click "Mark complete" below to get your AI assessment and feedback.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
