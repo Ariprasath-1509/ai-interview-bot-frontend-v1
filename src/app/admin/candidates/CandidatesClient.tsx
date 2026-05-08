@@ -101,7 +101,17 @@ export default function CandidatesClient({ role }: Props) {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
-  const [deploymentHistory, setDeploymentHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [deploymentHistory, setDeploymentHistory] = useState<Array<{
+    id: string;
+    clientName: string;
+    status: string;
+    empId?: string;
+    candidateName?: string;
+    candidateEmail?: string;
+    deployedDate: string;
+    endDate?: string;
+    mentor?: string;
+  }>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [endingDeployment, setEndingDeployment] = useState<string | null>(null);
   const { confirm } = useConfirm();
