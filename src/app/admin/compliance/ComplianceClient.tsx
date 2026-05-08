@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Shield, Clock, FileText, User, Calendar, Search } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
@@ -35,14 +35,12 @@ export default function ComplianceClient() {
   const [filterAction, setFilterAction] = useState('');
   const [filterResource, setFilterResource] = useState('');
   const [editingPolicy, setEditingPolicy] = useState<string | null>(null);
-  const [policyForm, setPolicyForm] = useState({ transcriptDays: 365, audioDays: 90 });
+  const [policyForm, setPolicyForm] = useState<{
+    transcriptDays: number;
+    audioDays: number;
+  }>({ transcriptDays: 365, audioDays: 90 });
 
-  useEffect(() => {
-    if (activeTab === 'logs') fetchAuditLogs();
-    else fetchRetentionPolicies();
-  }, [activeTab, page]);
-
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/compliance/audit-logs?page=${page}&size=50`);
@@ -53,16 +51,25 @@ export default function ComplianceClient() {
       }
     } catch (e) { console.error('Failed to fetch audit logs:', e); }
     finally { setLoading(false); }
-  };
+  }, [page]);
 
-  const fetchRetentionPolicies = async () => {
+  const fetchRetentionPolicies = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/compliance/retention-policies');
       if (res.ok) setPolicies(await res.json());
     } catch (e) { console.error('Failed to fetch retention policies:', e); }
     finally { setLoading(false); }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Defer to avoid react-hooks/set-state-in-effect (fetchers set state).
+    const t = window.setTimeout(() => {
+      if (activeTab === 'logs') void fetchAuditLogs();
+      else void fetchRetentionPolicies();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [activeTab, fetchAuditLogs, fetchRetentionPolicies]);
 
   const handleUpdatePolicy = async (region: string) => {
     try {
@@ -241,10 +248,12 @@ export default function ComplianceClient() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { label: 'Transcript Retention', icon: FileText, field: 'transcriptDays', value: policy.transcriptDays },
-                      { label: 'Audio Retention', icon: Calendar, field: 'audioDays', value: policy.audioDays },
-                    ].map(({ label, icon: Icon, field, value }) => (
+                    {(
+                      [
+                        { label: 'Transcript Retention', icon: FileText, field: 'transcriptDays', value: policy.transcriptDays },
+                        { label: 'Audio Retention', icon: Calendar, field: 'audioDays', value: policy.audioDays },
+                      ] as const
+                    ).map(({ label, icon: Icon, field, value }) => (
                       <div key={field} className="rounded-lg bg-zinc-50 p-4 dark:bg-zinc-900/50">
                         <div className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                           <Icon className="h-4 w-4" /> {label}
@@ -252,8 +261,10 @@ export default function ComplianceClient() {
                         {editingPolicy === policy.region ? (
                           <input
                             type="number" min="1"
-                            value={(policyForm as any)[field]}
-                            onChange={(e) => setPolicyForm({ ...policyForm, [field]: parseInt(e.target.value) })}
+                            value={policyForm[field]}
+                            onChange={(e) =>
+                              setPolicyForm({ ...policyForm, [field]: parseInt(e.target.value) || 0 })
+                            }
                             className="input-base"
                           />
                         ) : (

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { Pagination, usePagination } from '@/components/common/Pagination';
 
 interface Client {
   id: string;
@@ -45,9 +46,14 @@ export default function ClientsClient() {
   const [formData, setFormData] = useState<ClientFormData>(emptyForm);
   const [jdFile, setJdFile] = useState<File | null>(null);
 
-  useEffect(() => { fetchClients(); }, []);
+  const resetForm = useCallback(() => {
+    setShowForm(false);
+    setEditingClient(null);
+    setFormData(emptyForm);
+    setJdFile(null);
+  }, []);
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const res = await fetch('/api/recruiter/clients');
       if (res.ok) setClients(await res.json());
@@ -56,7 +62,24 @@ export default function ClientsClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(fetchClients, 0);
+    return () => clearTimeout(t);
+  }, [fetchClients]);
+
+  useEffect(() => {
+    if (!showForm) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        resetForm();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showForm, resetForm]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,12 +118,12 @@ export default function ClientsClient() {
     setShowForm(true);
   };
 
-  const resetForm = () => { setShowForm(false); setEditingClient(null); setFormData(emptyForm); setJdFile(null); };
-
-  if (loading) return <LoadingSpinner message="Loading clients..." />;
-
   const totalBench = clients.reduce((s, c) => s + c.benchB2bCandidatesNeeded, 0);
   const totalMarket = clients.reduce((s, c) => s + c.marketCandidatesNeeded, 0);
+  const paginationState = usePagination(clients, 5);
+  const { page, totalPages, paginated, setPage } = paginationState;
+
+  if (loading) return <LoadingSpinner message="Loading clients..." />;
 
   return (
     <div className="space-y-6">
@@ -144,8 +167,9 @@ export default function ClientsClient() {
 
       {/* Client Cards */}
       {clients.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {clients.map((client) => (
+        <div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {paginated.map((client) => (
             <div key={client.id} className="card p-5 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -184,7 +208,9 @@ export default function ClientsClient() {
                 <p className="line-clamp-2 text-sm text-zinc-500 dark:text-zinc-400">{client.jdDescription}</p>
               </div>
             </div>
-          ))}
+            ))}
+          </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       ) : (
         <div className="card flex flex-col items-center justify-center py-16 text-center">
@@ -200,7 +226,7 @@ export default function ClientsClient() {
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="card w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+          <div className="card w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" role="dialog" aria-modal="true">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                 {editingClient ? 'Edit Client' : 'Add New Client'}
@@ -219,8 +245,10 @@ export default function ClientsClient() {
                   <input
                     required
                     placeholder={placeholder}
-                    value={(formData as any)[field]}
-                    onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+                    value={formData[field as keyof Pick<ClientFormData, "clientName" | "jdRole">]}
+                    onChange={(e) =>
+                      setFormData({ ...formData, [field]: e.target.value } as ClientFormData)
+                    }
                     className="input-base"
                   />
                 </label>
@@ -246,8 +274,12 @@ export default function ClientsClient() {
                     {label}
                     <input
                       type="number" min="0" required placeholder="0"
-                      value={(formData as any)[field]}
-                      onChange={(e) => setFormData({ ...formData, [field]: parseInt(e.target.value) || 0 })}
+                      value={formData[field as keyof Pick<ClientFormData, "positionsVacant" | "benchB2bCandidatesNeeded" | "marketCandidatesNeeded">]}
+                      onChange={(e) =>
+                        setFormData(
+                          { ...formData, [field]: parseInt(e.target.value) || 0 } as ClientFormData,
+                        )
+                      }
                       className="input-base"
                     />
                   </label>

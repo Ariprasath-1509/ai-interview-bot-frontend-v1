@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Pagination, usePagination } from '@/components/common/Pagination';
@@ -38,12 +38,33 @@ export default function InterviewReviewClient() {
     verdict: searchParams?.get('verdict') || ''
   });
 
+  const [sort, setSort] = useState({
+    field: (searchParams?.get('sort') || 'createdAt') as 'createdAt' | 'candidateName' | 'status' | 'interviewMode' | 'finalVerdict',
+    dir: (searchParams?.get('dir') || 'desc') as 'asc' | 'desc',
+  });
+
+  const toggleSort = (field: typeof sort.field) => {
+    setSort((prev) => {
+      if (prev.field === field) {
+        return { ...prev, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      return { field, dir: 'asc' };
+    });
+  };
+
+  const sortIndicator = (field: typeof sort.field) => {
+    if (sort.field !== field) return null;
+    return sort.dir === 'asc' ? ' ↑' : ' ↓';
+  };
+
   // Update URL when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (filter.status) params.set('status', filter.status);
     if (filter.mode) params.set('mode', filter.mode);
     if (filter.verdict) params.set('verdict', filter.verdict);
+    if (sort.field) params.set('sort', sort.field);
+    if (sort.dir) params.set('dir', sort.dir);
     
     // Only replace if params actually changed to avoid loop
     const currentParams = searchParams ? searchParams.toString() : '';
@@ -51,7 +72,7 @@ export default function InterviewReviewClient() {
     if (currentParams !== newParams) {
       router.replace(`?${newParams}`, { scroll: false });
     }
-  }, [filter, router, searchParams]);
+  }, [filter, sort, router, searchParams]);
 
   useEffect(() => {
     fetchInterviews();
@@ -132,13 +153,32 @@ export default function InterviewReviewClient() {
     return colors[verdict as keyof typeof colors] || 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700';
   };
 
-  const filteredInterviews = interviews.filter(interview => {
-    return (
-      (!filter.status || interview.status === filter.status) &&
-      (!filter.mode || interview.interviewMode === filter.mode) &&
-      (!filter.verdict || interview.finalVerdict === filter.verdict)
-    );
-  });
+  const filteredInterviews = useMemo(() => {
+    const out = interviews.filter(interview => {
+      return (
+        (!filter.status || interview.status === filter.status) &&
+        (!filter.mode || interview.interviewMode === filter.mode) &&
+        (!filter.verdict || interview.finalVerdict === filter.verdict)
+      );
+    });
+
+    const dirMul = sort.dir === 'asc' ? 1 : -1;
+    out.sort((a, b) => {
+      const av = (a as any)[sort.field];
+      const bv = (b as any)[sort.field];
+      if (sort.field === 'createdAt') {
+        const at = new Date(av).getTime();
+        const bt = new Date(bv).getTime();
+        return (at - bt) * dirMul;
+      }
+      const as = (av ?? '').toString().toLowerCase();
+      const bs = (bv ?? '').toString().toLowerCase();
+      if (as < bs) return -1 * dirMul;
+      if (as > bs) return 1 * dirMul;
+      return 0;
+    });
+    return out;
+  }, [interviews, filter, sort]);
 
   const paginationState = usePagination(filteredInterviews, 12);
 
@@ -161,7 +201,7 @@ export default function InterviewReviewClient() {
 
       {/* Filters */}
       <div className="card p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1.5 text-zinc-700 dark:text-zinc-300">Status</label>
             <select
@@ -210,6 +250,31 @@ export default function InterviewReviewClient() {
               <option value="WITHDRAWN">Withdrawn</option>
             </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5 text-zinc-700 dark:text-zinc-300">Sort</label>
+            <div className="flex gap-2">
+              <select
+                value={sort.field}
+                onChange={(e) => setSort(prev => ({ ...prev, field: e.target.value as any }))}
+                className={inputCls}
+              >
+                <option value="createdAt">Created</option>
+                <option value="candidateName">Candidate</option>
+                <option value="status">Status</option>
+                <option value="interviewMode">Mode</option>
+                <option value="finalVerdict">Verdict</option>
+              </select>
+              <select
+                value={sort.dir}
+                onChange={(e) => setSort(prev => ({ ...prev, dir: e.target.value as any }))}
+                className={inputCls}
+              >
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -218,12 +283,57 @@ export default function InterviewReviewClient() {
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Candidate</th>
+              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">
+                <button
+                  type="button"
+                  onClick={() => toggleSort('candidateName')}
+                  className="hover:underline underline-offset-2"
+                  title="Sort by candidate"
+                >
+                  Candidate{sortIndicator('candidateName')}
+                </button>
+              </th>
               <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Role</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Mode</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Status</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Verdict</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Created</th>
+              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">
+                <button
+                  type="button"
+                  onClick={() => toggleSort('interviewMode')}
+                  className="hover:underline underline-offset-2"
+                  title="Sort by mode"
+                >
+                  Mode{sortIndicator('interviewMode')}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className="hover:underline underline-offset-2"
+                  title="Sort by status"
+                >
+                  Status{sortIndicator('status')}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">
+                <button
+                  type="button"
+                  onClick={() => toggleSort('finalVerdict')}
+                  className="hover:underline underline-offset-2"
+                  title="Sort by verdict"
+                >
+                  Verdict{sortIndicator('finalVerdict')}
+                </button>
+              </th>
+              <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">
+                <button
+                  type="button"
+                  onClick={() => toggleSort('createdAt')}
+                  className="hover:underline underline-offset-2"
+                  title="Sort by created date"
+                >
+                  Created{sortIndicator('createdAt')}
+                </button>
+              </th>
               <th className="px-4 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">Actions</th>
             </tr>
           </thead>

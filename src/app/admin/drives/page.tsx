@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface Drive {
@@ -20,11 +20,7 @@ export default function DrivesPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  useEffect(() => {
-    fetchDrives();
-  }, []);
-
-  const fetchDrives = async () => {
+  const fetchDrives = useCallback(async () => {
     try {
       const response = await fetch('/api/drives');
       if (response.ok) {
@@ -36,7 +32,14 @@ export default function DrivesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void fetchDrives();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [fetchDrives]);
 
   const getStatusBadge = (status: string) => {
     const colors = {

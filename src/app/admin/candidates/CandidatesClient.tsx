@@ -44,6 +44,21 @@ interface Candidate {
 
 interface Props { role: string; }
 
+type ImportDetail = {
+  row?: number;
+  status?: 'SUCCESS' | 'WARNING' | 'FAILED' | string;
+  name?: string;
+  email?: string;
+  message?: string;
+};
+
+type ImportResult = {
+  successCount: number;
+  warningCount: number;
+  failureCount: number;
+  details?: ImportDetail[];
+};
+
 const SKILL_LABEL: Record<string, string> = { JAVA_SB: 'Java + SB', JFSR: 'JFSR', REACT_JS: 'React JS' };
 const SOURCE_LABEL: Record<string, string> = { B2B: 'B2B', BENCH: 'Bench', MARKET: 'Market' };
 
@@ -81,12 +96,12 @@ export default function CandidatesClient({ role }: Props) {
   const [saving, setSaving] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
-  const [candidateMatches, setCandidateMatches] = useState<Record<string, any[]>>({});
+  const [candidateMatches, setCandidateMatches] = useState<Record<string, unknown[]>>({});
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [importResult, setImportResult] = useState<any>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
-  const [deploymentHistory, setDeploymentHistory] = useState<any[]>([]);
+  const [deploymentHistory, setDeploymentHistory] = useState<Array<Record<string, unknown>>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [endingDeployment, setEndingDeployment] = useState<string | null>(null);
   const { confirm } = useConfirm();
@@ -118,11 +133,14 @@ export default function CandidatesClient({ role }: Props) {
     }
   };
 
-  useEffect(() => { 
-    fetchCandidates(); 
-    if (activeTab === 'deployed') {
-      fetchDeployedCandidates();
-    }
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetchCandidates();
+      if (activeTab === 'deployed') {
+        fetchDeployedCandidates();
+      }
+    }, 0);
+    return () => clearTimeout(t);
   }, [activeTab]);
 
   const handleResumeUpload = (candidateId: string) => {
@@ -345,7 +363,7 @@ export default function CandidatesClient({ role }: Props) {
 
   const { page, totalPages, paginated, setPage } = usePagination(
     activeTab === 'all' ? filtered : deployedCandidates, 
-    15
+    5
   );
 
   if (loading) return <LoadingSpinner message="Loading candidates..." />;
@@ -936,7 +954,7 @@ export default function CandidatesClient({ role }: Props) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {importResult.details?.map((detail: any, idx: number) => (
+                        {importResult.details?.map((detail, idx: number) => (
                           <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                             <td className="px-4 py-2 font-mono text-zinc-600 dark:text-zinc-400">{detail.row}</td>
                             <td className="px-4 py-2">
