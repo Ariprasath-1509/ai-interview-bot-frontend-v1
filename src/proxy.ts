@@ -65,8 +65,11 @@ export default function middleware(req: NextRequest) {
 
   if (isPublic(pathname)) return NextResponse.next();
 
-  // API routes: validate JWT exists and is not expired
+  // API routes: validate JWT exists and is not expired (skip public API endpoints)
   if (pathname.startsWith("/api")) {
+    const PUBLIC_API = ["/api/auth/login", "/api/auth/register", "/api/auth/forgot-password", "/api/auth/reset-password", "/api/demo/login", "/api/health"];
+    if (PUBLIC_API.some((p) => pathname.startsWith(p))) return NextResponse.next();
+
     const token = req.cookies.get("br_jwt")?.value;
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
