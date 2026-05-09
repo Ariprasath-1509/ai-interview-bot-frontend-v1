@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Pagination, usePagination } from '@/components/common/Pagination';
@@ -76,9 +76,9 @@ export default function InterviewReviewClient() {
 
   useEffect(() => {
     fetchInterviews();
-  }, []);
+  }, []); // Remove fetchInterviews from dependencies
 
-  const fetchInterviews = async () => {
+  const fetchInterviews = useCallback(async () => {
     try {
       const response = await fetch('/api/interviews/summary');
       const data = await response.json();
@@ -88,7 +88,7 @@ export default function InterviewReviewClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependency array since it doesn't depend on any props/state
 
   const handleDelete = async (interviewId: string) => {
     const ok = await confirm({

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Users, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { Loader2, Users, TrendingUp, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
 
 interface Client {
@@ -193,6 +193,15 @@ export default function AIMatchingClient() {
             }
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push('/admin/clients')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Clients
+        </Button>
       </div>
 
       {/* Client Selection */}

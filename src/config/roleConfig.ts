@@ -43,7 +43,6 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
     sidebar: [
       { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
       { href: "/admin/interviews/create", label: "Create Interview", icon: "UserPlus" },
-      { href: "/admin/matching", label: "AI Matching", icon: "Sparkles" },
       { href: "/admin/review", label: "Review", icon: "ClipboardList" },
       { href: "/admin/candidates", label: "Candidates", icon: "Users" },
       { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload" },
@@ -66,7 +65,6 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
     sidebar: [
       { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
       { href: "/admin/interviews/create", label: "Create Interview", icon: "UserPlus" },
-      { href: "/admin/matching", label: "AI Matching", icon: "Sparkles" },
       { href: "/admin/review", label: "Review", icon: "ClipboardList" },
       { href: "/admin/candidates", label: "Candidates", icon: "Users" },
       { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload" },
@@ -90,7 +88,6 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/interviews/create", label: "Create Interview", icon: "UserPlus" },
       { href: "/admin/review", label: "Review", icon: "ClipboardList" },
       { href: "/admin/candidates", label: "Candidates", icon: "Users" },
-      { href: "/admin/matching", label: "AI Matching", icon: "Sparkles" },
       { href: "/admin/clients", label: "Clients", icon: "Building2" },
       { href: "/admin/recruiter-bot", label: "JD Assistant", icon: "Bot" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },

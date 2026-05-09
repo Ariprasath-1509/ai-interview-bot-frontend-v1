@@ -12,6 +12,38 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import Link from 'next/link';
+
+// ViewMatchesButton component with dynamic styling
+function ViewMatchesButton({ 
+  candidateId, 
+  candidateStatus, 
+  systemInterviewCount 
+}: { 
+  candidateId: string;
+  candidateStatus: string | null;
+  systemInterviewCount: number | null;
+}) {
+  const isEligible = candidateStatus === 'RFD' && (systemInterviewCount || 0) >= 1;
+  
+  if (!isEligible) {
+    return (
+      <span className="text-xs text-gray-400 cursor-not-allowed" title="Candidate must be RFD with 1+ interviews">
+        View Matches
+      </span>
+    );
+  }
+  
+  return (
+    <Link
+      href={`/admin/candidates/${candidateId}/matches`}
+      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 shadow-sm hover:shadow-md transform hover:scale-105"
+    >
+      <Sparkles className="h-3 w-3" />
+      View Matches
+    </Link>
+  );
+}
 
 interface Candidate {
   id: string;
@@ -701,12 +733,11 @@ export default function CandidatesClient({ role }: Props) {
                     <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.interviewMentorName || '—'}</td>
                     <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.clientName || '—'}</td>
                     <td className="px-3 py-3">
-                      <a
-                        href="/admin/clients/matching"
-                        className="text-xs text-purple-600 hover:text-purple-700 hover:underline"
-                      >
-                        View Matches
-                      </a>
+                      <ViewMatchesButton 
+                        candidateId={c.id}
+                        candidateStatus={c.candidateStatus}
+                        systemInterviewCount={c.systemInterviewCount ?? null}
+                      />
                     </td>
                     <td className="px-3 py-3 text-right">
                       <div className="flex gap-1 justify-end">

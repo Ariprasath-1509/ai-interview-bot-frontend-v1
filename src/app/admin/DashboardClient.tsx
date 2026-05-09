@@ -39,9 +39,6 @@ interface CandidateAnalytics {
 
 interface ClientAnalytics {
   totalClients: number;
-  totalMatchingCandidates: number;
-  clientsWithMatches: number;
-  averageMatchesPerClient: number;
 }
 
 interface Interviewer {
@@ -188,11 +185,10 @@ export default function DashboardClient() {
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Activity & Outcomes</h3>
                 <p className="text-xs text-zinc-400 mt-0.5">Interview volume, client positions, and readiness results</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatusCard title="Interviews Today" description="Created or updated today" count={analytics?.timePeriods.today || 0} color="indigo" icon="📊" />
                 <StatusCard title="Interviews This Week" description="Created or updated this week" count={analytics?.timePeriods.thisWeek || 0} color="teal" icon="📈" />
                 <StatusCard title="Total Clients" description="Active client positions" count={clientAnalytics?.totalClients || 0} color="blue" icon="🏢" linkTo="/admin/clients" />
-                <StatusCard title="Matching Candidates" description="Candidates matched to client positions" count={clientAnalytics?.totalMatchingCandidates || 0} color="purple" icon="🎯" subtitle={`${clientAnalytics?.averageMatchesPerClient || 0} avg per client`} linkTo="/admin/matching" />
                 <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="✅" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
               </div>
             </div>
