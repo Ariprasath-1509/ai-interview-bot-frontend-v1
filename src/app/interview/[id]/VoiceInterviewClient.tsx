@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Utterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
 
@@ -311,12 +311,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     const fData = freqDataRef.current;
     if (!analyser || !tData || !fData) return null;
 
+    // @ts-expect-error - AnalyserNode methods accept Float32Array with ArrayBufferLike
     analyser.getFloatTimeDomainData(tData);
     let rms = 0;
     for (let i = 0; i < tData.length; i++) rms += tData[i] * tData[i];
     rms = Math.sqrt(rms / tData.length);
     if (rms < 0.01) return null;
 
+    // @ts-expect-error - AnalyserNode methods accept Float32Array with ArrayBufferLike
     analyser.getFloatFrequencyData(fData);
     const bucketCount = 24;
     const bucketSize = Math.floor(fData.length / bucketCount);
