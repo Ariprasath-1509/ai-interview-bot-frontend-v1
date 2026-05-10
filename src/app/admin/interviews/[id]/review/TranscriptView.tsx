@@ -4,6 +4,18 @@ import { useEffect, useRef } from "react";
 
 type Utterance = { speaker: string; text: string; at: string };
 
+function formatTimeStable(value: string): string {
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "--:--";
+    const hh = d.getUTCHours().toString().padStart(2, "0");
+    const mm = d.getUTCMinutes().toString().padStart(2, "0");
+    return `${hh}:${mm}`;
+  } catch {
+    return "--:--";
+  }
+}
+
 export function TranscriptView({ utterances }: { utterances: Utterance[] }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +47,7 @@ export function TranscriptView({ utterances }: { utterances: Utterance[] }) {
             }`}>
               <p className="break-words whitespace-pre-wrap">{u.text}</p>
               <p className="mt-1 text-[10px] opacity-40 select-none">
-                {new Date(u.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {formatTimeStable(u.at)}
               </p>
             </div>
           </div>

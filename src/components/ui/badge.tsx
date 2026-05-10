@@ -1,6 +1,6 @@
 import * as React from "react"
 
-interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: "default" | "secondary" | "destructive" | "outline" | "success" | "warning"
 }
 
@@ -15,7 +15,7 @@ const variantClasses: Record<string, string> = {
 
 function Badge({ className = "", variant = "default", ...props }: BadgeProps) {
   return (
-    <div
+    <span
       className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors duration-150 ${variantClasses[variant]} ${className}`}
       {...props}
     />

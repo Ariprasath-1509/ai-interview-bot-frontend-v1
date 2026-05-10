@@ -28,7 +28,14 @@ export async function POST(request: NextRequest) {
     });
 
     console.log('Backend response status:', response.status);
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    let data: unknown;
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = { error: text || 'Backend error' };
+    }
     console.log('Backend response data:', data);
 
     if (!response.ok) {

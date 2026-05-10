@@ -13,6 +13,7 @@ const CompleteSchema = z.object({
   interviewId: z.string().min(1),
   candidateNotes: z.string().optional().or(z.literal("")),
   transcriptJson: z.string().optional().or(z.literal("")),
+  voiceValidationJson: z.string().optional().or(z.literal("")),
 });
 
 type Interview = { 
@@ -125,6 +126,7 @@ async function completeInterview(formData: FormData) {
     interviewId: formData.get("interviewId"),
     candidateNotes: formData.get("candidateNotes"),
     transcriptJson: formData.get("transcriptJson"),
+    voiceValidationJson: formData.get("voiceValidationJson"),
   });
 
   const transcriptJson = parsed.transcriptJson?.trim() || JSON.stringify({
@@ -217,7 +219,22 @@ async function completeInterview(formData: FormData) {
   // Merge assessment into transcript and update interview
   let transcriptDoc: Record<string, unknown> = {};
   try { transcriptDoc = JSON.parse(transcriptJson) as Record<string, unknown>; } catch { /* ignore */ }
-  const mergedTranscript = JSON.stringify({ ...transcriptDoc, meta: { ...(transcriptDoc.meta as object ?? {}), aiAssessment: assessmentMeta } });
+  let voiceValidationMeta: Record<string, unknown> | null = null;
+  try {
+    if (parsed.voiceValidationJson?.trim()) {
+      voiceValidationMeta = JSON.parse(parsed.voiceValidationJson) as Record<string, unknown>;
+    }
+  } catch {
+    voiceValidationMeta = null;
+  }
+  const mergedTranscript = JSON.stringify({
+    ...transcriptDoc,
+    meta: {
+      ...(transcriptDoc.meta as object ?? {}),
+      aiAssessment: assessmentMeta,
+      ...(voiceValidationMeta ? { voiceValidation: voiceValidationMeta } : {}),
+    },
+  });
 
   await apiServer(`/interviews/${parsed.interviewId}/complete`, session.token, {
     method: "PATCH",

@@ -12,6 +12,7 @@ type Props = {
   durationMinutes: number;
   interviewMode: string;
   onTranscriptChange: (json: string) => void;
+  onVoiceValidationChange?: (snapshot: VoiceValidationSnapshot) => void;
 };
 
 type MicPhase = "idle" | "listening" | "bot_speaking";
@@ -28,8 +29,43 @@ type SpeechRecognitionLike = {
   onend: (() => void) | null;
 };
 
+type VoiceValidationStatus = "PENDING_ENROLLMENT" | "VERIFIED" | "RISK" | "FAILED" | "NOT_VERIFIED";
+
+type VoiceValidationSnapshot = {
+  status: VoiceValidationStatus;
+  enrolled: boolean;
+  checks: number;
+  flaggedChecks: number;
+  consecutiveMismatches: number;
+  averageSimilarity: number | null;
+  lastSimilarity: number | null;
+  startSimilarity: number | null;
+  endSimilarity: number | null;
+  note: string;
+};
+
 function nowIso() {
   return new Date().toISOString();
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+function normalizeVector(v: number[]): number[] {
+  const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
+  if (norm === 0) return v.map(() => 0);
+  return v.map((x) => x / norm);
 }
 
 /** Speak and resolve when playback finishes (or immediately if unsupported). */
@@ -82,7 +118,7 @@ function isEndInterviewIntent(text: string): boolean {
   return patterns.some((re) => re.test(t));
 }
 
-export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange }: Props) {
+export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange, onVoiceValidationChange }: Props) {
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
@@ -111,6 +147,18 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const [showConfirm, setShowConfirm] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [manipulationCount, setManipulationCount] = useState(0);
+  const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot>({
+    status: "PENDING_ENROLLMENT",
+    enrolled: false,
+    checks: 0,
+    flaggedChecks: 0,
+    consecutiveMismatches: 0,
+    averageSimilarity: null,
+    lastSimilarity: null,
+    startSimilarity: null,
+    endSimilarity: null,
+    note: "Collecting initial voice sample",
+  });
   const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSpeechTimeRef = useRef<number>(0);
   const SPEECH_TIMEOUT_MS = 3000; // 3 seconds of silence before considering speech done
@@ -162,6 +210,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
     try { recognitionRef.current?.stop(); } catch { /* ignore */ }
     releaseMicStream();
+    finalizeVoiceValidation();
 
     const transcriptJson = JSON.stringify({ utterances: currentUtterances });
     try {
@@ -231,8 +280,231 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const typedOnlyRef = useRef(false);
   const micStreamRef = useRef<MediaStream | null>(null);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const timeDataRef = useRef<Float32Array | null>(null);
+  const freqDataRef = useRef<Float32Array | null>(null);
+  const monitorIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const enrollmentFeaturesRef = useRef<number[][]>([]);
+  const enrolledSignatureRef = useRef<number[] | null>(null);
+  const checksRef = useRef(0);
+  const flaggedRef = useRef(0);
+  const consecutiveRef = useRef(0);
+  const avgSimilarityRef = useRef(0);
+  const startSimilarityRef = useRef<number | null>(null);
+  const lastSimilarityRef = useRef<number | null>(null);
+  const hardFailedRef = useRef(false);
   /** Latest “user left view” cleanup (avoids stale closures in document listeners). */
   const silentEndBecauseUserLeftRef = useRef<() => void>(() => {});
+
+  const updateVoiceValidation = useCallback((patch: Partial<VoiceValidationSnapshot>) => {
+    setVoiceValidation((prev) => {
+      const next = { ...prev, ...patch };
+      onVoiceValidationChange?.(next);
+      return next;
+    });
+  }, [onVoiceValidationChange]);
+
+  function buildVoiceFeature(): number[] | null {
+    const analyser = analyserRef.current;
+    const tData = timeDataRef.current;
+    const fData = freqDataRef.current;
+    if (!analyser || !tData || !fData) return null;
+
+    analyser.getFloatTimeDomainData(tData);
+    let rms = 0;
+    for (let i = 0; i < tData.length; i++) rms += tData[i] * tData[i];
+    rms = Math.sqrt(rms / tData.length);
+    if (rms < 0.01) return null;
+
+    analyser.getFloatFrequencyData(fData);
+    const bucketCount = 24;
+    const bucketSize = Math.floor(fData.length / bucketCount);
+    const feature: number[] = [];
+    for (let b = 0; b < bucketCount; b++) {
+      const start = b * bucketSize;
+      const end = b === bucketCount - 1 ? fData.length : start + bucketSize;
+      let sum = 0;
+      for (let i = start; i < end; i++) {
+        // Convert dB values to positive energy-ish values.
+        sum += Math.max(0, 100 + fData[i]);
+      }
+      feature.push(sum / Math.max(1, end - start));
+    }
+    feature.push(rms * 100); // keep loudness component
+    return normalizeVector(feature);
+  }
+
+  function processVoiceFeature(feature: number[]) {
+    if (typedOnlyRef.current || botSpeaking || !sessionActiveRef.current) return;
+
+    if (!enrolledSignatureRef.current) {
+      enrollmentFeaturesRef.current.push(feature);
+      if (enrollmentFeaturesRef.current.length >= 10) {
+        const len = feature.length;
+        const mean = Array.from({ length: len }, (_, idx) =>
+          enrollmentFeaturesRef.current.reduce((s, row) => s + row[idx], 0) / enrollmentFeaturesRef.current.length
+        );
+        const enrolled = normalizeVector(mean);
+        enrolledSignatureRef.current = enrolled;
+        const selfSim = cosineSimilarity(enrolled, feature);
+        startSimilarityRef.current = selfSim;
+        updateVoiceValidation({
+          status: "VERIFIED",
+          enrolled: true,
+          startSimilarity: Number(selfSim.toFixed(3)),
+          note: "Voice enrolled. Continuous validation active.",
+        });
+      } else {
+        updateVoiceValidation({
+          status: "PENDING_ENROLLMENT",
+          note: `Collecting voice sample (${enrollmentFeaturesRef.current.length}/10)`,
+        });
+      }
+      return;
+    }
+
+    const sim = cosineSimilarity(enrolledSignatureRef.current, feature);
+    lastSimilarityRef.current = sim;
+    checksRef.current += 1;
+    avgSimilarityRef.current += (sim - avgSimilarityRef.current) / checksRef.current;
+
+    const mismatch = sim < 0.78;
+    if (mismatch) {
+      flaggedRef.current += 1;
+      consecutiveRef.current += 1;
+    } else {
+      consecutiveRef.current = 0;
+    }
+
+    let status: VoiceValidationStatus = "VERIFIED";
+    let note = "Voice consistency looks good.";
+    if (consecutiveRef.current >= 4 || (checksRef.current >= 12 && flaggedRef.current >= 6)) {
+      status = "FAILED";
+      hardFailedRef.current = true;
+      note = "Voice mismatch detected multiple times. Identity continuity failed.";
+    } else if (consecutiveRef.current >= 2 || (checksRef.current >= 8 && flaggedRef.current >= 3)) {
+      status = "RISK";
+      note = "Some voice mismatch detected. Continue with caution.";
+    }
+
+    updateVoiceValidation({
+      status,
+      enrolled: true,
+      checks: checksRef.current,
+      flaggedChecks: flaggedRef.current,
+      consecutiveMismatches: consecutiveRef.current,
+      averageSimilarity: Number(avgSimilarityRef.current.toFixed(3)),
+      lastSimilarity: Number(sim.toFixed(3)),
+      note,
+    });
+  }
+
+  function startVoiceMonitor(stream: MediaStream) {
+    stopVoiceMonitor();
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) {
+      updateVoiceValidation({
+        status: "NOT_VERIFIED",
+        note: "AudioContext not supported in browser.",
+      });
+      return;
+    }
+    const ctx = new Ctx();
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.8;
+    source.connect(analyser);
+
+    audioContextRef.current = ctx;
+    analyserRef.current = analyser;
+    timeDataRef.current = new Float32Array(analyser.fftSize);
+    freqDataRef.current = new Float32Array(analyser.frequencyBinCount);
+
+    monitorIntervalRef.current = setInterval(() => {
+      const feature = buildVoiceFeature();
+      if (!feature) return;
+      processVoiceFeature(feature);
+    }, 750);
+  }
+
+  function stopVoiceMonitor() {
+    if (monitorIntervalRef.current) {
+      clearInterval(monitorIntervalRef.current);
+      monitorIntervalRef.current = null;
+    }
+    analyserRef.current = null;
+    timeDataRef.current = null;
+    freqDataRef.current = null;
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => null);
+      audioContextRef.current = null;
+    }
+  }
+
+  function resetVoiceValidationSession() {
+    enrollmentFeaturesRef.current = [];
+    enrolledSignatureRef.current = null;
+    checksRef.current = 0;
+    flaggedRef.current = 0;
+    consecutiveRef.current = 0;
+    avgSimilarityRef.current = 0;
+    startSimilarityRef.current = null;
+    lastSimilarityRef.current = null;
+    hardFailedRef.current = false;
+    updateVoiceValidation({
+      status: "PENDING_ENROLLMENT",
+      enrolled: false,
+      checks: 0,
+      flaggedChecks: 0,
+      consecutiveMismatches: 0,
+      averageSimilarity: null,
+      lastSimilarity: null,
+      startSimilarity: null,
+      endSimilarity: null,
+      note: "Collecting initial voice sample",
+    });
+  }
+
+  function finalizeVoiceValidation() {
+    if (typedOnlyRef.current) {
+      updateVoiceValidation({
+        status: "NOT_VERIFIED",
+        note: "Typed-only mode used. Voice continuity cannot be guaranteed.",
+      });
+      return;
+    }
+    if (!enrolledSignatureRef.current) {
+      updateVoiceValidation({
+        status: "NOT_VERIFIED",
+        note: "Insufficient spoken audio to enroll voice.",
+      });
+      return;
+    }
+    const endSimilarity = lastSimilarityRef.current ?? avgSimilarityRef.current ?? null;
+    if (endSimilarity != null) {
+      const rounded = Number(endSimilarity.toFixed(3));
+      if (hardFailedRef.current || endSimilarity < 0.74) {
+        updateVoiceValidation({
+          status: "FAILED",
+          endSimilarity: rounded,
+          note: "Start/end voice mismatch detected.",
+        });
+      } else if (voiceValidation.status === "RISK") {
+        updateVoiceValidation({
+          endSimilarity: rounded,
+          note: "Interview completed with some voice mismatch risk.",
+        });
+      } else {
+        updateVoiceValidation({
+          status: "VERIFIED",
+          endSimilarity: rounded,
+          note: "Start/end voice match verified.",
+        });
+      }
+    }
+  }
 
   async function fetchNextQuestion(args: {
     slot: number;
@@ -293,11 +565,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   useEffect(() => {
     const transcript = {
-      meta: { source: "web-speech", at: nowIso() },
+      meta: { source: "web-speech", at: nowIso(), voiceValidation },
       utterances,
     };
     onTranscriptChange(JSON.stringify(transcript, null, 2));
-  }, [utterances, onTranscriptChange]);
+  }, [utterances, voiceValidation, onTranscriptChange]);
 
   function syncUtterances(next: Utterance[]) {
     utterancesRef.current = next;
@@ -307,6 +579,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   function releaseMicStream() {
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
+    stopVoiceMonitor();
   }
 
   function speechErrorMessage(code: string | undefined): string {
@@ -334,6 +607,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       micStreamRef.current = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
+      startVoiceMonitor(micStreamRef.current);
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -351,6 +625,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     setMicPhase("bot_speaking");
     await speakWhenDone(botText);
     setMicPhase("idle");
+    finalizeVoiceValidation();
   }
 
   async function addBot(text: string) {
@@ -708,9 +983,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   async function startTypedOnly() {
     if (!recognitionRef.current) return;
     setSpeechError(null);
+    resetVoiceValidationSession();
     releaseMicStream();
     typedOnlyRef.current = true;
     setTypedAnswersOnly(true);
+    updateVoiceValidation({
+      status: "NOT_VERIFIED",
+      note: "Typed-only mode used. Voice continuity cannot be guaranteed.",
+    });
     sessionActiveRef.current = true;
     pausedForTtsRef.current = false;
     commitAfterEndRef.current = false;
@@ -752,6 +1032,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
     setSpeechError(null);
+    resetVoiceValidationSession();
     const micOk = await ensureMicStream();
     if (!micOk) {
       sessionActiveRef.current = false;
@@ -830,8 +1111,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     }
     try {
       rec.stop();
+      finalizeVoiceValidation();
     } catch {
       explicitStopRef.current = false;
+      finalizeVoiceValidation();
       void playClosingLine(
         "Alright, stopping here. Thanks for your time—you can mark this interview complete below when you’re ready.",
       );
@@ -999,6 +1282,29 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Mic pauses while bot speaks. Click <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> after speaking, or say <span className="font-medium text-zinc-700 dark:text-zinc-300">stop the interview</span> to end.
         </p>
+
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium text-zinc-700 dark:text-zinc-200">Voice continuity</span>
+            <span className={`rounded-full px-2 py-0.5 font-semibold ${
+              voiceValidation.status === "VERIFIED"
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                : voiceValidation.status === "RISK"
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                  : voiceValidation.status === "FAILED"
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            }`}>
+              {voiceValidation.status.replace(/_/g, " ")}
+            </span>
+          </div>
+          <p className="mt-1 text-zinc-500 dark:text-zinc-400">{voiceValidation.note}</p>
+          {(voiceValidation.averageSimilarity != null || voiceValidation.endSimilarity != null) && (
+            <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+              avg: {voiceValidation.averageSimilarity ?? "-"} | end: {voiceValidation.endSimilarity ?? "-"} | flags: {voiceValidation.flaggedChecks}/{voiceValidation.checks}
+            </p>
+          )}
+        </div>
 
         <div className="flex flex-wrap gap-2">
           {micPhase === "idle" && !timeExpired ? (

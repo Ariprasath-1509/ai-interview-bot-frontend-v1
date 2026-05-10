@@ -14,12 +14,14 @@ type Interview = {
   endedAt: string | null;
   transcriptJson?: string | null;
   candidateFeedback?: {
+    overallSummary?: string;
     summary?: string;
     strengths?: string[];
     areasToImprove?: string[];
-    prosAndCons?: { pros: string; cons: string }[];
-    resumeConsistencyForCandidate?: { claim: string; consistent: boolean; evidence?: string }[];
-    roadmap?: { day: number; focus: string; resource: string; exercise?: string; estimated?: string; whyItMatters?: string; resourceUrl?: string; category?: string }[];
+    prosAndCons?: { category?: string; pros: string[] | string; cons: string[] | string }[];
+    resumeConsistencyForCandidate?: { claim: string; consistent?: boolean; demonstrated?: boolean; evidence?: string; note?: string }[];
+    roadmap?: { day: number | string; focus: string; resource: string; exercise?: string; estimated?: string; whyItMatters?: string; resourceUrl?: string; category?: string }[];
+    estimatedReadinessTimeline?: string;
     estimatedReadiness?: string;
   };
   categoryScores?: Score[];
@@ -59,6 +61,29 @@ function cleanText(text: string | undefined): string {
     .replace(/score scales with candidate word count/gi, "Score based on response depth and detail.")
     .replace(/based on number of candidate turns/gi, "Score based on dialogue engagement and clarity of turns.")
     .trim();
+}
+
+function normalizeCandidateFeedback(feedback: Interview["candidateFeedback"] | undefined): Interview["candidateFeedback"] | undefined {
+  if (!feedback) return undefined;
+  const summary = feedback.summary || feedback.overallSummary;
+  const estimatedReadiness = feedback.estimatedReadiness || feedback.estimatedReadinessTimeline;
+  const prosAndCons = (feedback.prosAndCons || []).map((item) => ({
+    ...item,
+    pros: Array.isArray(item.pros) ? item.pros : (item.pros ? [item.pros] : []),
+    cons: Array.isArray(item.cons) ? item.cons : (item.cons ? [item.cons] : []),
+  }));
+  const resumeConsistencyForCandidate = (feedback.resumeConsistencyForCandidate || []).map((c) => ({
+    ...c,
+    consistent: c.consistent ?? c.demonstrated ?? false,
+    evidence: c.evidence || c.note,
+  }));
+  return {
+    ...feedback,
+    summary,
+    estimatedReadiness,
+    prosAndCons,
+    resumeConsistencyForCandidate,
+  };
 }
 
 export default async function CandidateFeedbackPage({ params }: { params: Promise<{ id: string }> }) {
@@ -109,7 +134,9 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
     scores = interview.categoryScores;
   }
 
-  const candidateFeedback: Interview["candidateFeedback"] = storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback;
+  const candidateFeedback = normalizeCandidateFeedback(
+    (storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback) as Interview["candidateFeedback"]
+  );
   const roadmap = candidateFeedback?.roadmap ?? [];
 
   const jdRes = await apiServer(`/interviews/jd/${interview.jdId}`, session.token).catch(() => null);
@@ -243,12 +270,14 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
                       <span className="text-emerald-500">➕</span> Pros
                     </h3>
                     <ul className="space-y-1">
-                      {candidateFeedback.prosAndCons.map((item, i) => (
-                        <li key={`pro-${i}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                          <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
-                          <span>{item.pros}</span>
-                        </li>
-                      ))}
+                      {candidateFeedback.prosAndCons.flatMap((item, i) =>
+                        (Array.isArray(item.pros) ? item.pros : []).map((pro, j) => (
+                          <li key={`pro-${i}-${j}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
+                            <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
+                            <span>{pro}</span>
+                          </li>
+                        ))
+                      )}
                     </ul>
                   </div>
                   <div>
@@ -256,12 +285,14 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
                       <span className="text-red-500">➖</span> Cons
                     </h3>
                     <ul className="space-y-1">
-                      {candidateFeedback.prosAndCons.map((item, i) => (
-                        <li key={`con-${i}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                          <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
-                          <span>{item.cons}</span>
-                        </li>
-                      ))}
+                      {candidateFeedback.prosAndCons.flatMap((item, i) =>
+                        (Array.isArray(item.cons) ? item.cons : []).map((con, j) => (
+                          <li key={`con-${i}-${j}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
+                            <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
+                            <span>{con}</span>
+                          </li>
+                        ))
+                      )}
                     </ul>
                   </div>
                 </div>
@@ -301,8 +332,8 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
                     {roadmap.map((item, i) => (
                       <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800/50 dark:bg-zinc-900/30">
                         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold">
-                            D{item.day}
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold">
+                            D{typeof item.day === "string" ? (item.day.match(/\d+/)?.[0] ?? item.day) : item.day}
                           </div>
                           <div className="flex-1 space-y-2">
                             {item.category && (

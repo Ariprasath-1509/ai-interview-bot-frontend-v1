@@ -57,6 +57,12 @@ function cleanText(text: string | undefined): string {
     .trim();
 }
 
+function normalizeFeedbackItemList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v));
+  if (typeof value === "string" && value.trim()) return [value];
+  return [];
+}
+
 export default async function InterviewReviewPage({
   params,
 }: {
@@ -283,12 +289,14 @@ export default async function InterviewReviewPage({
                     <span>➕</span> Pros
                   </h4>
                   <ul className="space-y-1">
-                    {ai.candidateFeedback.prosAndCons.map((item: any, i: number) => (
-                      <li key={`pro-${i}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                        <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
-                        <span>{item.pros}</span>
-                      </li>
-                    ))}
+                    {ai.candidateFeedback.prosAndCons.flatMap((item: any, i: number) =>
+                      normalizeFeedbackItemList(item.pros).map((pro, j) => (
+                        <li key={`pro-${i}-${j}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
+                          <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
+                          <span>{pro}</span>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 </div>
                 <div>
@@ -296,12 +304,14 @@ export default async function InterviewReviewPage({
                     <span>➖</span> Cons
                   </h4>
                   <ul className="space-y-1">
-                    {ai.candidateFeedback.prosAndCons.map((item: any, i: number) => (
-                      <li key={`con-${i}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                        <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
-                        <span>{item.cons}</span>
-                      </li>
-                    ))}
+                    {ai.candidateFeedback.prosAndCons.flatMap((item: any, i: number) =>
+                      normalizeFeedbackItemList(item.cons).map((con, j) => (
+                        <li key={`con-${i}-${j}`} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
+                          <span className="text-zinc-300 dark:text-zinc-700 mt-0.5">•</span>
+                          <span>{con}</span>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 </div>
               </div>
@@ -314,7 +324,9 @@ export default async function InterviewReviewPage({
               <div className="max-h-48 overflow-auto space-y-2 pr-1">
                 {ai.candidateFeedback.roadmap.map((item: any, i: number) => (
                   <div key={i} className="flex gap-3 items-start text-sm bg-zinc-50 dark:bg-zinc-900 rounded p-2 border border-zinc-100 dark:border-zinc-800">
-                    <div className="font-semibold text-emerald-600 dark:text-emerald-400">D{item.day}</div>
+                    <div className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      D{typeof item.day === "string" ? (item.day.match(/\d+/)?.[0] ?? item.day) : item.day}
+                    </div>
                     <div>
                       <div className="font-medium text-zinc-900 dark:text-zinc-100">{item.focus}</div>
                       <div className="text-xs text-zinc-500 mt-0.5 truncate max-w-[200px] sm:max-w-xs">{item.resource}</div>
