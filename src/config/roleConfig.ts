@@ -53,6 +53,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
       { href: "/admin/settings/tokens", label: "Token Settings", icon: "Settings" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
+      { href: "/admin/questionbank", label: "QuestionBank", icon: "Database" },
     ],
     permissions: [
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
@@ -75,6 +76,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/admin/settings/tokens", label: "Token Settings", icon: "Settings" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
+      { href: "/admin/questionbank", label: "QuestionBank", icon: "Database" },
     ],
     permissions: [
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
