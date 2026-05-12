@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
-const QUESTIONBANK = process.env.QUESTIONBANK_URL ?? 'http://103.182.211.219:6016';
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +12,17 @@ export async function GET(req: Request) {
   }
 
   try {
-    const response = await fetch(`${QUESTIONBANK}/api/admin/dashboard/stats`, {
+    const response = await fetch(`${GATEWAY}/api/questionbank/admin/dashboard/stats`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"
       }
     });
+
+    if (!response.ok) {
+      console.error(`Gateway returned ${response.status}: ${response.statusText}`);
+      return NextResponse.json({ success: false, message: "Service unavailable" }, { status: response.status });
+    }
 
     const data = await response.json();
     return NextResponse.json(data);

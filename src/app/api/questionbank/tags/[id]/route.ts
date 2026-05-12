@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
-const QUESTIONBANK = process.env.QUESTIONBANK_URL ?? 'http://localhost:6010';
+const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const response = await fetch(`${QUESTIONBANK}/api/tags/${id}`, {
+    const response = await fetch(`${GATEWAY}/api/questionbank/tags/${id}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${session.token}`,
