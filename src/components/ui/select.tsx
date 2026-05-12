@@ -64,14 +64,35 @@ const SelectContent: React.FC<{ children: React.ReactNode; className?: string }>
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [ctx])
 
+const SelectContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => {
+  const ctx = React.useContext(SelectContext)
+
   if (!ctx?.open) return null
+
+  // Check if there are any valid children (non-empty strings, etc.)
+  const hasChildren = React.Children.toArray(children).some(child => {
+    if (React.isValidElement(child)) {
+      return true
+    }
+    return typeof child === "string" && child.trim() !== ""
+  })
 
   return (
     <div
-      ref={ref}
-      className={`absolute z-50 mt-1 w-full min-w-[8rem] overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950 animate-in fade-in-0 zoom-in-95 ${className}`}
+      className={`absolute z-50 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-950 ${className}`}
+      onClick={(e) => {
+        e.stopPropagation()
+      }}
     >
-      {children}
+      <div className="max-h-60 overflow-y-auto py-1">
+        {!hasChildren ? (
+          <div className="py-2 px-3 text-sm text-muted-foreground text-center">
+            No data found
+          </div>
+        ) : (
+          children
+        )}
+      </div>
     </div>
   )
 }
@@ -80,6 +101,10 @@ const SelectItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
   ({ className = "", children, value, ...props }, ref) => {
     const ctx = React.useContext(SelectContext)
     const isSelected = ctx?.value === value
+    const handleClick = () => {
+      ctx?.onValueChange?.(value)
+      ctx?.setOpen?.(false)
+    }
     return (
       <div
         ref={ref}
