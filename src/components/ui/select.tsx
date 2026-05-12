@@ -64,25 +64,18 @@ const SelectContent: React.FC<{ children: React.ReactNode; className?: string }>
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [ctx])
 
-const SelectContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => {
-  const ctx = React.useContext(SelectContext)
-
   if (!ctx?.open) return null
 
-  // Check if there are any valid children (non-empty strings, etc.)
   const hasChildren = React.Children.toArray(children).some(child => {
-    if (React.isValidElement(child)) {
-      return true
-    }
+    if (React.isValidElement(child)) return true
     return typeof child === "string" && child.trim() !== ""
   })
 
   return (
     <div
+      ref={ref}
       className={`absolute z-50 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-950 ${className}`}
-      onClick={(e) => {
-        e.stopPropagation()
-      }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="max-h-60 overflow-y-auto py-1">
         {!hasChildren ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Loader2, User, Shield, ShieldOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,8 +87,8 @@ export default function QuestionBankUsersClient() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b hover:bg-muted/20 transition-colors">
+                  {users.map((user, idx) => (
+                    <tr key={user.id ?? idx} className="border-b hover:bg-muted/20 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -126,15 +126,15 @@ export default function QuestionBankUsersClient() {
                           {toggling === user.id ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : user.isAdmin ? (
-                            <>
+                            <React.Fragment key="remove">
                               <ShieldOff className="h-3 w-3" />
                               <span className="text-xs">Remove</span>
-                            </>
+                            </React.Fragment>
                           ) : (
-                            <>
+                            <React.Fragment key="make-admin">
                               <Shield className="h-3 w-3" />
                               <span className="text-xs">Make Admin</span>
-                            </>
+                            </React.Fragment>
                           )}
                         </Button>
                       </td>

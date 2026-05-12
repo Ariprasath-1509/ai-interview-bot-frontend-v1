@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 6101",
+    "dev": "next dev -p 6001",
     "build": "next build",
-    "start": "next start -p 6101",
+    "start": "next start -p 6001",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
     "postinstall": "prisma generate",
