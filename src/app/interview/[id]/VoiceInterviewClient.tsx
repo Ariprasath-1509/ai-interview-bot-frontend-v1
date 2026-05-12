@@ -13,6 +13,7 @@ type Props = {
   interviewMode: string;
   onTranscriptChange: (json: string) => void;
   onVoiceValidationChange?: (snapshot: VoiceValidationSnapshot) => void;
+  onTimeExpired?: () => void;
 };
 
 type MicPhase = "idle" | "listening" | "bot_speaking";
@@ -71,21 +72,52 @@ function normalizeVector(v: number[]): number[] {
 /** Speak and resolve when playback finishes (or immediately if unsupported). */
 function speakWhenDone(text: string): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
+
   const synth = window.speechSynthesis;
   if (!synth) return Promise.resolve();
+
   return new Promise((resolve) => {
-    synth.cancel();
+    try {
+      synth.cancel();
+    } catch (e) {
+      console.warn("[TTS] Cancel failed:", e);
+    }
+
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 1.0;
     u.pitch = 1.0;
+
     let resolved = false;
-    const done = () => { if (!resolved) { resolved = true; resolve(); } };
-    // Timeout: ~80ms per char + 5s buffer, prevents hang if onend never fires
+
+    const done = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
     const timeoutMs = Math.max(text.length * 80, 4000) + 5000;
+
     const timer = setTimeout(done, timeoutMs);
-    u.onend = () => { clearTimeout(timer); done(); };
-    u.onerror = () => { clearTimeout(timer); done(); };
-    synth.speak(u);
+
+    u.onend = () => {
+      clearTimeout(timer);
+      done();
+    };
+
+    u.onerror = (e) => {
+      console.warn("[TTS] Error:", e);
+      clearTimeout(timer);
+      done();
+    };
+
+    try {
+      synth.speak(u);
+    } catch (e) {
+      console.warn("[TTS] Speak failed:", e);
+      clearTimeout(timer);
+      done();
+    }
   });
 }
 
@@ -118,7 +150,7 @@ function isEndInterviewIntent(text: string): boolean {
   return patterns.some((re) => re.test(t));
 }
 
-export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange, onVoiceValidationChange }: Props) {
+export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange, onVoiceValidationChange, onTimeExpired }: Props) {
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
@@ -227,6 +259,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   useEffect(() => {
     if (!timeExpired) return;
+    onTimeExpired?.();
     const timeUpMessage: Utterance = {
       speaker: "BOT",
       text: `Your ${durationMinutes} minutes are up — we're stopping the interview here. Thank you for your time, your responses have been recorded.`,
@@ -404,33 +437,55 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   function startVoiceMonitor(stream: MediaStream) {
     stopVoiceMonitor();
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!stream || !stream.active) {
+      console.warn("[Voice] Cannot monitor inactive stream");
+
+      updateVoiceValidation({
+        status: "NOT_VERIFIED",
+        note: "Microphone stream is not active.",
+      });
+
+      return;
+    }
+
+    const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext;
+
     if (!Ctx) {
       updateVoiceValidation({
         status: "NOT_VERIFIED",
         note: "AudioContext not supported in browser.",
       });
+
       return;
     }
+
     const ctx = new Ctx();
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
+
     analyser.fftSize = 1024;
     analyser.smoothingTimeConstant = 0.8;
+
     source.connect(analyser);
 
     audioContextRef.current = ctx;
     analyserRef.current = analyser;
+
     timeDataRef.current = new Float32Array(analyser.fftSize);
     freqDataRef.current = new Float32Array(analyser.frequencyBinCount);
 
     monitorIntervalRef.current = setInterval(() => {
       const feature = buildVoiceFeature();
+
       if (!feature) return;
+
       processVoiceFeature(feature);
     }, 750);
   }
-
   function stopVoiceMonitor() {
     if (monitorIntervalRef.current) {
       clearInterval(monitorIntervalRef.current);
@@ -599,10 +654,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     }
   }
 
-  async function ensureMicStream(): Promise<boolean> {
+  async function ensureMicStream(retryCount = 0): Promise<boolean> {
     releaseMicStream();
     if (!navigator.mediaDevices?.getUserMedia) {
-      setSpeechError("This browser does not support getUserMedia. Use Chrome or Edge on desktop.");
+      setSpeechError("This browser does not support getUserMedia. Switching to typed mode automatically...");
+      setTimeout(() => void startTypedOnly(), 1500);
       return false;
     }
     try {
@@ -611,10 +667,25 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       });
       startVoiceMonitor(micStreamRef.current);
       return true;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+    }  catch (e) {
+      const err = e as { name?: string; message?: string };
+      const msg = err.message ?? String(e);
+
+      if (err.name === "NotReadableError" && retryCount < 2) {
+        console.log(`[Mic] Device busy, retry ${retryCount + 1}/2 in ${(retryCount + 1) * 500}ms`);
+        await new Promise(r => setTimeout(r, (retryCount + 1) * 500));
+        return ensureMicStream(retryCount + 1);
+      }
+
+      if (err.name === "NotAllowedError") {
+        setSpeechError(
+            "Microphone permission denied. Click the lock icon in your browser's address bar, allow microphone access, then click Start again. Or use 'Typed answers only' below."
+        );
+        return false;
+      }
+
       setSpeechError(
-        `Could not open microphone (${msg}). Check browser permissions, unplug/replug USB headsets, and try “Use typed answers instead” below.`,
+          `Could not open microphone (${msg}). Check browser permissions, unplug/replug USB headsets, and try “Use typed answers instead” below.`,
       );
       return false;
     }
@@ -662,21 +733,42 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   function scheduleRecognitionStart(reason: string) {
     void reason;
+
     if (typedOnlyRef.current) {
-      if (sessionActiveRef.current) setMicPhase("listening");
+      if (sessionActiveRef.current) {
+        setMicPhase("listening");
+      }
+
       return;
     }
-    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+    }
+
     const rec = recognitionRef.current;
-    if (!rec || !sessionActiveRef.current) return;
+
+    if (!rec || !sessionActiveRef.current) {
+      return;
+    }
 
     const attempt = (delayMs: number) => {
       restartTimerRef.current = setTimeout(() => {
+
+        if (!sessionActiveRef.current || pausedForTtsRef.current) {
+          return;
+        }
+
         try {
           rec.start();
           setMicPhase("listening");
         } catch {
           restartTimerRef.current = setTimeout(() => {
+
+            if (!sessionActiveRef.current || pausedForTtsRef.current) {
+              return;
+            }
+
             try {
               rec.start();
               setMicPhase("listening");
@@ -779,15 +871,24 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   }
 
   function flushSpokenAnswer() {
+
+    if (pausedForTtsRef.current || !sessionActiveRef.current) {
+      console.log('[Speech] Flush blocked - session inactive or TTS active');
+      return;
+    }
+
     const clean = finalBufferRef.current.trim();
-    console.log('[Speech] Flushing answer:', clean.substring(0, 100) + (clean.length > 100 ? '...' : ''));
-    
+
+    console.log(
+        '[Speech] Flushing answer:',
+        clean.substring(0, 100) + (clean.length > 100 ? '...' : '')
+    );
+
     if (!clean) {
       console.log('[Speech] No text to flush');
       return;
     }
 
-    // Clear speech timeout when flushing
     if (speechTimeoutRef.current) {
       clearTimeout(speechTimeoutRef.current);
       speechTimeoutRef.current = null;
@@ -796,6 +897,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     finalBufferRef.current = "";
     interimRef.current = "";
     setInterimText("");
+
     lastSpeechTimeRef.current = 0;
 
     if (isEndInterviewIntent(clean)) {
@@ -804,6 +906,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     }
 
     addCandidate(clean);
+
     void advanceAfterAnswer(clean);
   }
 
@@ -850,6 +953,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         
         // Set a new timeout for when speech might be done
         speechTimeoutRef.current = setTimeout(() => {
+          if (!sessionActiveRef.current || pausedForTtsRef.current) {
+            return;
+          }
           // Only auto-advance if we haven't had speech for the timeout period
           const timeSinceLastSpeech = Date.now() - lastSpeechTimeRef.current;
           if (timeSinceLastSpeech >= SPEECH_TIMEOUT_MS && sessionActiveRef.current) {
@@ -964,6 +1070,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     if (!text || !sessionActiveRef.current || micPhase !== "listening") return;
     setTypedDraft("");
     setSpeechError(null);
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
     if (!typedOnlyRef.current) {
       try {
         recognitionRef.current?.stop();
@@ -1081,10 +1191,16 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       return;
     }
 
+    if (!sessionActiveRef.current) {
+      setMicPhase("idle");
+      return;
+    }
+
     try {
       rec.start();
       setMicPhase("listening");
-    } catch {
+    } catch (err) {
+      console.warn("[Speech] Failed to start recognition:", err);
       scheduleRecognitionStart("start catch");
     }
   }
@@ -1102,6 +1218,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       restartTimerRef.current = null;
     }
     window.speechSynthesis?.cancel();
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
 
     const rec = recognitionRef.current;
     if (!rec) {
@@ -1125,7 +1245,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   silentEndBecauseUserLeftRef.current = () => {
     releaseMicStream();
-    window.speechSynthesis?.cancel();
+    try {
+      window.speechSynthesis?.cancel();
+    } catch (e) {
+      console.warn("[TTS] Cancel on tab switch failed:", e);
+    }
     if (!sessionActiveRef.current) {
       return;
     }
@@ -1163,6 +1287,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     window.addEventListener("pagehide", onPageHide);
     return () => {
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      if (speechTimeoutRef.current) {
+        clearTimeout(speechTimeoutRef.current);
+      }
       document.removeEventListener("visibilitychange", onHidden);
       window.removeEventListener("pagehide", onPageHide);
       silentEndBecauseUserLeftRef.current();
@@ -1192,6 +1319,20 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
           </p>
         </div>
       ) : null}
+      {micPhase === "listening" &&
+          !typedAnswersOnly &&
+          !micStreamRef.current?.active && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
+                <div className="font-medium">
+                  ⚠️ Microphone disconnected
+                </div>
+
+                <p className="mt-1">
+                  Your microphone appears to be disconnected.
+                  Please reconnect it or use typed answers.
+                </p>
+              </div>
+          )}
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-800">

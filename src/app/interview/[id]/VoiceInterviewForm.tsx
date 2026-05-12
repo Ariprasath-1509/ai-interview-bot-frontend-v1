@@ -63,6 +63,7 @@ export function VoiceInterviewForm({
 }) {
   const [transcriptJson, setTranscriptJson] = useState("");
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot | null>(null);
+  const [timeExpired, setTimeExpired] = useState(false);
 
   const onTranscriptChange = useCallback((json: string) => {
     setTranscriptJson(json);
@@ -72,7 +73,7 @@ export function VoiceInterviewForm({
     setVoiceValidation(snapshot);
   }, []);
 
-  const hardBlockSubmit = voiceValidation?.status === "FAILED";
+  const hardBlockSubmit = voiceValidation?.status === "FAILED" && !timeExpired;
 
   return (
     <div className="flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -100,6 +101,7 @@ export function VoiceInterviewForm({
         interviewMode={interviewMode}
         onTranscriptChange={onTranscriptChange}
         onVoiceValidationChange={onVoiceValidationChange}
+        onTimeExpired={() => setTimeExpired(true)}
       />
 
       {voiceValidation && (

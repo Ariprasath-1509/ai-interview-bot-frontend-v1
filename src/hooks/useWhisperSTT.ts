@@ -6,7 +6,7 @@ interface UseWhisperSTTOptions {
 }
 
 export const useWhisperSTT = (options: UseWhisperSTTOptions = {}) => {
-  const { whisperUrl = 'http://localhost:9000' } = options;
+  const { whisperUrl = process.env.NEXT_PUBLIC_WHISPER_URL } = options;
   
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');

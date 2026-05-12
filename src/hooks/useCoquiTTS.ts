@@ -5,7 +5,7 @@ interface UseCoquiTTSOptions {
 }
 
 export const useCoquiTTS = (options: UseCoquiTTSOptions = {}) => {
-  const { ttsUrl = 'http://localhost:5002' } = options;
+  const { ttsUrl = process.env.NEXT_PUBLIC_TTS_URL } = options;
   
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
