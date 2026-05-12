@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+const SPEECH_TIMEOUT_MS = 3000; // 3 seconds of silence before considering speech done
+
 type Utterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
 
 type Props = {
@@ -179,6 +181,8 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const [showConfirm, setShowConfirm] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [manipulationCount, setManipulationCount] = useState(0);
+  const manipulationCountRef = useRef(0);
+  const micPhaseRef = useRef<MicPhase>("idle");
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot>({
     status: "PENDING_ENROLLMENT",
     enrolled: false,
@@ -193,8 +197,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   });
   const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSpeechTimeRef = useRef<number>(0);
-  const SPEECH_TIMEOUT_MS = 3000; // 3 seconds of silence before considering speech done
   const timerIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { micPhaseRef.current = micPhase; }, [micPhase]);
+  useEffect(() => { manipulationCountRef.current = manipulationCount; }, [manipulationCount]);
 
   useEffect(() => {
     const hasBotQuestion = utterances.some(u => u.speaker === "BOT");
@@ -251,7 +257,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcriptJson, reason }),
       });
-    } catch (e) {
+    } catch {
       // best effort
     }
     window.location.href = "/candidate/dashboard";
@@ -344,14 +350,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     const fData = freqDataRef.current;
     if (!analyser || !tData || !fData) return null;
 
-    // @ts-expect-error - AnalyserNode methods accept Float32Array with ArrayBufferLike
+    // @ts-expect-error - getFloatTimeDomainData accepts Float32Array
     analyser.getFloatTimeDomainData(tData);
     let rms = 0;
     for (let i = 0; i < tData.length; i++) rms += tData[i] * tData[i];
     rms = Math.sqrt(rms / tData.length);
     if (rms < 0.01) return null;
 
-    // @ts-expect-error - AnalyserNode methods accept Float32Array with ArrayBufferLike
+    // @ts-expect-error - getFloatFrequencyData accepts Float32Array
     analyser.getFloatFrequencyData(fData);
     const bucketCount = 24;
     const bucketSize = Math.floor(fData.length / bucketCount);
@@ -371,7 +377,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   }
 
   function processVoiceFeature(feature: number[]) {
-    if (typedOnlyRef.current || botSpeaking || !sessionActiveRef.current) return;
+    if (typedOnlyRef.current || micPhaseRef.current === "bot_speaking" || !sessionActiveRef.current) return;
 
     if (!enrolledSignatureRef.current) {
       enrollmentFeaturesRef.current.push(feature);
@@ -798,7 +804,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       slot: nextSlot,
       lastAnswer: clean,
       transcript: utterancesRef.current,
-      manipulationCount,
+      manipulationCount: manipulationCountRef.current,
     });
 
     if (nextQ) {
@@ -1114,7 +1120,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
     if (utterancesRef.current.length === 0) {
       setMicPhase("bot_speaking");
-      const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount });
+      const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount: manipulationCountRef.current });
       if (nextQ) {
         if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
         if (nextQ.terminateInterview) {
@@ -1165,7 +1171,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
     if (utterancesRef.current.length === 0) {
       setMicPhase("bot_speaking");
-      const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount });
+      const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount: manipulationCountRef.current });
       if (nextQ) {
         if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
         if (nextQ.terminateInterview) {
