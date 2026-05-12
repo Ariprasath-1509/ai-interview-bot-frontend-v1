@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
-const QUESTIONBANK = process.env.QUESTIONBANK_URL ?? 'http://localhost:6016';
+const QUESTIONBANK = process.env.QUESTIONBANK_URL ?? 'http://103.182.211.219:6016';
 
 export const dynamic = "force-dynamic";
 
