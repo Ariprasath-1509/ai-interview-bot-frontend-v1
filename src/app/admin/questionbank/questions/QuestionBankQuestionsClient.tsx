@@ -140,7 +140,7 @@ export default function QuestionBankQuestionsClient() {
     setSessions(prev => prev.map((s, si) => si !== sIdx ? s : { ...s, [field]: value }));
   };
 
-  const updateQuestion = (sIdx: number, qIdx: number, field: keyof ParsedQuestion, value: string) => {
+  const updateQuestion = (sIdx: number, qIdx: number, field: keyof ParsedQuestion, value: string | string[]) => {
     setSessions(prev => prev.map((s, si) => si !== sIdx ? s : {
       ...s,
       questions: s.questions.map((q, qi) => qi !== qIdx ? q : { ...q, [field]: value }),
@@ -278,7 +278,7 @@ export default function QuestionBankQuestionsClient() {
                     <Select value={getCompanyValue(session.companyName)} onValueChange={(v) => handleCompanyChange(sIdx, v)}>
                       <SelectTrigger className="mt-1"><SelectValue placeholder="-- Select Company --" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="" disabled>-- Select Company --</SelectItem>
+                        <SelectItem value="__placeholder" aria-disabled>-- Select Company --</SelectItem>
                         {companies.map((c, i) => (
                           <SelectItem key={c.id || i} value={c.name}>{c.name}</SelectItem>
                         ))}
