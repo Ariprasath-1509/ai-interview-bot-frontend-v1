@@ -617,56 +617,11 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                   </div>
                 </div>
 
-                {/* AI Matching Buttons */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => triggerMatching('BENCH_B2B')}
-                    disabled={matchingLoading}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-all hover:from-orange-600 hover:to-amber-600 disabled:opacity-50"
-                  >
-                    {matchingLoading && matchSource === 'BENCH_B2B' ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
-                    Match Bench/B2B
-                  </button>
-                  <button
-                    onClick={() => triggerMatching('MARKET')}
-                    disabled={matchingLoading}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white transition-all hover:from-purple-600 hover:to-indigo-600 disabled:opacity-50"
-                  >
-                    {matchingLoading && matchSource === 'MARKET' ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
-                    Match Market
-                  </button>
+                {/* Hint to select a position */}
+                <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  Select a position from the tree to run AI matching.
                 </div>
-
-                {/* AI Matching Results */}
-                {showMatches && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        {matchSource === 'BENCH_B2B' ? 'Bench/B2B' : 'Market'} Matches
-                        {!matchingLoading && <Badge variant="outline" className="text-xs">{matchResults.length} found</Badge>}
-                      </h4>
-                      <button onClick={() => setShowMatches(false)} className="text-xs text-zinc-400 hover:text-zinc-600">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {matchingLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="text-center">
-                          <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-blue-600" />
-                          <p className="text-xs text-zinc-500">AI is finding matches...</p>
-                        </div>
-                      </div>
-                    ) : matchResults.length === 0 ? (
-                      <div className="text-center py-6 text-sm text-zinc-500">
-                        No matching candidates found for this source.
-                      </div>
-                    ) : (
-                      <MatchResultsBySkill matches={matchResults} onCreateInterview={createInterviewFromMatch} />
-                    )}
-                  </div>
-                )}
 
                 {/* JD File */}
                 {selectedClient.jdFileName && (
