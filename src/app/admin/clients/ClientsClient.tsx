@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload, ChevronRight, Minus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload, ChevronRight, Minus, Loader2, CheckCircle, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Badge } from '@/components/ui/badge';
 
@@ -70,7 +70,7 @@ const emptyForm: ClientFormData = {
   skillRequirements: [],
 };
 
-export default function ClientsClient() {
+export default function ClientsClient({ userRole }: { userRole: string }) {
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +86,10 @@ export default function ClientsClient() {
   const [jdFile, setJdFile] = useState<File | null>(null);
   const [search, setSearch] = useState('');
   const [useSkillBasedRequirements, setUseSkillBasedRequirements] = useState(false);
+  const [cacheClearLoading, setCacheClearLoading] = useState(false);
+  const [cacheStats, setCacheStats] = useState<{ cachedCount?: number } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
 
   const SKILL_OPTIONS = [
     { value: 'JAVA_SB', label: 'Java + Spring Boot' },
@@ -124,6 +128,45 @@ export default function ClientsClient() {
   useEffect(() => {
     fetchClients();
   }, [fetchClients]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetch('/api/clients/matching/cache/stats')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setCacheStats({ cachedCount: data.cachedCount ?? 0 }); })
+        .catch(() => {});
+    }
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
+  const handleClearCache = async () => {
+    if (!confirm('Are you sure you want to clear all AI matching caches? This will force fresh AI analysis on next match.')) return;
+    setCacheClearLoading(true);
+    try {
+      const res = await fetch('/api/clients/matching/cache/clear', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setCacheStats({ cachedCount: 0 });
+        setToast({ message: `Cache cleared (${data.clearedCount ?? 0} entries). Refreshing matches...`, type: 'success' });
+        // Refetch matching results if currently showing matches
+        if (showMatches && selectedPositionId) {
+          triggerMatching(matchSource);
+        }
+      } else {
+        setToast({ message: 'Failed to clear cache. Only SUPER_ADMIN can perform this action.', type: 'error' });
+      }
+    } catch {
+      setToast({ message: 'Failed to clear cache. Network error.', type: 'error' });
+    } finally {
+      setCacheClearLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!showForm) return;
@@ -326,10 +369,38 @@ export default function ClientsClient() {
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+          toast.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
+        }`}>
+          {toast.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+          {toast.message}
+          <button onClick={() => setToast(null)} className="ml-2 text-zinc-400 hover:text-zinc-600"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">{clients.length} client{clients.length !== 1 ? 's' : ''} total</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{clients.length} client{clients.length !== 1 ? 's' : ''} total</p>
+          {isSuperAdmin && cacheStats && (
+            <span className="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+              <Info className="h-3 w-3" /> Cached matches: {cacheStats.cachedCount} clients
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
+          {isSuperAdmin && (
+            <button
+              onClick={handleClearCache}
+              disabled={cacheClearLoading}
+              className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition-colors duration-200 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/40"
+            >
+              {cacheClearLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Clear AI Cache
+            </button>
+          )}
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-700"

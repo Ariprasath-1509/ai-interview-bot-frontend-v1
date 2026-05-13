@@ -1,10 +1,13 @@
 import { AppShell } from "@/app/components/AppShell";
+import { getSession } from "@/lib/session";
 import ClientsClient from "./ClientsClient";
 
-export default function ClientsPage() {
+export default async function ClientsPage() {
+  const session = await getSession();
+  const role = session?.role ?? "CANDIDATE";
   return (
     <AppShell title="Client Management" subtitle="Manage client companies and their job positions.">
-      <ClientsClient />
+      <ClientsClient userRole={role} />
     </AppShell>
   );
 }
