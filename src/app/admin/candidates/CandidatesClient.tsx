@@ -171,6 +171,7 @@ export default function CandidatesClient({ role }: Props) {
   }>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [endingDeployment, setEndingDeployment] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
   const { confirm } = useConfirm();
 
   const { toast } = useToast();
@@ -667,6 +668,7 @@ export default function CandidatesClient({ role }: Props) {
                         <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Interview Mentor</th>
                         <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Client</th>
                         <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Matching</th>
+                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Review Summary</th>
                         <th className="px-3 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">Actions</th>
                       </tr>
                     </thead>
@@ -734,7 +736,7 @@ export default function CandidatesClient({ role }: Props) {
 
                           {editingId === c.id ? (
                             <>
-                              <td className="px-3 py-2" colSpan={16}>
+                              <td className="px-3 py-2" colSpan={17}>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
                                   <div className="flex flex-col gap-1">
                                     <span className="text-[10px] text-zinc-400">Name</span>
@@ -880,26 +882,43 @@ export default function CandidatesClient({ role }: Props) {
                               <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.interviewMentorName || '—'}</td>
                               <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.clientName || '—'}</td>
                               <td className="px-3 py-3">
-                                <div className="flex items-center gap-2">
-                                  <ViewMatchesButton
-                                    candidateId={c.id}
-                                    candidateStatus={c.candidateStatus}
-                                    systemInterviewCount={c.systemInterviewCount ?? null}
-                                  />
-                                  {getEffectiveInterviewCount(c) > 0 && (
-                                    <button
-                                      onClick={async () => {
+                                <ViewMatchesButton
+                                  candidateId={c.id}
+                                  candidateStatus={c.candidateStatus}
+                                  systemInterviewCount={c.systemInterviewCount ?? null}
+                                />
+                              </td>
+                              <td className="px-3 py-3">
+                                {getEffectiveInterviewCount(c) > 0 ? (
+                                  <button
+                                    onClick={async () => {
+                                      setDownloadingPdf(c.id);
+                                      try {
                                         const result = await downloadCandidateReview(c.id, c.name || 'Candidate');
                                         if (!result.success) toast(result.error!, 'error');
-                                      }}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 shadow-sm hover:shadow-md transform hover:scale-105"
-                                      title="Download last 5 interviews as PDF"
-                                    >
-                                      <FileDown className="h-3 w-3" />
-                                      PDF
-                                    </button>
-                                  )}
-                                </div>
+                                      } finally {
+                                        setDownloadingPdf(null);
+                                      }
+                                    }}
+                                    disabled={downloadingPdf === c.id}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 shadow-sm hover:shadow-md transform hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    title="Download last 5 interviews as PDF"
+                                  >
+                                    {downloadingPdf === c.id ? (
+                                      <>
+                                        <span className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Generating…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FileDown className="h-3 w-3" />
+                                        Download PDF
+                                      </>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400">—</span>
+                                )}
                               </td>
                               <td className="px-3 py-3 text-right">
                                 <div className="flex gap-1 justify-end">
@@ -931,7 +950,7 @@ export default function CandidatesClient({ role }: Props) {
                         </tr>
                       )) : (
                         <tr>
-                          <td colSpan={18} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                          <td colSpan={19} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                             No candidates found.
                           </td>
                         </tr>
