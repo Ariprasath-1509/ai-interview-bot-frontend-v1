@@ -40,25 +40,51 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const contentType = request.headers.get('content-type') || '';
 
-    const response = await fetch(`${GATEWAY}/recruiter/clients/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${session.token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
+    let response: Response;
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      const clientPart = formData.get('client');
+      if (typeof clientPart !== 'string') {
+        return NextResponse.json({ error: 'Invalid multipart payload: missing client JSON part' }, { status: 400 });
+      }
+      const backendForm = new FormData();
+      backendForm.append('client', clientPart);
+      const jdFile = formData.get('jdFile');
+      if (jdFile instanceof File && jdFile.size > 0) {
+        backendForm.append('jdFile', jdFile);
+      }
+      response = await fetch(`${GATEWAY}/recruiter/clients/${id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+        },
+        body: backendForm,
+      });
+    } else {
+      const body = await request.json();
+      response = await fetch(`${GATEWAY}/recruiter/clients/${id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    }
 
     if (!response.ok) {
       console.error('Failed to update client:', response.status, response.statusText);
-      return NextResponse.json({ error: 'Failed to update client' }, { status: response.status });
+      const err = await response.json().catch(() => null);
+      return NextResponse.json(
+        { error: typeof err?.error === 'string' ? err.error : 'Failed to update client' },
+        { status: response.status },
+      );
     }
 
     const client = await response.json();
     return NextResponse.json(client);
-
   } catch (error) {
     console.error('Error updating client:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

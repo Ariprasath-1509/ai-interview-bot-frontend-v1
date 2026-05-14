@@ -337,12 +337,12 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const silentEndBecauseUserLeftRef = useRef<() => void>(() => {});
 
   const updateVoiceValidation = useCallback((patch: Partial<VoiceValidationSnapshot>) => {
-    setVoiceValidation((prev) => {
-      const next = { ...prev, ...patch };
-      onVoiceValidationChange?.(next);
-      return next;
-    });
-  }, [onVoiceValidationChange]);
+    setVoiceValidation((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  useEffect(() => {
+    onVoiceValidationChange?.(voiceValidation);
+  }, [voiceValidation, onVoiceValidationChange]);
 
   function buildVoiceFeature(): number[] | null {
     const analyser = analyserRef.current;

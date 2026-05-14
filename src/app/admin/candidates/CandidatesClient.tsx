@@ -1,51 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import type { UserRole } from '@/server/roles';
-import { Pagination, usePagination } from '@/components/common/Pagination';
-import { SkeletonTable } from '@/components/common/Skeleton';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
-import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X } from 'lucide-react';
+import { Upload, Briefcase, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import Link from 'next/link';
+import {
+  CandidatesMainTable,
+  DeployedCandidatesTable,
+  type CandidateEditForm,
+} from '@/app/admin/candidates/CandidatesDirectoryTable';
 
-// ViewMatchesButton component with dynamic styling
-function ViewMatchesButton({ 
-  candidateId, 
-  candidateStatus, 
-  systemInterviewCount 
-}: { 
-  candidateId: string;
-  candidateStatus: string | null;
-  systemInterviewCount: number | null;
-}) {
-  const isEligible = candidateStatus === 'RFD' && (systemInterviewCount || 0) >= 1;
-  
-  if (!isEligible) {
-    return (
-      <span className="text-xs text-gray-400 cursor-not-allowed" title="Candidate must be RFD with 1+ interviews">
-        View Matches
-      </span>
-    );
-  }
-  
-  return (
-    <Link
-      href={`/admin/candidates/${candidateId}/matches`}
-      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 shadow-sm hover:shadow-md transform hover:scale-105"
-    >
-      <Sparkles className="h-3 w-3" />
-      View Matches
-    </Link>
-  );
-}
-
-interface Candidate {
+export interface Candidate {
   id: string;
   name: string;
   email: string;
@@ -92,39 +62,8 @@ type ImportResult = {
   details?: ImportDetail[];
 };
 
-const SKILL_LABEL: Record<string, string> = { JAVA_SB: 'Java + SB', JFSR: 'JFSR', REACT_JS: 'React JS' };
-const SOURCE_LABEL: Record<string, string> = { B2B: 'B2B', BENCH: 'Bench', MARKET: 'Market' };
-
-const RATING_BADGE: Record<string, string> = {
-  ASSET: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
-  MEDIUM: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
-  LIABILITY: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800/50',
-};
-
-const STATUS_BADGE: Record<string, string> = {
-  RFD: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
-  WFD: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
-  DOB: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800/50',
-  TRAINING: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-800/50',
-  DEPLOYED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800/50',
-};
-
 function getEffectiveInterviewCount(candidate: Candidate): number {
   return Math.max(candidate.noOfInterviews ?? 0, candidate.systemInterviewCount ?? 0);
-}
-
-function getEffectiveInterviewBadgeClass(count: number): string {
-  if (count >= 7) return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800/50';
-  if (count >= 5) return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800/50';
-  if (count >= 3) return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50';
-  return 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700';
-}
-
-function getEffectiveInterviewLabel(count: number): string {
-  if (count >= 7) return 'Review Needed';
-  if (count >= 5) return 'High Attempts';
-  if (count >= 3) return 'Eligible';
-  return 'Below Baseline';
 }
 
 export default function CandidatesClient({ role }: Props) {
@@ -135,6 +74,7 @@ export default function CandidatesClient({ role }: Props) {
     matched: true,
     deployed: true,
   });
+  const [masterPaneCollapsed, setMasterPaneCollapsed] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [deployedCandidates, setDeployedCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,7 +84,7 @@ export default function CandidatesClient({ role }: Props) {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterRating, setFilterRating] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<CandidateEditForm>({
     name: '', email: '', officialEmail: '', personalEmail: '', contactNumber: '',
     batch: '', batchMentor: '', source: '', candidateStatus: '', rating: '',
     skillSet: '', yoeActual: '', yoePortrayed: '', yop: '', noOfInterviews: '',
@@ -469,32 +409,121 @@ export default function CandidatesClient({ role }: Props) {
       ? matchedTreeFiltered
       : allTreeFiltered;
 
-  const { page, totalPages, paginated, setPage } = usePagination(treeData, 5);
+  const toggleTreeGroup = useCallback((key: TreeParent) => {
+    setOpenTreeGroups((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem(`cand-nav-${key}`, next[key] ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleMasterPane = useCallback(() => {
+    setMasterPaneCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem('cand-master-pane', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        const keys: TreeParent[] = ['all', 'matched', 'deployed'];
+        setOpenTreeGroups((prev) => {
+          const next = { ...prev };
+          for (const k of keys) {
+            const v = localStorage.getItem(`cand-nav-${k}`);
+            if (v !== null) next[k] = v === '1';
+          }
+          return next;
+        });
+      } catch {
+        /* ignore */
+      }
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        if (localStorage.getItem('cand-master-pane') === '1') {
+          setMasterPaneCollapsed(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
 
   if (loading) return <LoadingSpinner message="Loading candidates..." />;
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full">
       {/* Tree View */}
-      <div className="card overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] min-h-[560px]">
-          <div className="border-r border-zinc-200 dark:border-zinc-800 min-w-0">
+      <div className="card flex min-h-0 flex-1 flex-col overflow-hidden w-full min-w-0 max-w-full">
+        <div
+          className={`grid h-full min-h-0 w-full min-w-0 flex-1 grid-cols-1 grid-rows-1 transition-[grid-template-columns] duration-200 ease-out ${
+            masterPaneCollapsed
+              ? 'lg:grid-cols-[2.75rem_minmax(0,1fr)]'
+              : 'lg:grid-cols-[280px_minmax(0,1fr)]'
+          }`}
+        >
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col border-r border-zinc-200 dark:border-zinc-800">
+            {!masterPaneCollapsed && (
+              <div className="hidden shrink-0 items-center justify-end border-b border-zinc-200 bg-zinc-50/70 px-1 py-1 dark:border-zinc-800 dark:bg-zinc-900/50 lg:flex">
+                <button
+                  type="button"
+                  onClick={toggleMasterPane}
+                  className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                  aria-label="Collapse candidate list"
+                  title="Collapse list"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {masterPaneCollapsed && (
+              <div className="hidden shrink-0 flex-col items-center border-b border-zinc-200 bg-zinc-50/70 py-3 dark:border-zinc-800 dark:bg-zinc-900/50 lg:flex">
+                <button
+                  type="button"
+                  onClick={toggleMasterPane}
+                  className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                  aria-label="Expand candidate list"
+                  title="Expand list"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            <div className={`min-h-0 flex-1 overflow-y-auto ${masterPaneCollapsed ? 'lg:hidden' : ''}`}>
             <button
-              onClick={() => setOpenTreeGroups(prev => ({ ...prev, all: !prev.all }))}
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800"
+              type="button"
+              aria-expanded={openTreeGroups.all}
+              onClick={() => toggleTreeGroup('all')}
+              className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-100/80 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 dark:hover:bg-zinc-900/70"
             >
-              <span>All Candidates ({allCandidates.length})</span>
-              <span>{openTreeGroups.all ? '▾' : '▸'}</span>
+              <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.all ? 'rotate-90' : ''}`} />
+              <span className="flex-1">All Candidates ({allCandidates.length})</span>
             </button>
             {openTreeGroups.all && (
               <div className="border-b border-zinc-200 dark:border-zinc-800">
                 {allStatusGroups.map(group => (
                   <button
+                    type="button"
                     key={`all-${group}`}
                     onClick={() => {
                       setSelectedParent('all');
                       setSelectedSubParent(group);
-                      setPage(1);
                     }}
                     className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
                       selectedParent === 'all' && selectedSubParent === group
@@ -509,21 +538,23 @@ export default function CandidatesClient({ role }: Props) {
             )}
 
             <button
-              onClick={() => setOpenTreeGroups(prev => ({ ...prev, matched: !prev.matched }))}
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800"
+              type="button"
+              aria-expanded={openTreeGroups.matched}
+              onClick={() => toggleTreeGroup('matched')}
+              className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-100/80 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 dark:hover:bg-zinc-900/70"
             >
-              <span>Matched Candidates ({matchedCandidates.length})</span>
-              <span>{openTreeGroups.matched ? '▾' : '▸'}</span>
+              <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.matched ? 'rotate-90' : ''}`} />
+              <span className="flex-1">Matched Candidates ({matchedCandidates.length})</span>
             </button>
             {openTreeGroups.matched && (
               <div className="border-b border-zinc-200 dark:border-zinc-800">
                 {matchedSubGroups.map(group => (
                   <button
+                    type="button"
                     key={`matched-${group}`}
                     onClick={() => {
                       setSelectedParent('matched');
                       setSelectedSubParent(group);
-                      setPage(1);
                     }}
                     className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
                       selectedParent === 'matched' && selectedSubParent === group
@@ -538,21 +569,23 @@ export default function CandidatesClient({ role }: Props) {
             )}
 
             <button
-              onClick={() => setOpenTreeGroups(prev => ({ ...prev, deployed: !prev.deployed }))}
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40 border-b border-zinc-200 dark:border-zinc-800"
+              type="button"
+              aria-expanded={openTreeGroups.deployed}
+              onClick={() => toggleTreeGroup('deployed')}
+              className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-100/80 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 dark:hover:bg-zinc-900/70"
             >
-              <span>Deployed Candidates ({deployedCandidates.length})</span>
-              <span>{openTreeGroups.deployed ? '▾' : '▸'}</span>
+              <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.deployed ? 'rotate-90' : ''}`} />
+              <span className="flex-1">Deployed Candidates ({deployedCandidates.length})</span>
             </button>
             {openTreeGroups.deployed && (
               <div>
                 {deployedClientGroups.map(group => (
                   <button
+                    type="button"
                     key={`deployed-${group}`}
                     onClick={() => {
                       setSelectedParent('deployed');
                       setSelectedSubParent(group);
-                      setPage(1);
                     }}
                     className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
                       selectedParent === 'deployed' && selectedSubParent === group
@@ -565,42 +598,42 @@ export default function CandidatesClient({ role }: Props) {
                 ))}
               </div>
             )}
+            </div>
           </div>
 
-          <div className="p-6 space-y-4 min-w-0">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-6 space-y-4">
             {selectedParent !== 'deployed' ? (
               <>
-                {/* Search & Filters */}
                 <div className="card p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                     <div className="md:col-span-2">
                       <input
                         className={inputCls}
                         placeholder="Search by name, email, or batch…"
                         value={search}
-                        onChange={e => setSearch(e.target.value)}
+                        onChange={(e) => setSearch(e.target.value)}
                       />
                     </div>
-                    <select className={inputCls} value={filterSkill} onChange={e => setFilterSkill(e.target.value)}>
+                    <select className={inputCls} value={filterSkill} onChange={(e) => setFilterSkill(e.target.value)}>
                       <option value="">All Skills</option>
                       <option value="JAVA_SB">Java + SB</option>
                       <option value="JFSR">JFSR</option>
                       <option value="REACT_JS">React JS</option>
                     </select>
-                    <select className={inputCls} value={filterSource} onChange={e => setFilterSource(e.target.value)}>
+                    <select className={inputCls} value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
                       <option value="">All Sources</option>
                       <option value="B2B">B2B</option>
                       <option value="BENCH">Bench</option>
                       <option value="MARKET">Market</option>
                     </select>
-                    <select className={inputCls} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                    <select className={inputCls} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                       <option value="">All Statuses</option>
                       <option value="RFD">RFD</option>
                       <option value="WFD">WFD</option>
                       <option value="DOB">DOB</option>
                       <option value="TRAINING">Training</option>
                     </select>
-                    <select className={inputCls} value={filterRating} onChange={e => setFilterRating(e.target.value)}>
+                    <select className={inputCls} value={filterRating} onChange={(e) => setFilterRating(e.target.value)}>
                       <option value="">All Ratings</option>
                       <option value="ASSET">Asset</option>
                       <option value="MEDIUM">Medium</option>
@@ -615,421 +648,82 @@ export default function CandidatesClient({ role }: Props) {
                   className={inputCls}
                   placeholder="Search deployed candidates by name, email, client, emp id..."
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
             )}
             <div className="flex items-center justify-between">
               <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{treeData.length}</span> candidate{treeData.length !== 1 ? 's' : ''} found
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{treeData.length}</span> candidate
+                {treeData.length !== 1 ? "s" : ""} found
               </div>
               <div className="flex items-center gap-2">
-                {selectedParent === 'deployed' && (
+                {selectedParent === "deployed" && (
                   <Button
                     onClick={() => setShowBulkImportDialog(true)}
-                    className="h-8 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                    className="h-8 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
                   >
-                    <Upload className="h-3.5 w-3.5 mr-1" />
+                    <Upload className="mr-1 h-3.5 w-3.5" />
                     Bulk Import
                   </Button>
                 )}
                 <button
-                  onClick={selectedParent === 'deployed' ? fetchDeployedCandidates : fetchCandidates}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                  type="button"
+                  onClick={selectedParent === "deployed" ? fetchDeployedCandidates : fetchCandidates}
+                  className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   Refresh
                 </button>
               </div>
             </div>
 
-            {selectedParent !== 'deployed' ? (
-              <>
-                <div className="card min-w-0">
-                  <div className="overflow-x-auto w-full max-w-full">
-                    <table className="min-w-[1850px] text-sm">
-                    <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
-                      <tr>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Name</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Contact</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Batch (DOH)</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Batch Mentor</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Source</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Skill</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">YOE (A/P)</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">YOP</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Resume</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Status</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Rating</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Ext. Interviews</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Sys. Interviews</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Effective Interviews</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Interview Mentor</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Client</th>
-                        <th className="px-3 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Matching</th>
-                        <th className="px-3 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                      {paginated.length > 0 ? paginated.map(c => (
-                        <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
-                          <td className="px-3 py-3">
-                            <div className="font-medium text-zinc-900 dark:text-zinc-100">{c.name || '—'}</div>
-                            <div className="text-[11px] text-zinc-400">{c.email}</div>
-                          </td>
-                          <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">
-                            {c.contactNumber || '—'}
-                          </td>
-                          <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.batch || '—'}</td>
-                          <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.batchMentor || '—'}</td>
-                          <td className="px-3 py-3">
-                            {c.source ? (
-                              <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                                {SOURCE_LABEL[c.source] ?? c.source}
-                              </span>
-                            ) : '—'}
-                          </td>
-                          <td className="px-3 py-3">
-                            {c.skillSet ? (
-                              <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                                {SKILL_LABEL[c.skillSet] ?? c.skillSet}
-                              </span>
-                            ) : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs font-mono">
-                            {c.yoeActual != null ? `${c.yoeActual} / ${c.yoePortrayed ?? '—'}` : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.yop ?? '—'}</td>
-
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-1">
-                              {c.resumeFilename ? (
-                                <>
-                                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                    <FileText className="h-3 w-3 mr-1" />
-                                    Resume
-                                  </Badge>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleDownloadResume(c.id, c.resumeFilename!)}
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleResumeUpload(c.id)}
-                                  className="text-xs text-blue-600 hover:text-blue-700 h-6 px-2"
-                                >
-                                  <Upload className="h-3 w-3 mr-1" />
-                                  Upload
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-
-                          {editingId === c.id ? (
-                            <>
-                              <td className="px-3 py-2" colSpan={16}>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Name</span>
-                                    <input className={selectSmCls} value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="Name" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Contact</span>
-                                    <input className={selectSmCls} value={editForm.contactNumber} onChange={e => setEditForm(p => ({ ...p, contactNumber: e.target.value }))} placeholder="Contact" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Official Email</span>
-                                    <input className={selectSmCls} value={editForm.officialEmail} onChange={e => setEditForm(p => ({ ...p, officialEmail: e.target.value }))} placeholder="Official Email" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Personal Email</span>
-                                    <input className={selectSmCls} value={editForm.personalEmail} onChange={e => setEditForm(p => ({ ...p, personalEmail: e.target.value }))} placeholder="Personal Email" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Batch (DOH)</span>
-                                    <input className={selectSmCls} value={editForm.batch} onChange={e => setEditForm(p => ({ ...p, batch: e.target.value }))} placeholder="Batch" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Batch Mentor</span>
-                                    <input className={selectSmCls} value={editForm.batchMentor} onChange={e => setEditForm(p => ({ ...p, batchMentor: e.target.value }))} placeholder="Batch Mentor" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Source {role !== 'SUPER_ADMIN' && <span className="text-zinc-300">(locked)</span>}</span>
-                                    <select className={selectSmCls} value={editForm.source} disabled={role !== 'SUPER_ADMIN'} onChange={e => setEditForm(p => ({ ...p, source: e.target.value }))}>
-                                      <option value="">—</option>
-                                      <option value="B2B">B2B</option>
-                                      <option value="BENCH">Bench</option>
-                                      <option value="MARKET">Market</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Status</span>
-                                    <select className={selectSmCls} value={editForm.candidateStatus} onChange={e => setEditForm(p => ({ ...p, candidateStatus: e.target.value }))}>
-                                      <option value="">—</option>
-                                      <option value="RFD">RFD</option>
-                                      <option value="WFD">WFD</option>
-                                      <option value="DOB">DOB</option>
-                                      <option value="TRAINING">Training</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Rating</span>
-                                    <select className={selectSmCls} value={editForm.rating} onChange={e => setEditForm(p => ({ ...p, rating: e.target.value }))}>
-                                      <option value="">—</option>
-                                      <option value="ASSET">Asset</option>
-                                      <option value="MEDIUM">Medium</option>
-                                      <option value="LIABILITY">Liability</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Skill Set</span>
-                                    <select className={selectSmCls} value={editForm.skillSet} onChange={e => setEditForm(p => ({ ...p, skillSet: e.target.value }))}>
-                                      <option value="">—</option>
-                                      <option value="JAVA_SB">Java + SB</option>
-                                      <option value="JFSR">JFSR</option>
-                                      <option value="REACT_JS">React JS</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">YOE Actual</span>
-                                    <input type="number" step="0.1" className={selectSmCls} value={editForm.yoeActual} onChange={e => setEditForm(p => ({ ...p, yoeActual: e.target.value }))} placeholder="0.0" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">YOE Portrayed</span>
-                                    <input type="number" step="0.1" className={selectSmCls} value={editForm.yoePortrayed} onChange={e => setEditForm(p => ({ ...p, yoePortrayed: e.target.value }))} placeholder="0.0" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">YOP</span>
-                                    <input type="number" className={selectSmCls} value={editForm.yop} onChange={e => setEditForm(p => ({ ...p, yop: e.target.value }))} placeholder="2023" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">No. of Interviews</span>
-                                    <input type="number" min="0" className={selectSmCls} value={editForm.noOfInterviews} onChange={e => setEditForm(p => ({ ...p, noOfInterviews: e.target.value }))} />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Interview Mentor</span>
-                                    <input className={selectSmCls} value={editForm.interviewMentorName} onChange={e => setEditForm(p => ({ ...p, interviewMentorName: e.target.value }))} placeholder="Mentor" />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-zinc-400">Client</span>
-                                    <input className={selectSmCls} value={editForm.clientName} onChange={e => setEditForm(p => ({ ...p, clientName: e.target.value }))} placeholder="Client" />
-                                  </div>
-                                  {role === 'SUPER_ADMIN' && (
-                                    <div className="flex flex-col gap-1">
-                                      <span className="text-[10px] text-zinc-400">Login Email</span>
-                                      <input className={selectSmCls} value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} placeholder="Login email" />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex gap-2 justify-end">
-                                  <button onClick={() => saveEdit(c.id)} disabled={saving}
-                                    className="px-3 py-1 text-xs font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">
-                                    {saving ? '…' : 'Save'}
-                                  </button>
-                                  <button onClick={() => setEditingId(null)}
-                                    className="px-3 py-1 text-xs font-medium border border-zinc-300 dark:border-zinc-700 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                                    Cancel
-                                  </button>
-                                </div>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="px-3 py-3">
-                                {c.candidateStatus ? (
-                                  <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full border ${STATUS_BADGE[c.candidateStatus] ?? ''}`}>
-                                    {c.candidateStatus}
-                                  </span>
-                                ) : <span className="text-zinc-400 text-xs">—</span>}
-                              </td>
-                              <td className="px-3 py-3">
-                                {c.rating ? (
-                                  <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full border ${RATING_BADGE[c.rating] ?? ''}`}>
-                                    {c.rating}
-                                  </span>
-                                ) : <span className="text-zinc-400 text-xs">—</span>}
-                              </td>
-                              <td className="px-3 py-3 text-center text-xs font-mono">
-                                {c.noOfInterviews ?? 0}
-                              </td>
-                              <td className="px-3 py-3 text-center text-xs font-mono text-zinc-400">
-                                {c.systemInterviewCount ?? 0}
-                              </td>
-                              <td className="px-3 py-3">
-                                {(() => {
-                                  const effectiveCount = getEffectiveInterviewCount(c);
-                                  const ext = c.noOfInterviews ?? 0;
-                                  const sys = c.systemInterviewCount ?? 0;
-                                  return (
-                                    <span
-                                      title={`Effective = max(External ${ext}, System ${sys})`}
-                                      className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full border ${getEffectiveInterviewBadgeClass(effectiveCount)}`}
-                                    >
-                                      {effectiveCount} · {getEffectiveInterviewLabel(effectiveCount)}
-                                    </span>
-                                  );
-                                })()}
-                              </td>
-                              <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.interviewMentorName || '—'}</td>
-                              <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.clientName || '—'}</td>
-                              <td className="px-3 py-3">
-                                <ViewMatchesButton
-                                  candidateId={c.id}
-                                  candidateStatus={c.candidateStatus}
-                                  systemInterviewCount={c.systemInterviewCount ?? null}
-                                />
-                              </td>
-                              <td className="px-3 py-3 text-right">
-                                <div className="flex gap-1 justify-end">
-                                  <button
-                                    onClick={() => startEdit(c)}
-                                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => handleViewHistory(c.id)}
-                                    className="text-purple-600 dark:text-purple-400 hover:underline text-xs font-medium"
-                                  >
-                                    History
-                                  </button>
-                                  {c.resumeSummary && (
-                                    <button
-                                      onClick={() => handleCreateInterview(c)}
-                                      className="text-green-600 dark:text-green-400 hover:underline text-xs font-medium flex items-center gap-1"
-                                    >
-                                      <Sparkles className="h-3 w-3" />
-                                      Interview
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={18} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
-                            No candidates found.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                    </table>
-                  </div>
-                </div>
-                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-              </>
+            {selectedParent !== "deployed" ? (
+              <div className="card min-w-0 p-4">
+                <CandidatesMainTable
+                  data={treeData}
+                  role={role}
+                  editingId={editingId}
+                  editForm={editForm}
+                  setEditForm={setEditForm}
+                  saving={saving}
+                  onSaveEdit={saveEdit}
+                  onCancelEdit={() => setEditingId(null)}
+                  handlers={{
+                    onStartEdit: startEdit,
+                    onResumeUpload: handleResumeUpload,
+                    onDownloadResume: handleDownloadResume,
+                    onCreateInterview: handleCreateInterview,
+                    onViewHistory: handleViewHistory,
+                  }}
+                  selectSmCls={selectSmCls}
+                />
+              </div>
             ) : (
-              <div className="card overflow-hidden min-w-0">
-                <div className="overflow-x-auto w-full max-w-full">
-                  <table className="min-w-[1300px] text-sm">
-                    <thead className="bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 border-b border-zinc-200 dark:border-zinc-800">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">No.</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Emp ID</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Name</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Contact</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Official Email</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Personal Email</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">YOE</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Technology</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Client Name</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Deployed Date</th>
-                        <th className="px-4 py-3 text-left font-semibold text-zinc-700 dark:text-zinc-300">Mentor</th>
-                        <th className="px-4 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                      {paginated.length > 0 ? paginated.map((c, idx) => (
-                        <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
-                          <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 font-medium">{idx + 1 + ((page - 1) * 5)}</td>
-                          <td className="px-4 py-4">
-                            {c.empId ? (
-                              <span className="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{c.empId}</span>
-                            ) : (
-                              <span className="text-zinc-400 text-xs">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">{c.name || '—'}</div>
-                            <div className="text-[11px] text-zinc-400 mt-0.5">{c.email}</div>
-                          </td>
-                          <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.contactNumber || '—'}</td>
-                          <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.officialEmail || '—'}</td>
-                          <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.personalEmail || '—'}</td>
-                          <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs font-mono">{c.yoeActual ?? '—'}</td>
-                          <td className="px-4 py-4">
-                            {c.skillSet ? (
-                              <span className="px-2.5 py-1 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                {SKILL_LABEL[c.skillSet] ?? c.skillSet}
-                              </span>
-                            ) : '—'}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-zinc-900 dark:text-zinc-100">{c.deployedClientName || '—'}</div>
-                          </td>
-                          <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">
-                            {c.deployedDate ? new Date(c.deployedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
-                          </td>
-                          <td className="px-4 py-4 text-zinc-600 dark:text-zinc-400 text-xs">{c.mentor || '—'}</td>
-                          <td className="px-4 py-4">
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleViewHistory(c.id)}
-                                className="text-xs h-8 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                History
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleEndDeployment(c.id, c.name || 'Candidate')}
-                                disabled={endingDeployment === c.id}
-                                className="text-xs h-8 bg-red-600 hover:bg-red-700 text-white"
-                              >
-                                {endingDeployment === c.id ? 'Ending...' : 'End Deployment'}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={12} className="px-4 py-12 text-center">
-                            <Briefcase className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400">No deployed candidates found.</p>
-                            <Button
-                              onClick={() => setShowBulkImportDialog(true)}
-                              variant="outline"
-                              className="mt-4"
-                            >
-                              <Upload className="h-4 w-4 mr-2" />
-                              Import Deployments
-                            </Button>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="p-4">
-                  <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-                </div>
+              <div className="card min-w-0 overflow-hidden p-4">
+                <DeployedCandidatesTable
+                  data={treeData}
+                  endingDeploymentId={endingDeployment}
+                  handlers={{
+                    onViewHistory: handleViewHistory,
+                    onEndDeployment: handleEndDeployment,
+                  }}
+                />
+                {treeData.length === 0 && (
+                  <div className="mt-6 border-t border-zinc-200 pt-6 text-center dark:border-zinc-800">
+                    <Briefcase className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-700" />
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">No deployed candidates found.</p>
+                    <Button onClick={() => setShowBulkImportDialog(true)} variant="outline" className="mt-4">
+                      <Upload className="mr-2 h-4 w-4" />
+                      Import Deployments
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
-      
+
       {/* Resume Upload Dialog */}
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <DialogContent className="max-w-2xl">
@@ -1174,7 +868,7 @@ export default function CandidatesClient({ role }: Props) {
             </div>
           ) : deploymentHistory.length > 0 ? (
             <div className="space-y-3">
-              {deploymentHistory.map((history, idx) => (
+              {deploymentHistory.map((history) => (
                 <div 
                   key={history.id} 
                   className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 hover:shadow-md transition-shadow bg-white dark:bg-zinc-900"
