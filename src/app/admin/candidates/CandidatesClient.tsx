@@ -7,7 +7,8 @@ import { SkeletonTable } from '@/components/common/Skeleton';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
-import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X } from 'lucide-react';
+import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown } from 'lucide-react';
+import { downloadCandidateReview } from '@/lib/downloadPdf';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -879,11 +880,26 @@ export default function CandidatesClient({ role }: Props) {
                               <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.interviewMentorName || '—'}</td>
                               <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400 text-xs">{c.clientName || '—'}</td>
                               <td className="px-3 py-3">
-                                <ViewMatchesButton
-                                  candidateId={c.id}
-                                  candidateStatus={c.candidateStatus}
-                                  systemInterviewCount={c.systemInterviewCount ?? null}
-                                />
+                                <div className="flex items-center gap-2">
+                                  <ViewMatchesButton
+                                    candidateId={c.id}
+                                    candidateStatus={c.candidateStatus}
+                                    systemInterviewCount={c.systemInterviewCount ?? null}
+                                  />
+                                  {getEffectiveInterviewCount(c) > 0 && (
+                                    <button
+                                      onClick={async () => {
+                                        const result = await downloadCandidateReview(c.id, c.name || 'Candidate');
+                                        if (!result.success) toast(result.error!, 'error');
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 shadow-sm hover:shadow-md transform hover:scale-105"
+                                      title="Download last 5 interviews as PDF"
+                                    >
+                                      <FileDown className="h-3 w-3" />
+                                      PDF
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-3 py-3 text-right">
                                 <div className="flex gap-1 justify-end">
