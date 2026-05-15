@@ -553,7 +553,7 @@ export function CandidatesMainTable({
         enableColumnFilter: false,
         cell: ({ row }) => {
           const c = row.original;
-          if (getEffectiveInterviewCount(c) <= 0 || !handlersRef.current.onDownloadPdf) {
+          if ((c.systemInterviewCount ?? 0) < 1 || !handlersRef.current.onDownloadPdf) {
             return <span className="text-xs text-zinc-400">—</span>;
           }
           return (
