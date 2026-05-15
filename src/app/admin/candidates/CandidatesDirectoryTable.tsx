@@ -4,7 +4,7 @@ import { useMemo, useRef, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { FileText, Upload, Download, Sparkles, Eye } from "lucide-react";
+import { FileText, Upload, Download, Sparkles, Eye, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
@@ -99,6 +99,7 @@ type RowHandlers = {
   onDownloadResume: (id: string, filename: string) => void;
   onCreateInterview: (c: Candidate) => void;
   onViewHistory: (id: string) => void;
+  onDownloadPdf?: (id: string, name: string) => void;
 };
 
 function CandidateEditRow({
@@ -544,6 +545,29 @@ export function CandidatesMainTable({
             systemInterviewCount={row.original.systemInterviewCount ?? null}
           />
         ),
+      },
+      {
+        id: "reviewHistory",
+        header: "Review Summary",
+        enableSorting: false,
+        enableColumnFilter: false,
+        cell: ({ row }) => {
+          const c = row.original;
+          if (getEffectiveInterviewCount(c) <= 0 || !handlersRef.current.onDownloadPdf) {
+            return <span className="text-xs text-zinc-400">—</span>;
+          }
+          return (
+            <button
+              type="button"
+              onClick={() => handlersRef.current.onDownloadPdf!(c.id, c.name || "Candidate")}
+              className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 px-2 py-1 text-xs font-medium text-white shadow-sm transition-all duration-200 hover:from-indigo-600 hover:to-violet-600 hover:shadow-md hover:scale-105"
+              title="Download last 5 interviews as PDF"
+            >
+              <FileDown className="h-3 w-3" />
+              Download PDF
+            </button>
+          );
+        },
       },
       {
         id: "actions",

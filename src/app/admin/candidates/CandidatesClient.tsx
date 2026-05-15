@@ -697,6 +697,15 @@ export default function CandidatesClient({ role }: Props) {
                     onDownloadResume: handleDownloadResume,
                     onCreateInterview: handleCreateInterview,
                     onViewHistory: handleViewHistory,
+                    onDownloadPdf: async (id, name) => {
+                      setDownloadingPdf(id);
+                      try {
+                        const result = await downloadCandidateReview(id, name);
+                        if (!result.success) toast(result.error!, 'error');
+                      } finally {
+                        setDownloadingPdf(null);
+                      }
+                    },
                   }}
                   selectSmCls={selectSmCls}
                 />
