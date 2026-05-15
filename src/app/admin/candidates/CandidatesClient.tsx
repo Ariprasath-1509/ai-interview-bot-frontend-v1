@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
-import { Upload, Briefcase, ChevronRight, ChevronLeft } from 'lucide-react';
+import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown } from 'lucide-react';
+import { downloadCandidateReview } from '@/lib/downloadPdf';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -110,6 +112,7 @@ export default function CandidatesClient({ role }: Props) {
   }>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [endingDeployment, setEndingDeployment] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
   const { confirm } = useConfirm();
 
   const { toast } = useToast();
