@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload, ChevronRight, Minus, Loader2, CheckCircle, AlertCircle, RefreshCw, Info } from 'lucide-react';
+import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload, Download, ChevronRight, ChevronLeft, Minus, Loader2, CheckCircle, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Badge } from '@/components/ui/badge';
 
@@ -89,6 +89,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
   const [cacheClearLoading, setCacheClearLoading] = useState(false);
   const [cacheStats, setCacheStats] = useState<{ cachedCount?: number } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [masterListCollapsed, setMasterListCollapsed] = useState(false);
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
 
   const SKILL_OPTIONS = [
@@ -145,6 +146,31 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
     }
   }, [toast]);
 
+  const toggleMasterList = useCallback(() => {
+    setMasterListCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem('clients-master-pane', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        if (localStorage.getItem('clients-master-pane') === '1') {
+          setMasterListCollapsed(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const handleClearCache = async () => {
     if (!confirm('Are you sure you want to clear all AI matching caches? This will force fresh AI analysis on next match.')) return;
     setCacheClearLoading(true);
@@ -179,20 +205,42 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const wasEditing = !!editingClient;
     const url = editingClient ? `/api/recruiter/clients/${editingClient.id}` : '/api/recruiter/clients';
     const method = editingClient ? 'PUT' : 'POST';
     try {
       let res;
-      if (!editingClient && jdFile) {
+      if (jdFile) {
         const fd = new FormData();
         fd.append('client', JSON.stringify(formData));
         fd.append('jdFile', jdFile);
-        res = await fetch(url, { method, body: fd });
+        res = await fetch(url, { method, body: fd, credentials: 'include' });
       } else {
-        res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+        res = await fetch(url, {
+          method,
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
       }
-      if (res.ok) { await fetchClients(); resetForm(); }
-    } catch (e) { console.error('Failed to save client:', e); }
+      if (res.ok) {
+        await fetchClients();
+        resetForm();
+        setToast({ message: wasEditing ? 'Client updated.' : 'Client created.', type: 'success' });
+      } else {
+        let detail = `Save failed (${res.status})`;
+        try {
+          const err = await res.json();
+          if (err?.error && typeof err.error === 'string') detail = err.error;
+        } catch {
+          /* ignore */
+        }
+        setToast({ message: detail, type: 'error' });
+      }
+    } catch (e) {
+      console.error('Failed to save client:', e);
+      setToast({ message: 'Save failed. Network error.', type: 'error' });
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -206,7 +254,32 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
     } catch (e) { console.error('Failed to delete client:', e); }
   };
 
+  const handleDownloadCurrentJd = async () => {
+    if (!editingClient) return;
+    try {
+      const res = await fetch(`/api/recruiter/clients/${editingClient.id}/jd-file`, { credentials: 'include' });
+      if (!res.ok) {
+        setToast({ message: 'No JD file is stored for this client.', type: 'error' });
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safe = (editingClient.jdFileName || 'job-description').replace(/[^a-zA-Z0-9._\- ]+/g, '_');
+      a.download = safe;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setToast({ message: 'Failed to download JD.', type: 'error' });
+    }
+  };
+
   const openEditForm = (client: Client) => {
+    setJdFile(null);
     setEditingClient(client);
     setFormData({
       clientName: client.clientName, jdRole: client.jdRole, jdDescription: client.jdDescription,
@@ -368,7 +441,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
   if (loading) return <LoadingSpinner message="Loading clients..." />;
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
@@ -381,7 +454,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{clients.length} client{clients.length !== 1 ? 's' : ''} total</p>
           {isSuperAdmin && cacheStats && (
@@ -411,7 +484,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-3">
         {[
           { label: 'Total Clients', value: clients.length, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950/20' },
           { label: 'Bench / B2B Needed', value: totalBench, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
@@ -430,10 +503,43 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
       </div>
 
       {/* Two-column: Tree + Detail */}
-      <div className="card overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] min-h-[500px]">
+      <div className="card flex min-h-0 flex-1 flex-col overflow-hidden w-full min-w-0 max-w-full">
+        <div
+          className={`grid h-full min-h-0 w-full min-w-0 flex-1 grid-cols-1 grid-rows-1 transition-[grid-template-columns] duration-200 ease-out ${
+            masterListCollapsed
+              ? 'lg:grid-cols-[2.75rem_minmax(0,1fr)]'
+              : 'lg:grid-cols-[320px_minmax(0,1fr)]'
+          }`}
+        >
           {/* Left: Tree List */}
-          <div className="border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col border-r border-zinc-200 dark:border-zinc-800">
+            {!masterListCollapsed && (
+              <div className="hidden shrink-0 items-center justify-end border-b border-zinc-200 bg-zinc-50/70 px-1 py-1 dark:border-zinc-800 dark:bg-zinc-900/50 lg:flex">
+                <button
+                  type="button"
+                  onClick={toggleMasterList}
+                  className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                  aria-label="Collapse client list"
+                  title="Collapse list"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {masterListCollapsed && (
+              <div className="hidden shrink-0 flex-col items-center border-b border-zinc-200 bg-zinc-50/70 py-3 dark:border-zinc-800 dark:bg-zinc-900/50 lg:flex">
+                <button
+                  type="button"
+                  onClick={toggleMasterList}
+                  className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                  aria-label="Expand client list"
+                  title="Expand list"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${masterListCollapsed ? 'lg:hidden' : ''}`}>
             <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
               <input
                 className="input-base text-sm"
@@ -477,12 +583,13 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                 <div className="p-6 text-center text-sm text-zinc-400">No clients found</div>
               )}
             </div>
+            </div>
           </div>
 
           {/* Right: Detail Panel */}
-          <div className="flex flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {selectedPosition ? (
-              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-300px)]">
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 space-y-6">
                 {/* Position Header */}
                 <div className="flex items-start justify-between">
                   <div>
@@ -572,7 +679,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                 )}
               </div>
             ) : selectedClient ? (
-              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-300px)]">
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 space-y-6">
                 {/* Client Header */}
                 <div className="flex items-start justify-between">
                   <div>
@@ -657,7 +764,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-center p-6">
+              <div className="flex min-h-0 flex-1 items-center justify-center text-center p-6">
                 <div>
                   <Building2 className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">Click a position to view details and find matches</p>
@@ -708,6 +815,42 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                   onChange={(e) => setFormData({ ...formData, jdDescription: e.target.value })}
                   className="input-base min-h-[120px]"
                 />
+              </label>
+              <label className="field">
+                <span className="flex items-center gap-1.5">
+                  <Upload className="h-3.5 w-3.5" /> JD file (PDF/DOCX) — optional
+                </span>
+                {editingClient && (
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                    {editingClient.jdFileName ? (
+                      <span>
+                        Current file:{' '}
+                        <span className="font-medium text-zinc-800 dark:text-zinc-200">{editingClient.jdFileName}</span>
+                      </span>
+                    ) : (
+                      <span>No JD file stored for this client yet.</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleDownloadCurrentJd}
+                      className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-blue-300 dark:hover:bg-zinc-700"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Download current JD
+                    </button>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.doc"
+                  onChange={(e) => setJdFile(e.target.files?.[0] || null)}
+                  className="input-base text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-300"
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  {editingClient
+                    ? 'Choose a file and click Update Client to replace the stored JD. Text in Job Description above is saved separately.'
+                    : 'Attach a JD document to store with this client (optional).'}
+                </p>
+                {jdFile && <p className="text-xs text-emerald-600 mt-1">New file: {jdFile.name}</p>}
               </label>
               <label className="field">
                 Status
@@ -865,18 +1008,6 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                     </div>
                   )}
                 </div>
-              )}
-              {!editingClient && (
-                <label className="field">
-                  <span className="flex items-center gap-1.5"><Upload className="h-3.5 w-3.5" /> JD File (PDF/DOCX) — optional</span>
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,.doc"
-                    onChange={(e) => setJdFile(e.target.files?.[0] || null)}
-                    className="input-base text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-300"
-                  />
-                  {jdFile && <p className="text-xs text-emerald-600 mt-1">📄 {jdFile.name}</p>}
-                </label>
               )}
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-700">

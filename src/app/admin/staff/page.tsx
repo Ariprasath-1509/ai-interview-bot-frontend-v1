@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/app/components/AppShell";
 import { apiServer } from "@/lib/apiClient";
 import { revalidatePath } from "next/cache";
-import { DeleteButton } from "./DeleteButton";
+import { StaffDirectoryTable, type StaffRow } from "./StaffDirectoryTable";
 
 export default async function StaffPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await getSession();
@@ -56,51 +56,7 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
       <div className="grid gap-6 lg:grid-cols-3 items-start">
         <div className="lg:col-span-2 rounded-2xl border border-zinc-200 bg-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
           <h2 className="font-semibold text-lg mb-4 text-zinc-900 dark:text-zinc-100">Staff Directory</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                  <th className="pb-3 font-medium">Name</th>
-                  <th className="pb-3 font-medium">Email</th>
-                  <th className="pb-3 font-medium">Role</th>
-                  <th className="pb-3 font-medium">Source</th>
-                  <th className="pb-3 font-medium">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-                {staff.map((u: any) => (
-                  <tr key={u.id} className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/30">
-                    <td className="py-3 font-medium text-zinc-900 dark:text-zinc-200">{u.name}</td>
-                    <td className="py-3 text-zinc-500 dark:text-zinc-400">{u.email}</td>
-                    <td className="py-3">
-                      <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="py-3 text-zinc-500 dark:text-zinc-400 text-xs">
-                      {u.adminSource ? (
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          u.adminSource === "BENCH" 
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
-                            : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                        }`}>
-                          {u.adminSource}
-                        </span>
-                      ) : "—"}
-                    </td>
-                    <td className="py-3">
-                       <DeleteButton id={u.id} />
-                    </td>
-                  </tr>
-                ))}
-                {staff.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-zinc-500">No staff found</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <StaffDirectoryTable staff={staff as StaffRow[]} />
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">

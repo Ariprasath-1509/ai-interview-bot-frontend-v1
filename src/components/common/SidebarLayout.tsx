@@ -2,17 +2,72 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
-import { Menu, X, ChevronLeft, Building2, Briefcase } from "lucide-react";
+import { useState, useEffect, useMemo, type ComponentType } from "react";
+import { Menu, X, ChevronLeft, ChevronDown } from "lucide-react";
 import { LogoutButton } from "@/app/components/LogoutButton";
 import { NotificationCenter } from "@/components/common/NotificationCenter";
 import type { SidebarItem } from "@/config/roleConfig";
 import * as LucideIcons from "lucide-react";
 
+const NAV_GROUP_LABEL: Record<string, string> = {
+  candidates: "Candidates",
+  clients: "Clients",
+};
+
+type NavChunk =
+  | { type: "flat"; items: SidebarItem[] }
+  | { type: "group"; id: string; label: string; items: SidebarItem[] };
+
+function chunkSidebarNav(items: SidebarItem[]): NavChunk[] {
+  const chunks: NavChunk[] = [];
+  let flat: SidebarItem[] = [];
+  let groupId: string | null = null;
+  let groupItems: SidebarItem[] = [];
+
+  const flushFlat = () => {
+    if (flat.length) {
+      chunks.push({ type: "flat", items: [...flat] });
+      flat = [];
+    }
+  };
+  const flushGroup = () => {
+    if (groupId && groupItems.length) {
+      chunks.push({
+        type: "group",
+        id: groupId,
+        label: NAV_GROUP_LABEL[groupId] ?? groupId,
+        items: [...groupItems],
+      });
+      groupItems = [];
+      groupId = null;
+    }
+  };
+
+  for (const item of items) {
+    const g = item.navGroup;
+    if (!g) {
+      flushGroup();
+      flat.push(item);
+    } else {
+      flushFlat();
+      if (groupId !== g) {
+        flushGroup();
+        groupId = g;
+      }
+      groupItems.push(item);
+    }
+  }
+  flushFlat();
+  flushGroup();
+  return chunks;
+}
+
 // Icon mapping for dynamic icon rendering
 const getIcon = (iconName: string) => {
-  const IconComponent = (LucideIcons as any)[iconName];
-  return IconComponent || LucideIcons.Circle; // Fallback to Circle if icon not found
+  const IconComponent = (
+    LucideIcons as unknown as Record<string, ComponentType<{ size?: number; className?: string }>>
+  )[iconName];
+  return IconComponent || LucideIcons.Circle;
 };
 
 export function SidebarLayout({
@@ -33,14 +88,41 @@ export function SidebarLayout({
   const [pathname, setPathname] = useState("/");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  
+  /** Defaults only until after mount — avoids SSR/client localStorage mismatch. */
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    candidates: true,
+    clients: true,
+  });
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        setOpenGroups((prev) => {
+          const next = { ...prev };
+          for (const id of Object.keys(next)) {
+            const v = localStorage.getItem(`navgrp-${id}`);
+            if (v !== null) next[id] = v === "1";
+          }
+          return next;
+        });
+      } catch {
+        /* ignore */
+      }
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  const navChunks = useMemo(() => chunkSidebarNav(items), [items]);
+
   // Safe pathname hook with fallback
   const currentPathname = usePathname();
   
   useEffect(() => {
-    if (currentPathname) {
+    if (!currentPathname) return;
+    const t = window.setTimeout(() => {
       setPathname(currentPathname);
-    }
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [currentPathname]);
 
   const isActive = (href: string) => {
@@ -64,6 +146,39 @@ export function SidebarLayout({
     return false;
   };
 
+  const renderNavLink = (item: SidebarItem) => {
+    const Icon = getIcon(item.icon);
+    const active = isActive(item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setMobileOpen(false)}
+        title={collapsed ? item.label : undefined}
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 ${
+          active
+            ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+            : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        } ${collapsed ? "justify-center px-2" : ""}`}
+      >
+        <Icon size={18} className="shrink-0" />
+        {!collapsed && <span>{item.label}</span>}
+      </Link>
+    );
+  };
+
+  const toggleNavGroup = (id: string) => {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem(`navgrp-${id}`, next[id] ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   const sidebarContent = (
     <div className="flex h-full flex-col">
       {/* Logo */}
@@ -83,24 +198,32 @@ export function SidebarLayout({
 
       {/* Nav items */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {items.map((item) => {
-          const Icon = getIcon(item.icon);
-          const active = isActive(item.href);
+        {navChunks.map((chunk) => {
+          if (chunk.type === "flat") {
+            return chunk.items.map((item) => renderNavLink(item));
+          }
+          const open = openGroups[chunk.id] ?? true;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 ${
-                active
-                  ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              } ${collapsed ? "justify-center px-2" : ""}`}
-            >
-              <Icon size={18} className="shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
+            <div key={chunk.id} className="space-y-0.5">
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={() => toggleNavGroup(chunk.id)}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  <span>{chunk.label}</span>
+                  <ChevronDown
+                    size={14}
+                    className={`shrink-0 transition-transform ${open ? "rotate-0" : "-rotate-90"}`}
+                  />
+                </button>
+              )}
+              {(collapsed || open) && (
+                <div className={collapsed ? "space-y-0.5" : "space-y-0.5 pl-1 border-l border-zinc-200 ml-2 dark:border-zinc-800"}>
+                  {chunk.items.map((item) => renderNavLink(item))}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
@@ -173,7 +296,7 @@ export function SidebarLayout({
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6 w-full min-w-0 max-w-full">
           {children}
         </main>
       </div>

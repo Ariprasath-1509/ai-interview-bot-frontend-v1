@@ -4,6 +4,8 @@ export type SidebarItem = {
   href: string;
   label: string;
   icon: string; // Changed to string icon name
+  /** Consecutive items with the same key render in one collapsible group */
+  navGroup?: "candidates" | "clients";
 };
 
 export type Permission =
@@ -44,10 +46,10 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
       { href: "/admin/interviews/create", label: "Create Interview", icon: "UserPlus" },
       { href: "/admin/review", label: "Review", icon: "ClipboardList" },
-      { href: "/admin/candidates", label: "Candidates", icon: "Users" },
-      { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload" },
-      { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase" },
-      { href: "/admin/clients", label: "Clients", icon: "Building2" },
+      { href: "/admin/candidates", label: "Candidates", icon: "Users", navGroup: "candidates" },
+      { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload", navGroup: "candidates" },
+      { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase", navGroup: "candidates" },
+      { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
       { href: "/admin/settings/tokens", label: "Token Settings", icon: "Settings" },
@@ -67,10 +69,10 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
       { href: "/admin/interviews/create", label: "Create Interview", icon: "UserPlus" },
       { href: "/admin/review", label: "Review", icon: "ClipboardList" },
-      { href: "/admin/candidates", label: "Candidates", icon: "Users" },
-      { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload" },
-      { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase" },
-      { href: "/admin/clients", label: "Clients", icon: "Building2" },
+      { href: "/admin/candidates", label: "Candidates", icon: "Users", navGroup: "candidates" },
+      { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload", navGroup: "candidates" },
+      { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase", navGroup: "candidates" },
+      { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/admin/settings/tokens", label: "Token Settings", icon: "Settings" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
@@ -89,9 +91,9 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
       { href: "/admin/interviews/create", label: "Create Interview", icon: "UserPlus" },
       { href: "/admin/review", label: "Review", icon: "ClipboardList" },
-      { href: "/admin/candidates", label: "Candidates", icon: "Users" },
-      { href: "/admin/clients", label: "Clients", icon: "Building2" },
-      { href: "/admin/recruiter-bot", label: "JD Assistant", icon: "Bot" },
+      { href: "/admin/candidates", label: "Candidates", icon: "Users", navGroup: "candidates" },
+      { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
+      { href: "/admin/recruiter-bot", label: "JD Assistant", icon: "Bot", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
     ],
     permissions: [
