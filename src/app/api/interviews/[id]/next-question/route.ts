@@ -44,7 +44,13 @@ export async function POST(
     return Response.json({ error: "Interview not found" }, { status: interviewRes?.status ?? 404 });
   }
 
-  const interview = (await interviewRes.json()) as { jdId: string; planId: string | null; interviewMode?: string };
+  const interview = (await interviewRes.json()) as { 
+    jdId: string; 
+    planId: string | null; 
+    interviewMode?: string;
+    questionBankQuestionsJson?: string;
+    usedQuestionIds?: string;
+  };
 
   // Get interview mode specific limits
   const getMaxSlots = (mode: string): number => {
@@ -123,15 +129,38 @@ export async function POST(
       candidateProfileJson,
       interviewMode: interview.interviewMode ?? "L3",
       interviewId: id,
+      questionBankQuestionsJson: interview.questionBankQuestionsJson,
+      usedQuestionIds: interview.usedQuestionIds ?? "",
     }),
   }).catch(() => null);
 
   if (!aiRes?.ok) return Response.json({ error: "AI service unavailable" }, { status: 502 });
 
-  const data = (await aiRes.json()) as { question: string; manipulationDetected?: boolean; terminateInterview?: boolean };
+  const data = (await aiRes.json()) as { 
+    question: string; 
+    manipulationDetected?: boolean; 
+    terminateInterview?: boolean;
+    questionBankId?: string;
+    source?: string;
+  };
+  
+  // Update used question IDs if a question bank question was selected
+  if (data.questionBankId) {
+    const currentUsedIds = interview.usedQuestionIds ?? "";
+    const updatedUsedIds = currentUsedIds ? `${currentUsedIds},${data.questionBankId}` : data.questionBankId;
+    
+    await fetch(`${GATEWAY}/interviews/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ usedQuestionIds: updatedUsedIds }),
+    }).catch((err) => console.error("Failed to update usedQuestionIds:", err));
+  }
+  
   return Response.json({ 
     question: data.question,
     manipulationDetected: data.manipulationDetected,
-    terminateInterview: data.terminateInterview
+    terminateInterview: data.terminateInterview,
+    questionBankId: data.questionBankId,
+    source: data.source,
   });
 }
