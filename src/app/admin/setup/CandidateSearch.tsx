@@ -19,6 +19,10 @@ const SKILL_LABEL: Record<string, string> = {
   JAVA_SB: "Java + SB",
   JFSR: "JFSR",
   REACT_JS: "React JS",
+  ANGULAR: "Angular",
+  PYTHON: "Python",
+  QA_ENGINEER: "QA Engineer",
+  PLAYWRIGHT_AUTOMATION: "Playwright",
 };
 
 const RATING_COLOR: Record<string, string> = {

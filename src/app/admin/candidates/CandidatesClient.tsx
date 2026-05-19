@@ -622,6 +622,10 @@ export default function CandidatesClient({ role }: Props) {
                       <option value="JAVA_SB">Java + SB</option>
                       <option value="JFSR">JFSR</option>
                       <option value="REACT_JS">React JS</option>
+                      <option value="ANGULAR">Angular</option>
+                      <option value="PYTHON">Python</option>
+                      <option value="QA_ENGINEER">QA Engineer</option>
+                      <option value="PLAYWRIGHT_AUTOMATION">Playwright</option>
                     </select>
                     <select className={inputCls} value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
                       <option value="">All Sources</option>

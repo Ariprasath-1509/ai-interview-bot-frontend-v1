@@ -18,7 +18,7 @@ export default function RegisterPage() {
     personalEmail: "",
     batch: "",
     source: "" as "" | "B2B" | "BENCH" | "MARKET",
-    skillSet: "" as "" | "JAVA_SB" | "JFSR" | "REACT_JS",
+    skillSet: "" as "" | "JAVA_SB" | "JFSR" | "REACT_JS" | "ANGULAR" | "PYTHON" | "QA_ENGINEER" | "PLAYWRIGHT_AUTOMATION",
     yoeActual: "",
     yoePortrayed: "",
     yop: "",
@@ -166,6 +166,10 @@ export default function RegisterPage() {
                     <option value="JAVA_SB">Java + Spring Boot</option>
                     <option value="JFSR">JFSR</option>
                     <option value="REACT_JS">React JS</option>
+                    <option value="ANGULAR">Angular</option>
+                    <option value="PYTHON">Python</option>
+                    <option value="QA_ENGINEER">QA Engineer</option>
+                    <option value="PLAYWRIGHT_AUTOMATION">Playwright Automation</option>
                   </select>
                 </Field>
               </div>

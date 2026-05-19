@@ -98,6 +98,8 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
     { value: 'REACT_JS', label: 'React JS' },
     { value: 'ANGULAR', label: 'Angular' },
     { value: 'PYTHON', label: 'Python' },
+    { value: 'QA_ENGINEER', label: 'QA Engineer' },
+    { value: 'PLAYWRIGHT_AUTOMATION', label: 'Playwright Automation' },
   ];
 
   const resetForm = useCallback(() => {
@@ -1077,7 +1079,9 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
       JFSR: 'Java Full Stack React', 
       REACT_JS: 'React JS',
       ANGULAR: 'Angular',
-      PYTHON: 'Python'
+      PYTHON: 'Python',
+      QA_ENGINEER: 'QA Engineer',
+      PLAYWRIGHT_AUTOMATION: 'Playwright Automation'
     };
     
     const skillLabel = SKILL_LABELS[skillSet] || skillSet;
@@ -1227,7 +1231,9 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
     JFSR: 'Java Full Stack React', 
     REACT_JS: 'React JS',
     ANGULAR: 'Angular',
-    PYTHON: 'Python'
+    PYTHON: 'Python',
+    QA_ENGINEER: 'QA Engineer',
+    PLAYWRIGHT_AUTOMATION: 'Playwright Automation'
   };
 
   const totalPositions = positions.reduce((sum, pos) => sum + pos.candidatesNeeded, 0);

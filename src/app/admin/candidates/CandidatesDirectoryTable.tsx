@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
 import type { Candidate } from "./CandidatesClient";
 
-const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + SB", JFSR: "JFSR", REACT_JS: "React JS" };
+const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + SB", JFSR: "JFSR", REACT_JS: "React JS", ANGULAR: "Angular", PYTHON: "Python", QA_ENGINEER: "QA Engineer", PLAYWRIGHT_AUTOMATION: "Playwright" };
 const SOURCE_LABEL: Record<string, string> = { B2B: "B2B", BENCH: "Bench", MARKET: "Market" };
 
 const RATING_BADGE: Record<string, string> = {
@@ -229,6 +229,10 @@ function CandidateEditRow({
           <option value="JAVA_SB">Java + SB</option>
           <option value="JFSR">JFSR</option>
           <option value="REACT_JS">React JS</option>
+          <option value="ANGULAR">Angular</option>
+          <option value="PYTHON">Python</option>
+          <option value="QA_ENGINEER">QA Engineer</option>
+          <option value="PLAYWRIGHT_AUTOMATION">Playwright</option>
         </select>
       </div>
       <div className="flex flex-col gap-1">

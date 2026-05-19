@@ -20,7 +20,7 @@ interface Profile {
   yop: number | null;
 }
 
-const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + Spring Boot", JFSR: "JFSR", REACT_JS: "React JS" };
+const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + Spring Boot", JFSR: "JFSR", REACT_JS: "React JS", ANGULAR: "Angular", PYTHON: "Python", QA_ENGINEER: "QA Engineer", PLAYWRIGHT_AUTOMATION: "Playwright Automation" };
 const SOURCE_LABEL: Record<string, string> = { B2B: "B2B", BENCH: "Bench", MARKET: "Market" };
 
 const RATING_STYLE: Record<string, string> = {
