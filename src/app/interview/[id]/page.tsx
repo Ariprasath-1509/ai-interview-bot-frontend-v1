@@ -16,10 +16,10 @@ const CompleteSchema = z.object({
   voiceValidationJson: z.string().optional().or(z.literal("")),
 });
 
-type Interview = { 
-  id: string; 
-  status: string; 
-  jdId: string; 
+type Interview = {
+  id: string;
+  status: string;
+  jdId: string;
   planId: string | null;
   interviewMode: string;
   customDurationMinutes: number | null;
@@ -79,39 +79,39 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold sm:text-2xl">Live interview</h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">JD: {jdTitle} • Status: {interview.status}</p>
+      <div className="min-h-screen bg-zinc-50 dark:bg-black">
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-xl font-semibold sm:text-2xl">Live interview</h1>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">JD: {jdTitle} • Status: {interview.status}</p>
+            </div>
+            <div className="flex shrink-0 gap-3 text-sm">
+              {isCandidate ? (
+                  <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/candidate/dashboard">Dashboard</Link>
+              ) : (
+                  <>
+                    <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href={`/observer/interview/${interview.id}`}>Observer</Link>
+                    <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/dashboard">Dashboard</Link>
+                  </>
+              )}
+            </div>
           </div>
-          <div className="flex shrink-0 gap-3 text-sm">
-            {isCandidate ? (
-              <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/candidate/dashboard">Dashboard</Link>
-            ) : (
-              <>
-                <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href={`/observer/interview/${interview.id}`}>Observer</Link>
-                <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/dashboard">Dashboard</Link>
-              </>
-            )}
-          </div>
-        </div>
 
-        <div className="mt-6 grid gap-5 md:grid-cols-2">
-          <InterviewPlanPanel slotsJson={slotsJson} />
-          <VoiceInterviewForm
-            interviewId={interview.id}
-            jdTitle={jdTitle}
-            rubricJson={rubricJson}
-            candidateProfileJson={candidateProfileJson}
-            durationMinutes={durationMinutes}
-            interviewMode={interview.interviewMode}
-            completeInterview={completeInterview}
-          />
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
+            <InterviewPlanPanel slotsJson={slotsJson} />
+            <VoiceInterviewForm
+                interviewId={interview.id}
+                jdTitle={jdTitle}
+                rubricJson={rubricJson}
+                candidateProfileJson={candidateProfileJson}
+                durationMinutes={durationMinutes}
+                interviewMode={interview.interviewMode}
+                completeInterview={completeInterview}
+            />
+          </div>
         </div>
       </div>
-    </div>
   );
 }
 
@@ -164,19 +164,20 @@ async function completeInterview(formData: FormData) {
     }
   }
 
-  // Call ai-service for assessment
+  // Call ai-service for assessment (may take 60-120s)
   const assessRes = await apiServer("/ai/assess", session.token, {
     method: "POST",
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       interviewId: parsed.interviewId,
-      jdTitle, 
-      jdText, 
-      resumeSummary, 
-      transcriptJson, 
-      rubricJson, 
+      jdTitle,
+      jdText,
+      resumeSummary,
+      transcriptJson,
+      rubricJson,
       candidateProfileJson,
       interviewMode: interview.interviewMode ?? "L3"
     }),
+    timeoutMs: 120_000,
   });
 
   let proposedVerdict = "NEEDS_1_WEEK_PREP";
@@ -239,6 +240,7 @@ async function completeInterview(formData: FormData) {
   await apiServer(`/interviews/${parsed.interviewId}/complete`, session.token, {
     method: "PATCH",
     body: JSON.stringify({ transcriptJson: mergedTranscript, proposedVerdict, status: "REVIEW_PENDING" }),
+    timeoutMs: 30_000,
   }).catch(() => null);
 
   if (isCandidate) {
