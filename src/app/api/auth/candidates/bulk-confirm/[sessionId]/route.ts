@@ -21,10 +21,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     });
 
-    const result = await response.json();
+    const text = await response.text();
+    let result: Record<string, unknown>;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      return NextResponse.json({ ok: false, error: `Gateway returned non-JSON (status ${response.status})` }, { status: 502 });
+    }
 
     if (!response.ok) {
-      return NextResponse.json({ ok: false, error: result.message || 'Confirmation failed' }, { status: response.status });
+      return NextResponse.json({ ok: false, error: (result.message as string) || 'Confirmation failed' }, { status: response.status });
     }
 
     return NextResponse.json(result);
