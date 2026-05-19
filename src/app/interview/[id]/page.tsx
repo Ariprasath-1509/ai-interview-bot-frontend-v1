@@ -164,7 +164,7 @@ async function completeInterview(formData: FormData) {
     }
   }
 
-  // Call ai-service for assessment
+  // Call ai-service for assessment (may take 60-120s)
   const assessRes = await apiServer("/ai/assess", session.token, {
     method: "POST",
     body: JSON.stringify({ 
@@ -177,6 +177,7 @@ async function completeInterview(formData: FormData) {
       candidateProfileJson,
       interviewMode: interview.interviewMode ?? "L3"
     }),
+    timeoutMs: 120_000,
   });
 
   let proposedVerdict = "NEEDS_1_WEEK_PREP";
@@ -239,6 +240,7 @@ async function completeInterview(formData: FormData) {
   await apiServer(`/interviews/${parsed.interviewId}/complete`, session.token, {
     method: "PATCH",
     body: JSON.stringify({ transcriptJson: mergedTranscript, proposedVerdict, status: "REVIEW_PENDING" }),
+    timeoutMs: 30_000,
   }).catch(() => null);
 
   if (isCandidate) {
