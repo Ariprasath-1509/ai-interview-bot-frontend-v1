@@ -180,7 +180,7 @@ async function completeInterview(formData: FormData) {
     timeoutMs: 120_000,
   });
 
-  let proposedVerdict = "NEEDS_1_WEEK_PREP";
+  let proposedVerdict = "";
   let assessmentMeta: Record<string, unknown> = {};
 
   if (assessRes.ok) {
