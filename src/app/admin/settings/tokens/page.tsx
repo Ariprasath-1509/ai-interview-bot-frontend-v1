@@ -3,7 +3,7 @@ import TokenSettingsClient from "./TokenSettingsClient";
 
 export default function TokenSettingsPage() {
   return (
-    <AppShell title="Token Management" subtitle="Manage API usage and limits for Claude integration.">
+    <AppShell title="Token Management" subtitle="Manage API usage and limits for AI integration.">
       <TokenSettingsClient />
     </AppShell>
   );

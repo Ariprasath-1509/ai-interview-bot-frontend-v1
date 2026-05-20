@@ -129,9 +129,18 @@ export function SidebarLayout({
     // Exact match always wins
     if (pathname === href) return true;
 
+    // /admin/interviews/:id/review should highlight "Review" (/admin/review)
+    if (href === "/admin/review" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) {
+      return true;
+    }
+
     // For prefix matches, only highlight if no other nav item is a longer
     // prefix of the current pathname (i.e. a more-specific sibling is active)
     if (pathname.startsWith(href + "/") || pathname.startsWith(href + "?")) {
+      // Don't let /admin match when on an interview review page
+      if (href === "/admin" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) {
+        return false;
+      }
       const hasMoreSpecificMatch = items.some(
         (item) =>
           item.href !== href &&

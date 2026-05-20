@@ -136,13 +136,15 @@ export default function InterviewReviewClient() {
   }, [confirm, fetchInterviews, toast]);
 
   const filteredInterviews = useMemo(() => {
-    return interviews.filter((interview) => {
-      return (
-        (!filter.status || interview.status === filter.status) &&
-        (!filter.mode || interview.interviewMode === filter.mode) &&
-        (!filter.verdict || interview.finalVerdict === filter.verdict)
-      );
-    });
+    return interviews
+      .filter((interview) => {
+        return (
+          (!filter.status || interview.status === filter.status) &&
+          (!filter.mode || interview.interviewMode === filter.mode) &&
+          (!filter.verdict || interview.finalVerdict === filter.verdict)
+        );
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [interviews, filter]);
 
   const interviewColumns = useMemo<ColumnDef<InterviewSummary, unknown>[]>(

@@ -168,8 +168,8 @@ export default function TokenSettingsClient() {
       <div className="bg-blue-50 dark:bg-blue-900/10 p-6 rounded-xl border border-blue-200 dark:border-blue-900/30">
         <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-3">Cost Estimation Reference</h3>
         <div className="text-sm text-blue-800 dark:text-blue-300 space-y-2 leading-relaxed">
-          <p>• <strong className="font-semibold">Claude Haiku:</strong> ~$0.25 per 1M tokens (used for question generation and rubric extraction)</p>
-          <p>• <strong className="font-semibold">Claude Sonnet:</strong> ~$3.00 per 1M tokens (used for final candidate assessments and scoring)</p>
+          <p>• <strong className="font-semibold">AI Fast:</strong> ~$0.25 per 1M tokens (used for question generation and rubric extraction)</p>
+          <p>• <strong className="font-semibold">AI Advanced:</strong> ~$3.00 per 1M tokens (used for final candidate assessments and scoring)</p>
           <p>• <strong className="font-semibold">Average interview:</strong> ~2,000-5,000 tokens per session</p>
           <p>• <strong className="font-semibold">Budgeting:</strong> A daily limit of 100K tokens translates to approximately $0.30 - $0.50 estimated daily cost, supporting roughly 20-30 interviews.</p>
         </div>
