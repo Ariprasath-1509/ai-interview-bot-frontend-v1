@@ -39,6 +39,15 @@ interface CandidateAnalytics {
 
 interface ClientAnalytics {
   totalClients: number;
+  clients: Array<{
+    clientId: string;
+    clientName: string;
+    jdRole: string;
+    jdTitle: string;
+    benchB2bCandidatesNeeded?: number;
+    marketCandidatesNeeded?: number;
+    createdAt: string;
+  }>;
 }
 
 interface Interviewer {
@@ -191,6 +200,73 @@ export default function DashboardClient() {
                 <StatusCard title="Total Clients" description="Active client positions" count={clientAnalytics?.totalClients || 0} color="blue" icon="🏢" linkTo="/admin/clients" />
                 <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="✅" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
               </div>
+            </div>
+
+            {/* Active Clients */}
+            <div>
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Active Clients</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">Current client positions requiring candidates</p>
+              </div>
+              {clientAnalytics?.clients && clientAnalytics.clients.length > 0 ? (
+                <div className="card p-6">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
+                        <tr>
+                          <th className="px-4 py-3 font-medium rounded-l-lg">Client</th>
+                          <th className="px-4 py-3 font-medium">Role</th>
+                          <th className="px-4 py-3 font-medium">Requirements</th>
+                          <th className="px-4 py-3 font-medium rounded-r-lg">Created</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        {clientAnalytics.clients.map((client, idx) => (
+                          <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-zinc-900 dark:text-zinc-100">{client.clientName}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-zinc-900 dark:text-zinc-100">{client.jdRole || client.jdTitle}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-2">
+                                {client.benchB2bCandidatesNeeded && client.benchB2bCandidatesNeeded > 0 && (
+                                  <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded">
+                                    {client.benchB2bCandidatesNeeded} Bench/B2B
+                                  </span>
+                                )}
+                                {client.marketCandidatesNeeded && client.marketCandidatesNeeded > 0 && (
+                                  <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded">
+                                    {client.marketCandidatesNeeded} Market
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 text-xs">
+                              {new Date(client.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                    <Link href="/admin/clients" className="text-sm text-blue-600 hover:underline">
+                      View all clients →
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="card p-8 text-center">
+                  <div className="text-zinc-400 text-4xl mb-3">🏢</div>
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">No Active Clients</h3>
+                  <p className="text-zinc-500 dark:text-zinc-400 mb-4">Create client positions to start matching candidates.</p>
+                  <Link href="/admin/clients" className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+                    Add Client
+                  </Link>
+                </div>
+              )}
             </div>
 
           </div>

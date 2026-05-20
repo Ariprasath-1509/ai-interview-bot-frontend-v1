@@ -10,68 +10,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get all clients with matching overview
-    const [overviewResponse, allClientsResponse] = await Promise.all([
-      fetch(`${GATEWAY}/clients/matching/overview`, {
-        headers: {
-          'Authorization': `Bearer ${session.token}`,
-          'Content-Type': 'application/json'
-        }
-      }),
-      fetch(`${GATEWAY}/recruiter/clients`, {
-        headers: {
-          'Authorization': `Bearer ${session.token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-    ]);
-
-    let totalClients = 0;
-    let totalMatchingCandidates = 0;
-    let clientsWithMatches = 0;
-
-    // Get total clients count from direct clients endpoint
-    if (allClientsResponse.ok) {
-      const allClients = await allClientsResponse.json();
-      totalClients = Array.isArray(allClients) ? allClients.length : 0;
-    }
-
-    // Get matching data from overview endpoint
-    if (overviewResponse.ok) {
-      const overviewData = await overviewResponse.json();
-      const clients = overviewData.clients || [];
-      
-      // Count matching candidates across all clients
-      for (const client of clients) {
-        const benchMatches = client.benchB2bSummary?.totalMatches || 0;
-        const marketMatches = client.marketSummary?.totalMatches || 0;
-        const clientTotalMatches = benchMatches + marketMatches;
-        
-        totalMatchingCandidates += clientTotalMatches;
-        
-        if (clientTotalMatches > 0) {
-          clientsWithMatches++;
-        }
+    // Get all active clients
+    const response = await fetch(`${GATEWAY}/recruiter/clients`, {
+      headers: {
+        'Authorization': `Bearer ${session.token}`,
+        'Content-Type': 'application/json'
       }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch clients: ${response.status}`);
     }
 
-    const averageMatchesPerClient = totalClients > 0 ? 
-      Math.round((totalMatchingCandidates / totalClients) * 10) / 10 : 0;
-
+    const clients = await response.json();
+    
     return NextResponse.json({
-      totalClients,
-      totalMatchingCandidates,
-      clientsWithMatches,
-      averageMatchesPerClient
+      totalClients: Array.isArray(clients) ? clients.length : 0,
+      clients: clients || []
     });
 
   } catch (error) {
-    console.error('Error getting client analytics:', error);
+    console.error('Error getting clients:', error);
     return NextResponse.json({ 
-      totalClients: 0, 
-      totalMatchingCandidates: 0,
-      clientsWithMatches: 0,
-      averageMatchesPerClient: 0
+      totalClients: 0,
+      clients: []
     });
   }
 }
