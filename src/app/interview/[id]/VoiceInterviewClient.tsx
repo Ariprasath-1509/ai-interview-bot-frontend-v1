@@ -619,6 +619,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   }
 
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const advancingRef = useRef(false);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -805,6 +806,13 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     const clean = answer.trim();
     if (!clean) return;
 
+    if (advancingRef.current) {
+      console.log('[Speech] advanceAfterAnswer blocked - already advancing');
+      return;
+    }
+    advancingRef.current = true;
+
+    try {
     const nextSlot = botPromptIdxRef.current + 1;
     const nextQ = await fetchNextQuestion({
       slot: nextSlot,
@@ -855,6 +863,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     botPromptIdxRef.current = nextSlot;
     setBotPromptIdx(nextSlot);
     await addBot(q);
+    } finally {
+      advancingRef.current = false;
+    }
   }
 
   async function endInterviewFromVoice(userLine: string) {
@@ -884,8 +895,8 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   function flushSpokenAnswer() {
 
-    if (pausedForTtsRef.current || !sessionActiveRef.current) {
-      console.log('[Speech] Flush blocked - session inactive or TTS active');
+    if (pausedForTtsRef.current || !sessionActiveRef.current || advancingRef.current) {
+      console.log('[Speech] Flush blocked - session inactive, TTS active, or already advancing');
       return;
     }
 
