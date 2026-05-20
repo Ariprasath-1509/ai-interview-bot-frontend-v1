@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const SPEECH_TIMEOUT_MS = 3000; // 3 seconds of silence before considering speech done
+const SPEECH_TIMEOUT_MS = 10000; // 10 seconds of silence before considering speech done
 
 type Utterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
 
@@ -617,6 +617,12 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     }
     return null;
   }
+
+  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [utterances, interimText]);
 
   useEffect(() => {
     utterancesRef.current = utterances;
@@ -1524,6 +1530,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
             Waiting for speech… if this stays blank, use the typed box below or try another browser.
           </div>
         ) : null}
+        <div ref={transcriptEndRef} />
       </div>
 
       {listening && !timeExpired ? (
