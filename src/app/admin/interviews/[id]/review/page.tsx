@@ -402,9 +402,11 @@ export default async function InterviewReviewPage({
                 Verdict
                 <select
                   name="verdict"
-                  defaultValue={existingSignOff.finalVerdict ?? interview.proposedVerdict ?? "NEEDS_1_WEEK_PREP"}
+                  required
+                  defaultValue={existingSignOff.finalVerdict ?? ""}
                   className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-800 dark:bg-black dark:text-zinc-100"
                 >
+                  <option value="" disabled>Select a verdict</option>
                   <option value="READY">Ready</option>
                   <option value="NEEDS_1_WEEK_PREP">Needs 1-week prep</option>
                   <option value="NEEDS_RESKILLING">Needs reskilling</option>
