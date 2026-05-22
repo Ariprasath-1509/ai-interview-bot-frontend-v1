@@ -804,13 +804,15 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   async function advanceAfterAnswer(answer: string) {
     const clean = answer.trim();
-    if (!clean) return;
-
-    if (advancingRef.current) {
-      console.log('[Speech] advanceAfterAnswer blocked - already advancing');
+    if (!clean) {
+      advancingRef.current = false;
       return;
     }
-    advancingRef.current = true;
+
+    if (!advancingRef.current) {
+      // Called directly (e.g. from submitTypedReply), set the flag now
+      advancingRef.current = true;
+    }
 
     try {
     const nextSlot = botPromptIdxRef.current + 1;
@@ -912,6 +914,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       return;
     }
 
+    // Set advancing flag immediately to prevent duplicate calls from
+    // concurrent triggers (speech timeout + onend race condition)
+    advancingRef.current = true;
+
     if (speechTimeoutRef.current) {
       clearTimeout(speechTimeoutRef.current);
       speechTimeoutRef.current = null;
@@ -924,6 +930,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     lastSpeechTimeRef.current = 0;
 
     if (isEndInterviewIntent(clean)) {
+      advancingRef.current = false;
       void endInterviewFromVoice(clean);
       return;
     }
@@ -1090,7 +1097,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   async function submitTypedReply() {
     const text = typedDraft.trim();
-    if (!text || !sessionActiveRef.current || micPhase !== "listening") return;
+    if (!text || !sessionActiveRef.current || micPhase !== "listening" || advancingRef.current) return;
     setTypedDraft("");
     setSpeechError(null);
     if (speechTimeoutRef.current) {
