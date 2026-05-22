@@ -26,7 +26,7 @@ export async function GET(req: Request) {
   params.set("size", size);
 
   try {
-    const response = await fetch(`${GATEWAY}/api/questionbank/admin/email/logs?${params}`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/admin/email/logs?${params}`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"

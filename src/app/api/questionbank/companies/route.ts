@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const response = await fetch(`${GATEWAY}/api/questionbank/companies`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/companies`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const response = await fetch(`${GATEWAY}/api/questionbank/companies`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/companies`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${session.token}`,

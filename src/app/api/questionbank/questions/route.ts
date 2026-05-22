@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   params.set("size", size);
 
   try {
-    const response = await fetch(`${GATEWAY}/api/questionbank/questions?${params}`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/questions?${params}`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const response = await fetch(`${GATEWAY}/api/questionbank/questions`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/questions`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${session.token}`,

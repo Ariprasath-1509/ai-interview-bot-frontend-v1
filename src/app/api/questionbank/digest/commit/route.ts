@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const response = await fetch(`${GATEWAY}/api/questionbank/digest/commit`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/digest/commit`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${session.token}`,

@@ -18,7 +18,7 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const response = await fetch(`${GATEWAY}/api/questionbank/categories/${id}`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/categories/${id}`, {
       method: "PUT",
       headers: {
         "Authorization": `Bearer ${session.token}`,
@@ -47,7 +47,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const response = await fetch(`${GATEWAY}/api/questionbank/categories/${id}`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/categories/${id}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${session.token}`,

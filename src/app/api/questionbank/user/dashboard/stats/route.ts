@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const response = await fetch(`${GATEWAY}/api/questionbank/user/dashboard/stats`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/user/dashboard/stats`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"

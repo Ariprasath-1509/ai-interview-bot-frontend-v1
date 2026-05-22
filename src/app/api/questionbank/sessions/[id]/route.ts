@@ -17,7 +17,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const response = await fetch(`${GATEWAY}/api/questionbank/sessions/${id}`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/sessions/${id}`, {
       method: "DELETE",
       headers: {
         "Authorization": `Bearer ${session.token}`,

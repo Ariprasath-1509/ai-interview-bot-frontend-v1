@@ -18,7 +18,7 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const response = await fetch(`${GATEWAY}/api/questionbank/admin/users/${id}/toggle-admin`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/admin/users/${id}/toggle-admin`, {
       method: "PUT",
       headers: {
         "Authorization": `Bearer ${session.token}`,
