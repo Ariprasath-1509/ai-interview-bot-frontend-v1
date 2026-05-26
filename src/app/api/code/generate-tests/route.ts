@@ -47,7 +47,7 @@ Return raw JSON array only, no markdown, no explanation.`;
     }
 
     const aiData = await aiRes.json();
-    let testCases = [];
+    let testCases: { id: string; name: string; input: string; expected: string }[] = [];
 
     try {
       let raw = aiData.response || aiData.message || "";
