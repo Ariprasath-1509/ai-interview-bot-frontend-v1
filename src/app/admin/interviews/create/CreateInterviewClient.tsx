@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, User, Briefcase, Clock, FileText, Upload, AlertTriangle, Search, X, BookOpen, CheckSquare, Square } from 'lucide-react';
+import { Loader2, Sparkles, User, Briefcase, Clock, FileText, Upload, AlertTriangle, Search, X, BookOpen, CheckSquare, Square, Plus, Edit2, Trash2, List } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
 import { AutoFillIndicator, FieldAutoFillIndicator } from '@/components/resume/AutoFillIndicator';
@@ -100,6 +100,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
   const [bankLoading, setBankLoading] = useState(false);
   const [selectedQuestions, setSelectedQuestions] = useState<BankQuestion[]>([]);
   const bankSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Manual custom questions state
+  const [useManualQuestions, setUseManualQuestions] = useState(false);
+  const [manualQuestions, setManualQuestions] = useState<string[]>([]);
+  const [quickPasteText, setQuickPasteText] = useState('');
+  const [newQuestionText, setNewQuestionText] = useState('');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
   
   const [formData, setFormData] = useState<InterviewFormData>({
     engineerEmail: '',
@@ -528,6 +536,12 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
       toast('Please fill in all required fields', 'error');
       return;
     }
+    
+    // Validate manual questions if enabled
+    if (useManualQuestions && manualQuestions.length === 0) {
+      toast('Please add at least one custom question', 'error');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -535,6 +549,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         ...formData,
         ...(useQuestionBank && selectedQuestions.length > 0
           ? { selectedQuestionIds: selectedQuestions.map(q => q.id).join(',') }
+          : {}),
+        ...(useManualQuestions && manualQuestions.length > 0
+          ? { customQuestions: manualQuestions }
           : {}),
       };
       const response = await fetch('/api/recruiter/interviews', {
@@ -1097,24 +1114,34 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="h-5 w-5" />
-              Question Bank (Optional)
+              Question Selection (Optional)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-md">
+              <span className="text-sm text-gray-600">Choose one option:</span>
+              <Badge variant="outline" className="text-xs">Question Bank</Badge>
+              <span className="text-gray-400">or</span>
+              <Badge variant="outline" className="text-xs">Manual Entry</Badge>
+            </div>
+
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => {
                   const next = !useQuestionBank;
                   setUseQuestionBank(next);
-                  if (next && bankQuestions.length === 0) fetchBankQuestions('');
+                  if (next) {
+                    setUseManualQuestions(false);
+                    if (bankQuestions.length === 0) fetchBankQuestions('');
+                  }
                 }}
                 className="flex items-center gap-2 text-sm font-medium"
               >
                 {useQuestionBank
                   ? <CheckSquare className="h-5 w-5 text-blue-600" />
                   : <Square className="h-5 w-5 text-gray-400" />}
-                Select specific questions for this interview
+                Select from Question Bank
               </button>
             </div>
 
@@ -1206,6 +1233,254 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Manual Custom Questions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <List className="h-5 w-5" />
+              Manual Custom Questions (Optional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !useManualQuestions;
+                  setUseManualQuestions(next);
+                  if (next) setUseQuestionBank(false);
+                }}
+                className="flex items-center gap-2 text-sm font-medium"
+              >
+                {useManualQuestions
+                  ? <CheckSquare className="h-5 w-5 text-blue-600" />
+                  : <Square className="h-5 w-5 text-gray-400" />}
+                Add your own custom questions
+              </button>
+            </div>
+
+            {useManualQuestions && (
+              <div className="space-y-4">
+                <p className="text-xs text-gray-500">
+                  Add custom questions that will be asked during the interview. The AI will use these questions in order before generating additional ones if time permits.
+                </p>
+
+                {/* Quick Paste Section */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Quick Paste (One question per line)</Label>
+                  <Textarea
+                    placeholder="Paste multiple questions here, one per line...&#10;Example:&#10;Explain the difference between abstract class and interface in Java&#10;How do you handle exceptions in Spring Boot?&#10;What is dependency injection?"
+                    value={quickPasteText}
+                    onChange={(e) => setQuickPasteText(e.target.value)}
+                    rows={4}
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const lines = quickPasteText
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0);
+                      
+                      if (lines.length === 0) {
+                        toast('No questions found to parse', 'error');
+                        return;
+                      }
+                      
+                      setManualQuestions(prev => [...prev, ...lines]);
+                      setQuickPasteText('');
+                      toast(`Added ${lines.length} question${lines.length !== 1 ? 's' : ''}`, 'success');
+                    }}
+                    disabled={!quickPasteText.trim()}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Parse & Add Questions
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-gray-500">Or add individually</span>
+                  </div>
+                </div>
+
+                {/* Individual Question Entry */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Add Single Question</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Type a question and click Add..."
+                      value={newQuestionText}
+                      onChange={(e) => setNewQuestionText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newQuestionText.trim()) {
+                          e.preventDefault();
+                          setManualQuestions(prev => [...prev, newQuestionText.trim()]);
+                          setNewQuestionText('');
+                          toast('Question added', 'success');
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (!newQuestionText.trim()) {
+                          toast('Please enter a question', 'error');
+                          return;
+                        }
+                        setManualQuestions(prev => [...prev, newQuestionText.trim()]);
+                        setNewQuestionText('');
+                        toast('Question added', 'success');
+                      }}
+                      disabled={!newQuestionText.trim()}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Questions List */}
+                {manualQuestions.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">
+                        Custom Questions ({manualQuestions.length})
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setManualQuestions([]);
+                          toast('All questions cleared', 'success');
+                        }}
+                        className="text-xs text-red-600 hover:text-red-700"
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                    
+                    <div className="border border-gray-200 rounded-md divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                      {manualQuestions.map((question, index) => (
+                        <div key={index} className="p-3 hover:bg-gray-50 group">
+                          {editingIndex === index ? (
+                            <div className="flex gap-2">
+                              <Input
+                                value={editingText}
+                                onChange={(e) => setEditingText(e.target.value)}
+                                className="flex-1"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (editingText.trim()) {
+                                      const updated = [...manualQuestions];
+                                      updated[index] = editingText.trim();
+                                      setManualQuestions(updated);
+                                      setEditingIndex(null);
+                                      setEditingText('');
+                                      toast('Question updated', 'success');
+                                    }
+                                  } else if (e.key === 'Escape') {
+                                    setEditingIndex(null);
+                                    setEditingText('');
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (editingText.trim()) {
+                                    const updated = [...manualQuestions];
+                                    updated[index] = editingText.trim();
+                                    setManualQuestions(updated);
+                                    setEditingIndex(null);
+                                    setEditingText('');
+                                    toast('Question updated', 'success');
+                                  }
+                                }}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingIndex(null);
+                                  setEditingText('');
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-start gap-3">
+                              <span className="text-xs font-medium text-gray-400 mt-1 shrink-0">Q{index + 1}</span>
+                              <p className="flex-1 text-sm text-gray-900">{question}</p>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingIndex(index);
+                                    setEditingText(question);
+                                  }}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  <Edit2 className="h-3 w-3 text-blue-600" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setManualQuestions(prev => prev.filter((_, i) => i !== index));
+                                    toast('Question removed', 'success');
+                                  }}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  <Trash2 className="h-3 w-3 text-red-600" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-xs text-blue-800">
+                        <strong>Note:</strong> These {manualQuestions.length} question{manualQuestions.length !== 1 ? 's' : ''} will be asked in order during the interview. If time remains after all custom questions, the AI will generate additional questions.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {manualQuestions.length === 0 && (
+                  <div className="p-4 border-2 border-dashed border-gray-200 rounded-md text-center">
+                    <p className="text-sm text-gray-500">No custom questions added yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Use quick paste or add questions individually above</p>
                   </div>
                 )}
               </div>
