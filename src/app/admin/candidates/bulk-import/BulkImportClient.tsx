@@ -193,7 +193,7 @@ export default function BulkImportClient() {
               Upload Excel File
             </CardTitle>
             <CardDescription>
-              Select an Excel (.xlsx) file with candidate data. Required columns: Batch, Source, Status, Rating, Name, Contact Number, Official Mail ID, Personal Mail ID, YOE - A, YOE - P, Skill Set, No of Interviews, YOP
+              Select an Excel (.xlsx) file with candidate data. Required fields are marked with * in the template. At least one email (Official or Personal) must be provided.
             </CardDescription>
           </CardHeader>
           <CardContent>
