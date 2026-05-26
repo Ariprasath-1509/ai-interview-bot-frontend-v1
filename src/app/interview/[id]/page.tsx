@@ -14,6 +14,7 @@ const CompleteSchema = z.object({
   candidateNotes: z.string().optional().or(z.literal("")),
   transcriptJson: z.string().optional().or(z.literal("")),
   voiceValidationJson: z.string().optional().or(z.literal("")),
+  codeSubmissionJson: z.string().optional().or(z.literal("")),
 });
 
 type Interview = {
@@ -127,7 +128,16 @@ async function completeInterview(formData: FormData) {
     candidateNotes: formData.get("candidateNotes"),
     transcriptJson: formData.get("transcriptJson"),
     voiceValidationJson: formData.get("voiceValidationJson"),
+    codeSubmissionJson: formData.get("codeSubmissionJson"),
   });
+
+  // Parse code submission if present
+  let codeSubmission: Record<string, unknown> | null = null;
+  try {
+    if (parsed.codeSubmissionJson?.trim()) {
+      codeSubmission = JSON.parse(parsed.codeSubmissionJson) as Record<string, unknown>;
+    }
+  } catch { codeSubmission = null; }
 
   const transcriptJson = parsed.transcriptJson?.trim() || JSON.stringify({
     meta: { generated: true },
@@ -175,7 +185,8 @@ async function completeInterview(formData: FormData) {
       transcriptJson,
       rubricJson,
       candidateProfileJson,
-      interviewMode: interview.interviewMode ?? "L3"
+      interviewMode: interview.interviewMode ?? "L3",
+      ...(codeSubmission ? { codeSubmission: JSON.stringify(codeSubmission) } : {}),
     }),
     timeoutMs: 120_000,
   });
@@ -234,6 +245,7 @@ async function completeInterview(formData: FormData) {
       ...(transcriptDoc.meta as object ?? {}),
       aiAssessment: assessmentMeta,
       ...(voiceValidationMeta ? { voiceValidation: voiceValidationMeta } : {}),
+      ...(codeSubmission ? { codeSubmission } : {}),
     },
   });
 

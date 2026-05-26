@@ -23,6 +23,7 @@ type Interview = {
   proposedVerdict: string | null;
   finalVerdict: string | null;
   transcriptJson: string | null;
+  recordingPath?: string | null;
 };
 
 function parseTranscript(transcriptJson: string | null): { speaker: string; text: string; at: string }[] {
@@ -38,6 +39,14 @@ function parseAiAssessment(transcriptJson: string | null) {
   try {
     const doc = JSON.parse(transcriptJson) as { meta?: { aiAssessment?: any } };
     return doc.meta?.aiAssessment ?? null;
+  } catch { return null; }
+}
+
+function parseCodeSubmission(transcriptJson: string | null) {
+  if (!transcriptJson) return null;
+  try {
+    const doc = JSON.parse(transcriptJson) as { meta?: { codeSubmission?: any } };
+    return doc.meta?.codeSubmission ?? null;
   } catch { return null; }
 }
 
@@ -94,6 +103,8 @@ export default async function InterviewReviewPage({
   try { if (signOffRes?.ok) existingSignOff = await signOffRes.json(); } catch {}
   const ai = parseAiAssessment(interview.transcriptJson);
   const utterances = parseTranscript(interview.transcriptJson);
+  const speech = ai?.speechAnalytics ?? null;
+  const codeSubmission = parseCodeSubmission(interview.transcriptJson);
 
   // Fallback to reading from transcriptJson if API didn't provide it
   // and we don't have scores yet
@@ -167,6 +178,131 @@ export default async function InterviewReviewPage({
           ) : null}
         </div>
       ) : null}
+
+      {speech && (
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Words / min", value: speech.wpm ?? "—", sub: "Speaking pace", good: (v: number) => v >= 100 && v <= 180 },
+            { label: "Filler words", value: speech.fillers ?? "—", sub: "um, uh, like…", good: (v: number) => v <= 5 },
+            { label: "Long silences", value: speech.longSilences ?? "—", sub: "Pauses > 30s", good: (v: number) => v === 0 },
+            { label: "Candidate turns", value: speech.candidateTurns ?? "—", sub: "Responses given", good: (v: number) => v >= 5 },
+          ].map(({ label, value, sub, good }) => {
+            const num = typeof value === "number" ? value : null;
+            const tone = num === null ? "zinc" : good(num) ? "emerald" : "amber";
+            return (
+              <div key={label} className={`rounded-xl border p-4 text-center ${
+                tone === "emerald" ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" :
+                tone === "amber"   ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" :
+                "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30"
+              }`}>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
+                <p className={`text-2xl font-bold mt-1 ${
+                  tone === "emerald" ? "text-emerald-700 dark:text-emerald-300" :
+                  tone === "amber"   ? "text-amber-700 dark:text-amber-300" :
+                  "text-zinc-700 dark:text-zinc-300"
+                }`}>{String(value)}</p>
+                <p className="text-[10px] text-zinc-400 mt-0.5">{sub}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {codeSubmission?.code && (
+        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 font-medium">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">💻</span>
+              Code Submission
+              <span className="text-xs font-normal text-zinc-400 ml-1">{codeSubmission.language}</span>
+            </div>
+            {codeSubmission.aiReview && (
+              <div className="flex items-center gap-3 text-xs">
+                <span className={`font-semibold ${
+                  codeSubmission.aiReview.correctness === "correct" ? "text-emerald-600 dark:text-emerald-400"
+                  : codeSubmission.aiReview.correctness === "partial" ? "text-amber-600 dark:text-amber-400"
+                  : "text-red-600 dark:text-red-400"
+                }`}>{codeSubmission.aiReview.correctness}</span>
+                <span className="text-zinc-400">·</span>
+                <span className="font-mono text-zinc-600 dark:text-zinc-400">{codeSubmission.aiReview.timeComplexity}</span>
+                <span className="text-zinc-400">·</span>
+                <span className={`font-bold ${
+                  codeSubmission.aiReview.score >= 4 ? "text-emerald-600 dark:text-emerald-400"
+                  : codeSubmission.aiReview.score >= 3 ? "text-amber-600 dark:text-amber-400"
+                  : "text-red-600 dark:text-red-400"
+                }`}>{codeSubmission.aiReview.score}/5</span>
+              </div>
+            )}
+          </div>
+
+          {/* Code block */}
+          <pre className="max-h-64 overflow-auto rounded-lg bg-zinc-950 p-4 text-xs font-mono text-zinc-100 leading-relaxed">
+            {codeSubmission.code}
+          </pre>
+
+          {/* Test results */}
+          {codeSubmission.results?.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {codeSubmission.results.map((r: any, i: number) => (
+                <span key={i} className={`text-xs px-2 py-1 rounded-full font-medium ${
+                  r.passed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                }`}>
+                  {r.passed ? "✓" : "✗"} {r.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* AI review summary */}
+          {codeSubmission.aiReview?.overallFeedback && (
+            <div className="mt-3 rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900 p-3 text-sm text-violet-900 dark:text-violet-200">
+              {codeSubmission.aiReview.overallFeedback}
+            </div>
+          )}
+
+          {codeSubmission.aiReview?.bugs?.length > 0 && (
+            <div className="mt-3">
+              <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">🐛 Bugs</div>
+              <ul className="space-y-0.5">{codeSubmission.aiReview.bugs.map((b: string, i: number) => (
+                <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">• {b}</li>
+              ))}</ul>
+            </div>
+          )}
+
+          {codeSubmission.aiReview?.improvements?.length > 0 && (
+            <div className="mt-3">
+              <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">💡 Improvements</div>
+              <ul className="space-y-0.5">{codeSubmission.aiReview.improvements.map((imp: string, i: number) => (
+                <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">• {imp}</li>
+              ))}</ul>
+            </div>
+          )}
+
+          {codeSubmission.complexity && (
+            <div className="mt-3 text-xs text-zinc-500">
+              <span className="font-medium">Candidate stated complexity:</span> {codeSubmission.complexity}
+            </div>
+          )}
+        </div>
+      )}
+
+      {interview.recordingPath && (
+        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center gap-2 font-medium mb-3">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">🎧</span>
+            Session Recording
+          </div>
+          <audio
+            controls
+            className="w-full"
+            src={`/api/interviews/${id}/recording`}
+          >
+            Your browser does not support audio playback.
+          </audio>
+          <p className="mt-2 text-xs text-zinc-400">Audio recorded during the interview session.</p>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-5 lg:grid-cols-3">
         <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 lg:col-span-2">

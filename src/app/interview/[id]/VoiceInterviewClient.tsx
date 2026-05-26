@@ -4,6 +4,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const SPEECH_TIMEOUT_MS = 10000; // 10 seconds of silence before considering speech done
 
+const WHISPER_LANGUAGES = [
+  { id: "auto", label: "Auto-detect" },
+  { id: "en", label: "English" },
+  { id: "hi", label: "Hindi" },
+  { id: "ta", label: "Tamil" },
+  { id: "te", label: "Telugu" },
+  { id: "kn", label: "Kannada" },
+  { id: "ml", label: "Malayalam" },
+  { id: "mr", label: "Marathi" },
+  { id: "bn", label: "Bengali" },
+  { id: "gu", label: "Gujarati" },
+  { id: "pa", label: "Punjabi" },
+  { id: "ur", label: "Urdu" },
+];
+
 type Utterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
 
 type Props = {
@@ -16,6 +31,8 @@ type Props = {
   onTranscriptChange: (json: string) => void;
   onVoiceValidationChange?: (snapshot: VoiceValidationSnapshot) => void;
   onTimeExpired?: () => void;
+  onRegisterSubmitAnswer?: (fn: (answer: string) => void) => void;
+  onQuestionChange?: (question: string) => void;
 };
 
 type MicPhase = "idle" | "listening" | "bot_speaking";
@@ -152,7 +169,7 @@ function isEndInterviewIntent(text: string): boolean {
   return patterns.some((re) => re.test(t));
 }
 
-export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange, onVoiceValidationChange, onTimeExpired }: Props) {
+export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange, onVoiceValidationChange, onTimeExpired, onRegisterSubmitAnswer, onQuestionChange }: Props) {
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
@@ -181,6 +198,21 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const [showConfirm, setShowConfirm] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [manipulationCount, setManipulationCount] = useState(0);
+
+  // Whisper STT state
+  const [whisperEnabled, setWhisperEnabled] = useState(false);
+  const [whisperLang, setWhisperLang] = useState("auto");
+  const [whisperRecording, setWhisperRecording] = useState(false);
+  const [whisperProcessing, setWhisperProcessing] = useState(false);
+  const [whisperError, setWhisperError] = useState<string | null>(null);
+  const whisperMediaRef = useRef<MediaRecorder | null>(null);
+  const whisperChunksRef = useRef<Blob[]>([]);
+
+  // Session recording state
+  const [sessionRecording, setSessionRecording] = useState(false);
+  const [sessionRecordingUploaded, setSessionRecordingUploaded] = useState(false);
+  const sessionRecorderRef = useRef<MediaRecorder | null>(null);
+  const sessionChunksRef = useRef<Blob[]>([]);
   const manipulationCountRef = useRef(0);
   const micPhaseRef = useRef<MicPhase>("idle");
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot>({
@@ -298,6 +330,8 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     
     // Show time expired message and allow user to mark complete
     void speakWhenDone(timeUpMessage.text);
+    // Auto-upload session recording if active
+    void stopSessionRecordingAndUpload();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeExpired, durationMinutes]);
 
@@ -569,22 +603,118 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     }
   }
 
+  async function startSessionRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      sessionChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) sessionChunksRef.current.push(e.data); };
+      rec.onstop = () => stream.getTracks().forEach((t) => t.stop());
+      sessionRecorderRef.current = rec;
+      rec.start(5000); // collect in 5s chunks
+      setSessionRecording(true);
+    } catch {
+      // silent — recording is optional
+    }
+  }
+
+  async function stopSessionRecordingAndUpload() {
+    const rec = sessionRecorderRef.current;
+    if (!rec || rec.state === "inactive") return;
+    setSessionRecording(false);
+    await new Promise<void>((resolve) => {
+      rec.onstop = () => { sessionRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop()); resolve(); };
+      rec.stop();
+    });
+    if (sessionChunksRef.current.length === 0) return;
+    try {
+      const blob = new Blob(sessionChunksRef.current, { type: "audio/webm" });
+      const fd = new FormData();
+      fd.append("recording", blob, "session.webm");
+      await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/recording`, { method: "POST", body: fd });
+      setSessionRecordingUploaded(true);
+    } catch {
+      // best effort
+    }
+  }
+
+  async function startWhisperRecording() {
+    setWhisperError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      whisperChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) whisperChunksRef.current.push(e.data); };
+      rec.onstop = () => stream.getTracks().forEach((t) => t.stop());
+      whisperMediaRef.current = rec;
+      rec.start();
+      setWhisperRecording(true);
+    } catch {
+      setWhisperError("Microphone access denied.");
+    }
+  }
+
+  async function stopWhisperAndTranscribe() {
+    const rec = whisperMediaRef.current;
+    if (!rec) return;
+    setWhisperRecording(false);
+    setWhisperProcessing(true);
+    setWhisperError(null);
+
+    await new Promise<void>((resolve) => {
+      rec.onstop = () => { whisperMediaRef.current?.stream?.getTracks().forEach((t) => t.stop()); resolve(); };
+      rec.stop();
+    });
+
+    try {
+      const blob = new Blob(whisperChunksRef.current, { type: "audio/webm" });
+      const fd = new FormData();
+      fd.append("audio", blob, "answer.webm");
+      if (whisperLang !== "auto") fd.append("language", whisperLang);
+
+      const res = await fetch("/api/ai/transcribe", { method: "POST", body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { detail?: string };
+        setWhisperError(err.detail ?? "Transcription failed. Is the whisper model pulled in Ollama?");
+        return;
+      }
+      const data = await res.json() as { text?: string };
+      const text = data.text?.trim() ?? "";
+      if (text) {
+        setTypedDraft((prev) => (prev ? prev + " " + text : text));
+      } else {
+        setWhisperError("No speech detected in recording.");
+      }
+    } catch {
+      setWhisperError("Network error during transcription.");
+    } finally {
+      setWhisperProcessing(false);
+    }
+  }
+
   async function fetchNextQuestion(args: {
     slot: number;
     lastAnswer: string;
     transcript: Utterance[];
     manipulationCount: number;
   }): Promise<{ question: string; manipulationDetected?: boolean; terminateInterview?: boolean; interviewComplete?: boolean } | null> {
+    // Cancel any previous in-flight request
+    nextQuestionAbortRef.current?.abort();
+    const controller = new AbortController();
+    nextQuestionAbortRef.current = controller;
+
     const MAX_RETRIES = 3;
     const BACKOFF_MS = [0, 1000, 2000];
     const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+      if (controller.signal.aborted) return null;
       try {
         const res = await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/next-question`, {
           method: "POST",
           headers: { "content-type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             slot: args.slot,
             lastAnswer: args.lastAnswer,
@@ -610,6 +740,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         }
         return null;
       } catch (err) {
+        if ((err as { name?: string }).name === "AbortError") return null;
         console.warn(`[fetchNextQuestion] Attempt ${attempt + 1}/${MAX_RETRIES} network error:`, err);
         if (attempt < MAX_RETRIES - 1) continue;
         return null;
@@ -620,6 +751,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const advancingRef = useRef(false);
+  const nextQuestionAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -632,6 +764,16 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   useEffect(() => {
     botPromptIdxRef.current = botPromptIdx;
   }, [botPromptIdx]);
+
+  // Register the code-submit-as-answer bridge so CodeWorkspace can inject answers into the voice flow
+  useEffect(() => {
+    onRegisterSubmitAnswer?.((answer: string) => {
+      if (!sessionActiveRef.current || advancingRef.current) return;
+      addCandidate(answer);
+      void advanceAfterAnswer(answer);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRegisterSubmitAnswer]);
 
   useEffect(() => {
     const transcript = {
@@ -717,6 +859,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   async function addBot(text: string) {
     const row: Utterance = { speaker: "BOT", text, at: nowIso() };
     syncUtterances([...utterancesRef.current, row]);
+    onQuestionChange?.(text);
 
     const rec = recognitionRef.current;
     if (rec && sessionActiveRef.current) {
@@ -1264,6 +1407,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     try {
       rec.stop();
       finalizeVoiceValidation();
+      void stopSessionRecordingAndUpload();
     } catch {
       explicitStopRef.current = false;
       finalizeVoiceValidation();
@@ -1390,6 +1534,22 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                 className="text-xs text-red-600 underline hover:text-red-800 dark:text-red-400"
               >
                 I&apos;m not prepared — end interview
+              </button>
+            )}
+            {/* Session recording toggle */}
+            {!timeExpired && (
+              <button
+                type="button"
+                onClick={() => sessionRecording ? void stopSessionRecordingAndUpload() : void startSessionRecording()}
+                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                  sessionRecording
+                    ? "bg-red-100 border-red-300 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300"
+                    : sessionRecordingUploaded
+                      ? "bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300"
+                      : "bg-zinc-100 border-zinc-300 text-zinc-600 dark:bg-zinc-800 dark:border-zinc-600 dark:text-zinc-400"
+                }`}
+              >
+                {sessionRecording ? "⏹ Stop rec" : sessionRecordingUploaded ? "✓ Recorded" : "● Record"}
               </button>
             )}
             <div
@@ -1552,24 +1712,74 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       </div>
 
       {listening && !timeExpired ? (
-        <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="typed-interview-reply">
-            {typedAnswersOnly ? "Your answer (typed)" : "Or type your answer if the mic is flaky"}
-          </label>
-          <textarea
-            id="typed-interview-reply"
-            className="input-base mt-1 min-h-[88px]"
-            value={typedDraft}
-            onChange={(e) => setTypedDraft(e.target.value)}
-            placeholder="Write your technical answer here…"
-          />
-          <button
-            type="button"
-            className="mt-2 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
-            onClick={() => void submitTypedReply()}
-          >
-            Submit typed reply
-          </button>
+        <div className="mt-4 space-y-3">
+          {/* Whisper STT panel */}
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={whisperEnabled}
+                  onChange={(e) => setWhisperEnabled(e.target.checked)}
+                  className="rounded"
+                />
+                Use Whisper STT (server-side, multi-language)
+              </label>
+              {whisperEnabled && (
+                <select
+                  value={whisperLang}
+                  onChange={(e) => setWhisperLang(e.target.value)}
+                  className="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1"
+                >
+                  {WHISPER_LANGUAGES.map((l) => (
+                    <option key={l.id} value={l.id}>{l.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {whisperEnabled && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors ${
+                    whisperRecording ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
+                  } disabled:opacity-50`}
+                  disabled={whisperProcessing}
+                  onClick={() => whisperRecording ? void stopWhisperAndTranscribe() : void startWhisperRecording()}
+                >
+                  {whisperProcessing ? "Transcribing…" : whisperRecording ? "⏹ Stop & transcribe" : "🎙 Record answer (Whisper)"}
+                </button>
+                {whisperRecording && (
+                  <span className="text-xs text-red-600 dark:text-red-400 animate-pulse">● Recording…</span>
+                )}
+                {whisperError && (
+                  <span className="text-xs text-red-600 dark:text-red-400">{whisperError}</span>
+                )}
+                <span className="text-xs text-zinc-400">Transcribed text appears in the box below</span>
+              </div>
+            )}
+          </div>
+
+          {/* Typed answer box */}
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="typed-interview-reply">
+              {typedAnswersOnly ? "Your answer (typed)" : "Or type your answer if the mic is flaky"}
+            </label>
+            <textarea
+              id="typed-interview-reply"
+              className="input-base mt-1 min-h-[88px]"
+              value={typedDraft}
+              onChange={(e) => setTypedDraft(e.target.value)}
+              placeholder="Write your technical answer here…"
+            />
+            <button
+              type="button"
+              className="mt-2 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
+              onClick={() => void submitTypedReply()}
+            >
+              Submit typed reply
+            </button>
+          </div>
         </div>
       ) : null}
 

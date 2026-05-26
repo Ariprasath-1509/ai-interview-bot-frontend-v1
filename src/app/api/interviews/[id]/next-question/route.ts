@@ -5,6 +5,9 @@ export const runtime = "nodejs";
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
+// Per-interview in-flight lock: prevents duplicate concurrent calls
+const inFlight = new Map<string, Promise<Response>>();
+
 const BodySchema = z.object({
   slot: z.number().int().min(1).max(30), // Increased to handle extended interviews
   lastAnswer: z.string().optional().or(z.literal("")),
@@ -12,16 +15,9 @@ const BodySchema = z.object({
   manipulationCount: z.number().int().optional(),
 });
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  console.log("[next-question] Route called");
-  const p = await params;
-  const id = z.string().min(1).safeParse(p?.id).data;
-  if (!id) return Response.json({ error: "Missing interview id" }, { status: 400 });
+async function handleNextQuestion(req: Request, id: string): Promise<Response> {
 
-  const rawBody = await req.json().catch(() => null);
+  const rawBody = await req.json().catch(() => null) as unknown;
   const body = BodySchema.safeParse(rawBody);
   if (!body.success) return Response.json({ error: "Invalid body" }, { status: 400 });
 
@@ -66,8 +62,10 @@ export async function POST(
 
   const maxSlots = getMaxSlots(interview.interviewMode ?? 'L3');
   
-  // Check if interview has reached its natural end
-  if (body.data.slot > maxSlots) {
+  // When selected questions are exhausted the AI continues generating until the timer ends.
+  // Only enforce the cap when NO question bank questions are attached (pure AI mode).
+  const hasQuestionBank = !!interview.questionBankQuestionsJson;
+  if (!hasQuestionBank && body.data.slot > maxSlots) {
     console.log(`[next-question] Interview ${id} reached max slots (${maxSlots}) for mode ${interview.interviewMode}`);
     return Response.json({ 
       question: "Thank you for your detailed responses. We've covered all the planned questions for this interview. You can now mark the interview as complete.",
@@ -163,4 +161,25 @@ export async function POST(
     questionBankId: data.questionBankId,
     source: data.source,
   });
+}
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  console.log("[next-question] Route called");
+  const p = await params;
+  const id = z.string().min(1).safeParse(p?.id).data;
+  if (!id) return Response.json({ error: "Missing interview id" }, { status: 400 });
+
+  const existing = inFlight.get(id);
+  if (existing) {
+    console.log(`[next-question] Duplicate call for interview ${id} — returning in-flight response`);
+    // Clone the in-flight response so both callers get a readable body
+    return existing.then((r) => r.clone());
+  }
+
+  const promise = handleNextQuestion(req, id).finally(() => inFlight.delete(id));
+  inFlight.set(id, promise);
+  return promise;
 }

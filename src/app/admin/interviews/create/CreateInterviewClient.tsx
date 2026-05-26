@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, User, Briefcase, Clock, FileText, Upload, AlertTriangle, Search, X } from 'lucide-react';
+import { Loader2, Sparkles, User, Briefcase, Clock, FileText, Upload, AlertTriangle, Search, X, BookOpen, CheckSquare, Square } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
 import { AutoFillIndicator, FieldAutoFillIndicator } from '@/components/resume/AutoFillIndicator';
@@ -25,6 +25,14 @@ interface InterviewFormData {
   customDurationMinutes: number | null;
   candidateId?: string;
   clientId?: string;
+  selectedQuestionIds?: string;
+}
+
+interface BankQuestion {
+  id: string;
+  text: string;
+  category: string;
+  relevancyLabel: string;
 }
 
 interface Candidate {
@@ -43,6 +51,8 @@ interface Client {
   jdText: string;
   focusAreas?: string;
   matchScore?: number;
+  matchLabel?: 'STRONG' | 'GOOD' | 'PARTIAL' | 'AVAILABLE';
+  matchReasons?: string[];
   recommendation?: string;
 }
 
@@ -82,6 +92,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [searchingClients, setSearchingClients] = useState(false);
   const [clientsMessage, setClientsMessage] = useState<string>('');
+
+  // Question bank selection state
+  const [useQuestionBank, setUseQuestionBank] = useState(false);
+  const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([]);
+  const [bankSearch, setBankSearch] = useState('');
+  const [bankLoading, setBankLoading] = useState(false);
+  const [selectedQuestions, setSelectedQuestions] = useState<BankQuestion[]>([]);
+  const bankSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [formData, setFormData] = useState<InterviewFormData>({
     engineerEmail: '',
@@ -111,15 +129,15 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         const message = clientsData.message;
         const clients = clientsData.clients || [];
         
-        // Transform clients to match expected format
+        // Transform clients — no candidate selected so no skill matching, just list them
         const transformedClients = clients.map((client: any) => ({
           id: client.id,
           clientName: client.clientName,
           jdRole: client.jdRole,
           jdText: client.jdDescription || '',
           focusAreas: client.focusAreas || '',
-          matchScore: hasMatchingClients ? 0.8 : 0.5,
-          recommendation: hasMatchingClients ? 'RECOMMENDED' : 'AVAILABLE'
+          matchLabel: 'AVAILABLE' as const,
+          matchReasons: [],
         }));
         
         setClientResults(transformedClients);
@@ -241,70 +259,90 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     setAutoFillConfidence('high');
     
     // Fetch matching clients for this candidate
-    fetchMatchingClients(candidate.id);
+    fetchMatchingClients(candidate);
     
     toast('Candidate selected and form auto-filled', 'success');
   };
 
   // Client matching functions
-  const fetchMatchingClients = async (candidateId: string) => {
+  const fetchMatchingClients = async (candidate: Candidate) => {
     setSearchingClients(true);
     try {
-      // First try to get clients for interview (with matching logic)
-      const response = await fetch('/api/recruiter/clients/for-interview', {
-        credentials: 'include'
-      });
+      const params = new URLSearchParams();
+      if (candidate.skillSet) params.set('candidateSkillSet', candidate.skillSet);
+      if (candidate.yoeActual != null) params.set('candidateYoe', String(candidate.yoeActual));
 
-      if (response.ok) {
-        const clientsData = await response.json();
-        
-        // Check if we have matching clients or showing all clients
-        const hasMatchingClients = clientsData.hasMatchingClients;
-        const message = clientsData.message;
-        const clients = clientsData.clients || [];
-        
-        // Transform clients to match expected format
-        const transformedClients = clients.map((client: any) => ({
+      const response = await fetch(`/api/recruiter/clients/for-interview?${params.toString()}`, { credentials: 'include' });
+      if (!response.ok) { setClientResults([]); return; }
+
+      const clientsData = await response.json();
+      const clients: any[] = clientsData.clients || [];
+      const hasMatches: boolean = clientsData.hasMatchingClients ?? false;
+
+      // Backend already filtered and ordered (MATCHED first, YOE_SHORT second, SKILL_MISMATCH excluded)
+      // Apply frontend label based on position in the list vs hasMatchingClients
+      const matchedCount = hasMatches
+        ? clients.filter((_: any, i: number) => i < (clientsData.totalClients ?? clients.length)).length
+        : 0;
+
+      const transformedClients: Client[] = clients.map((client: any, index: number) => {
+        // Determine label: first batch are MATCHED (skill+yoe), rest are YOE_SHORT
+        // We re-run the lightweight check client-side just for the label/reasons display
+        const skillReqs: any[] = client.skillRequirements || [];
+        const candidateSkill = candidate.skillSet ?? '';
+        const candidateYoe = candidate.yoeActual ?? 0;
+
+        let label: 'STRONG' | 'GOOD' | 'PARTIAL' | 'AVAILABLE' = 'AVAILABLE';
+        const reasons: string[] = [];
+
+        if (skillReqs.length > 0) {
+          const matchingSkillReq = skillReqs.find((sr: any) => sr.skillSet === candidateSkill);
+          if (matchingSkillReq) {
+            reasons.push(`Skill match: ${candidateSkill.replace(/_/g, ' ')}`);
+            const positions: any[] = matchingSkillReq.positions || [];
+            const bestPos = positions.reduce((best: any, p: any) =>
+              (p.minYoeRequired ?? 0) <= candidateYoe && (best === null || (p.minYoeRequired ?? 0) > (best.minYoeRequired ?? 0))
+                ? p : best, null);
+            if (bestPos) {
+              const minYoe = bestPos.minYoeRequired ?? 0;
+              const gap = candidateYoe - minYoe;
+              if (gap >= 0) {
+                label = gap >= 1 ? 'STRONG' : 'GOOD';
+                reasons.push(`${candidateYoe} yrs meets ${minYoe}+ requirement`);
+              } else {
+                label = 'PARTIAL';
+                reasons.push(`${candidateYoe} yrs (needs ${minYoe}+, ${Math.abs(gap).toFixed(1)} yrs short)`);
+              }
+            } else {
+              // Skill matches but no position meets YOE
+              const minRequired = Math.min(...positions.map((p: any) => p.minYoeRequired ?? 0));
+              label = 'PARTIAL';
+              reasons.push(`${candidateYoe} yrs (needs ${minRequired}+)`);
+            }
+          }
+        } else {
+          // Legacy client — no structured skill requirements
+          label = 'AVAILABLE';
+          reasons.push('No specific skill requirement set');
+        }
+
+        return {
           id: client.id,
           clientName: client.clientName,
           jdRole: client.jdRole,
           jdText: client.jdDescription || '',
           focusAreas: client.focusAreas || '',
-          matchScore: hasMatchingClients ? 0.8 : 0.5, // Default scores
-          recommendation: hasMatchingClients ? 'RECOMMENDED' : 'AVAILABLE'
-        }));
-        
-        setClientResults(transformedClients);
-        setClientsMessage(message || '');
-        
-        // Show message if no matching clients found
-        if (!hasMatchingClients && message) {
-          toast(message, 'info');
-        }
-      } else {
-        // Fallback to candidate-specific matching
-        const matchingResponse = await fetch(`/api/recruiter/matching/candidates/${candidateId}/clients`, {
-          credentials: 'include'
-        });
+          matchLabel: label,
+          matchReasons: reasons,
+        };
+      });
 
-        if (matchingResponse.ok) {
-          const matchingData = await matchingResponse.json();
-          
-          const clients = matchingData.matches?.map((match: any) => ({
-            id: match.id,
-            clientName: match.clientName,
-            jdRole: match.jdRole,
-            jdText: match.jdText || '',
-            focusAreas: match.focusAreas || '',
-            matchScore: match.matchScore,
-            recommendation: match.recommendation
-          })) || [];
-          
-          setClientResults(clients);
-        } else {
-          setClientResults([]);
-        }
-      }
+      // Sort: STRONG → GOOD → PARTIAL → AVAILABLE
+      const order: Record<string, number> = { STRONG: 0, GOOD: 1, PARTIAL: 2, AVAILABLE: 3 };
+      transformedClients.sort((a, b) => (order[a.matchLabel ?? 'AVAILABLE'] ?? 3) - (order[b.matchLabel ?? 'AVAILABLE'] ?? 3));
+
+      setClientResults(transformedClients);
+      setClientsMessage(clientsData.message || '');
     } catch (error) {
       console.error('Failed to fetch clients:', error);
       setClientResults([]);
@@ -454,6 +492,35 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     }));
   };
 
+  const fetchBankQuestions = async (search: string) => {
+    setBankLoading(true);
+    try {
+      const params = new URLSearchParams({ size: '100' });
+      if (search.trim()) params.set('search', search.trim());
+      const res = await fetch(`/api/questionbank/questions/for-interview?${params}`, { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json();
+        const questions: BankQuestion[] = (json.data ?? []).map((q: any) => ({
+          id: q.id,
+          text: q.text,
+          category: q.category ?? '',
+          relevancyLabel: q.relevancyLabel ?? 'MEDIUM',
+        }));
+        setBankQuestions(questions);
+      }
+    } catch {
+      // silent
+    } finally {
+      setBankLoading(false);
+    }
+  };
+
+  const toggleQuestion = (q: BankQuestion) => {
+    setSelectedQuestions(prev =>
+      prev.some(s => s.id === q.id) ? prev.filter(s => s.id !== q.id) : [...prev, q]
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -464,13 +531,19 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
 
     setLoading(true);
     try {
+      const payload = {
+        ...formData,
+        ...(useQuestionBank && selectedQuestions.length > 0
+          ? { selectedQuestionIds: selectedQuestions.map(q => q.id).join(',') }
+          : {}),
+      };
       const response = await fetch('/api/recruiter/interviews', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -697,83 +770,46 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 Available Client Positions
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {searchingClients && (
                 <div className="flex items-center gap-2 text-gray-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Loading clients...</span>
                 </div>
               )}
-              
-              {clientsMessage && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                  <p className="text-sm text-amber-800">{clientsMessage}</p>
-                </div>
-              )}
-              
-              {clientResults.length > 0 && (
-                <div className="relative">
-                  <select 
-                    value={selectedClient?.id || ''} 
-                    onChange={(e) => {
-                      const clientId = e.target.value;
-                      
-                      if (!clientId) {
-                        clearClientSelection();
-                        return;
-                      }
-                      
-                      const client = clientResults.find(c => c.id === clientId);
-                      if (client) {
-                        selectClient(client);
-                      }
-                    }}
-                    className="w-full p-3 border border-gray-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">Select a client position...</option>
-                    {clientResults.map((client, index) => (
-                      <option key={`client-${client.id}-${index}`} value={client.id}>
-                        {client.clientName} - {client.jdRole}
-                      </option>
-                    ))}
-                  </select>
-                  
-                  {selectedClient && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={clearClientSelection}
-                      className="flex items-center gap-1 mt-2"
-                    >
-                      <X className="h-4 w-4" />
-                      Clear Selection
-                    </Button>
-                  )}
-                </div>
-              )}
-              
-              {selectedClient && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Briefcase className="h-4 w-4 text-green-600" />
-                    <span className="font-medium text-green-900">Selected Client Position</span>
-                  </div>
-                  <p className="text-sm text-green-800">
-                    {selectedClient.clientName} - {selectedClient.jdRole}
-                  </p>
-                  {selectedClient.focusAreas && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Focus Areas: {selectedClient.focusAreas}
-                    </p>
-                  )}
-                </div>
-              )}
-              
               {!searchingClients && clientResults.length === 0 && (
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
                   <p className="text-sm text-gray-600">No clients available</p>
                 </div>
+              )}
+              {clientResults.map((client) => (
+                <div
+                  key={client.id}
+                  onClick={() => selectedClient?.id === client.id ? clearClientSelection() : selectClient(client)}
+                  className={`cursor-pointer rounded-lg border p-3 transition-colors ${
+                    selectedClient?.id === client.id
+                      ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm text-gray-900">{client.clientName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{client.jdRole}</p>
+                    </div>
+                    {selectedClient?.id === client.id && (
+                      <span className="text-xs font-medium text-blue-600">Selected</span>
+                    )}
+                  </div>
+                  {client.focusAreas && (
+                    <p className="text-xs text-gray-400 mt-1 truncate">Focus: {client.focusAreas}</p>
+                  )}
+                </div>
+              ))}
+              {selectedClient && (
+                <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1">
+                  <X className="h-4 w-4" /> Clear Selection
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -788,83 +824,75 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 Matching Client Positions
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative">
-                <select 
-                  value={selectedClient?.id || ''} 
-                  onChange={(e) => {
-                    const clientId = e.target.value;
-                    
-                    if (!clientId) {
-                      clearClientSelection();
-                      return;
-                    }
-                    
-                    const client = clientResults.find(c => c.id === clientId);
-                    if (client) {
-                      selectClient(client);
-                    }
-                  }}
-                  className="w-full p-3 border border-gray-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Select a client position...</option>
-                  {clientResults.map((client, index) => (
-                    <option key={`client-${client.id}-${index}`} value={client.id}>
-                      {client.clientName} - {client.jdRole} ({client.matchScore ? `${(client.matchScore * 100).toFixed(0)}%` : 'N/A'})
-                    </option>
-                  ))}
-                </select>
-                
-                {selectedClient && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={clearClientSelection}
-                    className="flex items-center gap-1 mt-2"
-                  >
-                    <X className="h-4 w-4" />
-                    Clear Selection
-                  </Button>
-                )}
-              </div>
-              
-              {selectedClient && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Briefcase className="h-4 w-4 text-green-600" />
-                    <span className="font-medium text-green-900">Selected Client Position</span>
-                  </div>
-                  <p className="text-sm text-green-800">
-                    {selectedClient.clientName} - {selectedClient.jdRole}
-                  </p>
-                  {selectedClient.focusAreas && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Focus Areas: {selectedClient.focusAreas}
-                    </p>
-                  )}
-                </div>
-              )}
-              
-              {clientResults.length === 0 && !searchingClients && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                  <p className="text-sm text-amber-800">
-                    {clientsMessage || "No client positions found for this candidate."}
-                  </p>
-                </div>
-              )}
-              
+            <CardContent className="space-y-3">
               {searchingClients && (
                 <div className="flex items-center gap-2 text-gray-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Loading matching clients...</span>
+                  <span>Finding matches...</span>
                 </div>
               )}
-              
-              {clientResults.length > 0 && (
-                <div className="p-2 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-600">
-                  Found {clientResults.length} matching client(s)
+
+              {!searchingClients && clientResults.length === 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                  <p className="text-sm text-amber-800">{clientsMessage || 'No client positions found.'}</p>
                 </div>
+              )}
+
+              {clientResults.map((client) => {
+                const isSelected = selectedClient?.id === client.id;
+                const labelColors = {
+                  STRONG:    'bg-emerald-100 text-emerald-700 border-emerald-200',
+                  GOOD:      'bg-blue-100 text-blue-700 border-blue-200',
+                  PARTIAL:   'bg-amber-100 text-amber-700 border-amber-200',
+                  AVAILABLE: 'bg-gray-100 text-gray-600 border-gray-200',
+                };
+                const cardColors = {
+                  STRONG:    isSelected ? 'border-emerald-400 bg-emerald-50' : 'border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/50',
+                  GOOD:      isSelected ? 'border-blue-400 bg-blue-50' : 'border-blue-200 hover:border-blue-300 hover:bg-blue-50/50',
+                  PARTIAL:   isSelected ? 'border-amber-400 bg-amber-50' : 'border-amber-100 hover:border-amber-200 hover:bg-amber-50/50',
+                  AVAILABLE: isSelected ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
+                };
+                const label = client.matchLabel ?? 'AVAILABLE';
+                return (
+                  <div
+                    key={client.id}
+                    onClick={() => isSelected ? clearClientSelection() : selectClient(client)}
+                    className={`cursor-pointer rounded-lg border p-3 transition-colors ${cardColors[label]}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm text-gray-900">{client.clientName}</p>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${labelColors[label]}`}>
+                            {label}
+                          </span>
+                          {isSelected && (
+                            <span className="text-[10px] font-semibold text-blue-600">✓ Selected</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 mt-0.5">{client.jdRole}</p>
+                        {client.focusAreas && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">Focus: {client.focusAreas}</p>
+                        )}
+                        {client.matchReasons && client.matchReasons.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {client.matchReasons.map((r, i) => (
+                              <span key={i} className="text-[10px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {selectedClient && (
+                <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1">
+                  <X className="h-4 w-4" /> Clear Selection
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -1061,6 +1089,127 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 and {formData.customDurationMinutes || INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.duration || 15} minutes duration
               </span>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Question Bank Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Question Bank (Optional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !useQuestionBank;
+                  setUseQuestionBank(next);
+                  if (next && bankQuestions.length === 0) fetchBankQuestions('');
+                }}
+                className="flex items-center gap-2 text-sm font-medium"
+              >
+                {useQuestionBank
+                  ? <CheckSquare className="h-5 w-5 text-blue-600" />
+                  : <Square className="h-5 w-5 text-gray-400" />}
+                Select specific questions for this interview
+              </button>
+            </div>
+
+            {useQuestionBank && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">
+                  The AI will pick randomly from your selected questions. Once all are used, it continues generating questions until the timer ends.
+                </p>
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search questions..."
+                    value={bankSearch}
+                    className="pl-9"
+                    onChange={e => {
+                      setBankSearch(e.target.value);
+                      if (bankSearchTimer.current) clearTimeout(bankSearchTimer.current);
+                      bankSearchTimer.current = setTimeout(() => fetchBankQuestions(e.target.value), 400);
+                    }}
+                  />
+                </div>
+
+                {/* Question list */}
+                <div className="border border-gray-200 rounded-md max-h-64 overflow-y-auto">
+                  {bankLoading && (
+                    <div className="flex items-center justify-center p-4 gap-2 text-gray-500">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading questions...
+                    </div>
+                  )}
+                  {!bankLoading && bankQuestions.length === 0 && (
+                    <p className="p-4 text-sm text-gray-500">No questions found.</p>
+                  )}
+                  {!bankLoading && bankQuestions.map(q => {
+                    const isSelected = selectedQuestions.some(s => s.id === q.id);
+                    return (
+                      <div
+                        key={q.id}
+                        onClick={() => toggleQuestion(q)}
+                        className={`flex items-start gap-3 p-3 cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-gray-50 ${
+                          isSelected ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        {isSelected
+                          ? <CheckSquare className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                          : <Square className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-900 line-clamp-2">{q.text}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {q.category && <span className="text-xs text-gray-500">{q.category}</span>}
+                            <Badge variant="outline" className={`text-xs ${
+                              q.relevancyLabel === 'HIGH' ? 'border-green-300 text-green-700'
+                              : q.relevancyLabel === 'MEDIUM' ? 'border-yellow-300 text-yellow-700'
+                              : 'border-gray-300 text-gray-500'
+                            }`}>{q.relevancyLabel}</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Selected summary */}
+                {selectedQuestions.length > 0 && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-blue-900">
+                        {selectedQuestions.length} question{selectedQuestions.length !== 1 ? 's' : ''} selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedQuestions([])}
+                        className="text-xs text-blue-600 underline"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedQuestions.map(q => (
+                        <span
+                          key={q.id}
+                          className="inline-flex items-center gap-1 bg-white border border-blue-200 rounded px-2 py-0.5 text-xs text-blue-800"
+                        >
+                          {q.text.substring(0, 40)}{q.text.length > 40 ? '…' : ''}
+                          <button type="button" onClick={e => { e.stopPropagation(); toggleQuestion(q); }}>
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

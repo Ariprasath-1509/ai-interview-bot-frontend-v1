@@ -10,7 +10,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const response = await fetch(`${GATEWAY}/recruiter/clients/for-interview`, {
+    // Forward candidateSkillSet and candidateYoe if provided
+    const { searchParams } = new URL(request.url);
+    const params = new URLSearchParams();
+    const skillSet = searchParams.get('candidateSkillSet');
+    const yoe = searchParams.get('candidateYoe');
+    if (skillSet) params.set('candidateSkillSet', skillSet);
+    if (yoe) params.set('candidateYoe', yoe);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+
+    const response = await fetch(`${GATEWAY}/recruiter/clients/for-interview${qs}`, {
       headers: {
         'Authorization': `Bearer ${session.token}`,
         'Content-Type': 'application/json'
@@ -18,15 +27,11 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      console.error('Failed to get clients for interview:', response.status, response.statusText);
       return NextResponse.json({ error: 'Failed to get clients for interview' }, { status: response.status });
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
-
+    return NextResponse.json(await response.json());
   } catch (error) {
-    console.error('Error getting clients for interview:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { VoiceInterviewClient } from "./VoiceInterviewClient";
+import { CodeWorkspace } from "./CodeWorkspace";
+import type { CodeSubmission } from "./CodeWorkspace";
 import { Loader2 } from "lucide-react";
 type VoiceValidationSnapshot = {
   status: "PENDING_ENROLLMENT" | "VERIFIED" | "RISK" | "FAILED" | "NOT_VERIFIED";
@@ -64,6 +66,11 @@ export function VoiceInterviewForm({
   const [transcriptJson, setTranscriptJson] = useState("");
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot | null>(null);
   const [timeExpired, setTimeExpired] = useState(false);
+  const [codeSubmission, setCodeSubmission] = useState<CodeSubmission | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<string>("");
+
+  // Ref that VoiceInterviewClient populates so CodeWorkspace can submit answers into the voice flow
+  const submitAnswerRef = useRef<((answer: string) => void) | null>(null);
 
   const onTranscriptChange = useCallback((json: string) => {
     setTranscriptJson(json);
@@ -102,7 +109,25 @@ export function VoiceInterviewForm({
         onTranscriptChange={onTranscriptChange}
         onVoiceValidationChange={onVoiceValidationChange}
         onTimeExpired={() => setTimeExpired(true)}
+        onRegisterSubmitAnswer={(fn) => { submitAnswerRef.current = fn; }}
+        onQuestionChange={setCurrentQuestion}
       />
+
+      {/* Coding Workspace — available for all rounds */}
+      <div className="mt-2">
+        <div className="flex items-center gap-2 mb-2">
+          <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Coding Workspace</h2>
+          <span className="text-xs text-zinc-400">(optional — use for any coding questions)</span>
+        </div>
+        <CodeWorkspace
+          question={currentQuestion}
+          onSubmissionChange={setCodeSubmission}
+          onSubmitAsAnswer={(answer) => submitAnswerRef.current?.(answer)}
+        />
+      </div>
 
       {voiceValidation && (
         <div className={`rounded-lg border p-3 text-xs ${
@@ -122,6 +147,7 @@ export function VoiceInterviewForm({
         <input type="hidden" name="interviewId" value={interviewId} />
         <input type="hidden" name="transcriptJson" value={transcriptJson} />
         <input type="hidden" name="voiceValidationJson" value={voiceValidation ? JSON.stringify(voiceValidation) : ""} />
+        <input type="hidden" name="codeSubmissionJson" value={codeSubmission ? JSON.stringify(codeSubmission) : ""} />
 
         <label className="grid gap-1.5 text-sm font-medium">
           Candidate notes
