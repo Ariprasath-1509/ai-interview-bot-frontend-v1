@@ -885,28 +885,34 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                 </p>
               </div>
 
-              {/* Legacy Fields (when skill-based is disabled) */}
-              {!useSkillBasedRequirements && (
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Positions Vacant', field: 'positionsVacant' },
-                    { label: 'Bench / B2B Needed', field: 'benchB2bCandidatesNeeded' },
-                    { label: 'Market Needed', field: 'marketCandidatesNeeded' },
-                  ].map(({ label, field }) => (
-                    <label key={field} className="field">
-                      {label}
-                      <input
-                        type="number" min="0" required placeholder="0"
-                        value={formData[field as keyof Pick<ClientFormData, "positionsVacant" | "benchB2bCandidatesNeeded" | "marketCandidatesNeeded">]}
-                        onChange={(e) =>
-                          setFormData(
-                            { ...formData, [field]: parseInt(e.target.value) || 0 } as ClientFormData,
-                          )
-                        }
-                        className="input-base"
-                      />
-                    </label>
-                  ))}
+              {/* Legacy Fields (when skill-based is disabled) - Hidden during creation, shown only for editing legacy clients */}
+              {!useSkillBasedRequirements && editingClient && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+                    <Info className="h-3.5 w-3.5 shrink-0" />
+                    Legacy mode: Enable skill-based requirements for better candidate matching
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Positions Vacant', field: 'positionsVacant' },
+                      { label: 'Bench / B2B Needed', field: 'benchB2bCandidatesNeeded' },
+                      { label: 'Market Needed', field: 'marketCandidatesNeeded' },
+                    ].map(({ label, field }) => (
+                      <label key={field} className="field">
+                        {label}
+                        <input
+                          type="number" min="0" required placeholder="0"
+                          value={formData[field as keyof Pick<ClientFormData, "positionsVacant" | "benchB2bCandidatesNeeded" | "marketCandidatesNeeded">]}
+                          onChange={(e) =>
+                            setFormData(
+                              { ...formData, [field]: parseInt(e.target.value) || 0 } as ClientFormData,
+                            )
+                          }
+                          className="input-base"
+                        />
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -927,19 +933,23 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                   {formData.skillRequirements.map((skill, skillIndex) => (
                     <div key={skillIndex} className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <select
-                          value={skill.skillSet}
-                          onChange={(e) => updateSkillRequirement(skillIndex, 'skillSet', e.target.value)}
-                          className="input-base text-sm font-medium"
-                        >
-                          {SKILL_OPTIONS.map(option => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
+                        <div className="flex-1">
+                          <label className="text-xs text-zinc-600 dark:text-zinc-400 mb-1 block">Skill Set</label>
+                          <select
+                            value={skill.skillSet}
+                            onChange={(e) => updateSkillRequirement(skillIndex, 'skillSet', e.target.value)}
+                            className="input-base text-sm font-medium w-full"
+                          >
+                            {SKILL_OPTIONS.map(option => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </div>
                         <button
                           type="button"
                           onClick={() => removeSkillRequirement(skillIndex)}
-                          className="text-red-500 hover:text-red-700"
+                          className="text-red-500 hover:text-red-700 ml-3 mt-5"
+                          title="Remove this skill requirement"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -958,34 +968,34 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                         </div>
 
                         {skill.positions.map((position, posIndex) => (
-                          <div key={posIndex} className="grid grid-cols-4 gap-2 items-end bg-zinc-50 dark:bg-zinc-800 rounded p-3">
+                          <div key={posIndex} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end bg-zinc-50 dark:bg-zinc-800 rounded p-3">
                             <div>
-                              <label className="text-xs text-zinc-600 dark:text-zinc-400">Candidates</label>
+                              <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-1">Candidates</label>
                               <input
                                 type="number"
                                 min="1"
                                 value={position.candidatesNeeded}
                                 onChange={(e) => updatePositionRequirement(skillIndex, posIndex, 'candidatesNeeded', parseInt(e.target.value) || 1)}
-                                className="input-base text-sm"
+                                className="input-base text-sm w-full"
                               />
                             </div>
                             <div>
-                              <label className="text-xs text-zinc-600 dark:text-zinc-400">Min YOE</label>
+                              <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-1">Min YOE</label>
                               <input
                                 type="number"
                                 min="0"
                                 step="0.5"
                                 value={position.minYoeRequired}
                                 onChange={(e) => updatePositionRequirement(skillIndex, posIndex, 'minYoeRequired', parseFloat(e.target.value) || 0)}
-                                className="input-base text-sm"
+                                className="input-base text-sm w-full"
                               />
                             </div>
                             <div>
-                              <label className="text-xs text-zinc-600 dark:text-zinc-400">Source</label>
+                              <label className="text-xs text-zinc-600 dark:text-zinc-400 block mb-1">Source</label>
                               <select
                                 value={position.source}
                                 onChange={(e) => updatePositionRequirement(skillIndex, posIndex, 'source', e.target.value)}
-                                className="input-base text-sm"
+                                className="input-base text-sm w-full"
                               >
                                 <option value="BENCH_B2B">Bench/B2B</option>
                                 <option value="MARKET">Market</option>
@@ -994,12 +1004,19 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                             <button
                               type="button"
                               onClick={() => removePositionRequirement(skillIndex, posIndex)}
-                              className="text-red-500 hover:text-red-700 p-1"
+                              className="text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50 dark:hover:bg-red-950/20"
+                              title="Remove this position"
                             >
-                              <Minus className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
                         ))}
+                        
+                        {skill.positions.length === 0 && (
+                          <div className="text-center py-3 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-900 rounded">
+                            No positions added. Click "Add Position" above.
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1009,6 +1026,14 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                       No skill requirements added. Click "Add Skill" to get started.
                     </div>
                   )}
+                </div>
+              )}
+              
+              {/* Force skill-based for new clients */}
+              {!editingClient && !useSkillBasedRequirements && (
+                <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  Enable skill-based requirements to specify detailed position needs for better candidate matching.
                 </div>
               )}
               <div className="flex gap-3 pt-2">
@@ -1226,6 +1251,9 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
   onDeleteSkill: (skillSet: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ candidatesNeeded: number; minYoeRequired: number; source: string } | null>(null);
+  
   const SKILL_LABELS: Record<string, string> = { 
     JAVA_SB: 'Java + Spring Boot', 
     JFSR: 'Java Full Stack React', 
@@ -1237,6 +1265,74 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
   };
 
   const totalPositions = positions.reduce((sum, pos) => sum + pos.candidatesNeeded, 0);
+
+  const handleEditPosition = (pos: PositionRequirement, posId: string) => {
+    setEditingPosition(posId);
+    setEditValues({
+      candidatesNeeded: pos.candidatesNeeded,
+      minYoeRequired: pos.minYoeRequired,
+      source: pos.source
+    });
+  };
+
+  const handleSavePosition = async (posId: string) => {
+    if (!editValues) return;
+    
+    try {
+      // Find the position in the client's skill requirements
+      const skillReq = client.skillRequirements?.find(sr => sr.skillSet === skillSet);
+      if (!skillReq) return;
+      
+      const updatedPositions = skillReq.positions.map(p => {
+        const currentPosId = p.id || `${client.id}-${skillSet}-${p.minYoeRequired}-${p.source}`;
+        if (currentPosId === posId) {
+          return { ...p, ...editValues };
+        }
+        return p;
+      });
+      
+      const updatedSkillRequirements = (client.skillRequirements || []).map(sr => {
+        if (sr.skillSet === skillSet) {
+          return { ...sr, positions: updatedPositions };
+        }
+        return sr;
+      });
+      
+      const updatedClient = {
+        clientName: client.clientName,
+        jdRole: client.jdRole,
+        jdDescription: client.jdDescription,
+        positionsVacant: client.positionsVacant,
+        marketCandidatesNeeded: client.marketCandidatesNeeded,
+        benchB2bCandidatesNeeded: client.benchB2bCandidatesNeeded,
+        status: client.status,
+        skillRequirements: updatedSkillRequirements
+      };
+      
+      const response = await fetch(`/api/recruiter/clients/${client.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updatedClient)
+      });
+      
+      if (response.ok) {
+        setEditingPosition(null);
+        setEditValues(null);
+        window.location.reload();
+      } else {
+        alert('Failed to update position');
+      }
+    } catch (error) {
+      console.error('Error updating position:', error);
+      alert('Network error: Failed to update position');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPosition(null);
+    setEditValues(null);
+  };
 
   return (
     <div>
@@ -1270,23 +1366,85 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
       {expanded && positions.map((pos, idx) => {
         const posId = pos.id || `${client.id}-${skillSet}-${pos.minYoeRequired}-${pos.source}-${idx}`;
         const isSelected = selectedPositionId === posId;
+        const isEditing = editingPosition === posId;
+        
         return (
-          <button
+          <div
             key={posId}
-            onClick={() => onSelect(client.id, posId)}
             className={`w-full text-left px-4 py-2.5 pl-20 flex items-center gap-3 transition-colors border-b border-zinc-100 dark:border-zinc-800/50 ${
               isSelected ? 'bg-blue-50 dark:bg-blue-950/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-900'
             }`}
           >
-            <div className="flex-1 min-w-0">
-              <div className={`text-xs truncate ${isSelected ? 'text-blue-700 dark:text-blue-300 font-medium' : 'text-zinc-700 dark:text-zinc-300'}`}>
-                {pos.minYoeRequired}+ YOE • {pos.candidatesNeeded} {pos.candidatesNeeded === 1 ? 'position' : 'positions'}
+            {isEditing && editValues ? (
+              <div className="flex-1 flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  value={editValues.candidatesNeeded}
+                  onChange={(e) => setEditValues({ ...editValues, candidatesNeeded: parseInt(e.target.value) || 1 })}
+                  className="w-16 px-2 py-1 text-xs border border-zinc-300 rounded dark:bg-zinc-800 dark:border-zinc-600"
+                  placeholder="Count"
+                />
+                <span className="text-[10px] text-zinc-400">pos •</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={editValues.minYoeRequired}
+                  onChange={(e) => setEditValues({ ...editValues, minYoeRequired: parseFloat(e.target.value) || 0 })}
+                  className="w-16 px-2 py-1 text-xs border border-zinc-300 rounded dark:bg-zinc-800 dark:border-zinc-600"
+                  placeholder="YOE"
+                />
+                <span className="text-[10px] text-zinc-400">YOE •</span>
+                <select
+                  value={editValues.source}
+                  onChange={(e) => setEditValues({ ...editValues, source: e.target.value })}
+                  className="px-2 py-1 text-xs border border-zinc-300 rounded dark:bg-zinc-800 dark:border-zinc-600"
+                >
+                  <option value="BENCH_B2B">Bench/B2B</option>
+                  <option value="MARKET">Market</option>
+                </select>
+                <button
+                  onClick={() => handleSavePosition(posId)}
+                  className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                  title="Save changes"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="p-1 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  title="Cancel"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
-                {pos.source === 'BENCH_B2B' ? 'Bench/B2B' : 'Market'}
-              </div>
-            </div>
-          </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => onSelect(client.id, posId)}
+                  className="flex-1 min-w-0"
+                >
+                  <div className={`text-xs truncate ${isSelected ? 'text-blue-700 dark:text-blue-300 font-medium' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                    {pos.minYoeRequired}+ YOE • {pos.candidatesNeeded} {pos.candidatesNeeded === 1 ? 'position' : 'positions'}
+                  </div>
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+                    {pos.source === 'BENCH_B2B' ? 'Bench/B2B' : 'Market'}
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditPosition(pos, posId);
+                  }}
+                  className="p-1 rounded-md text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
+                  title="Edit position"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+          </div>
         );
       })}
     </div>
