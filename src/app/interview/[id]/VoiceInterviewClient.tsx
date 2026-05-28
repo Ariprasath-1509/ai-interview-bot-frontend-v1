@@ -199,6 +199,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const [abandoning, setAbandoning] = useState(false);
   const [manipulationCount, setManipulationCount] = useState(0);
 
+  // Tab switch detection state
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [showTabWarning, setShowTabWarning] = useState(false);
+  const tabSwitchCountRef = useRef(0);
+
   // Whisper STT state
   const [whisperEnabled, setWhisperEnabled] = useState(false);
   const [whisperLang, setWhisperLang] = useState("auto");
@@ -273,7 +278,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   async function abandonInterview(
     currentUtterances: { speaker: string; text: string; at: string }[],
-    reason: "not_prepared" | "time_expired" | "ai_manipulation"
+    reason: "not_prepared" | "time_expired" | "ai_manipulation" | "tab_switch_violation"
   ) {
     if (abandoning) return;
     setAbandoning(true);
@@ -777,7 +782,13 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   useEffect(() => {
     const transcript = {
-      meta: { source: "web-speech", at: nowIso(), voiceValidation },
+      meta: { 
+        source: "web-speech", 
+        at: nowIso(), 
+        voiceValidation,
+        tabSwitchCount: tabSwitchCountRef.current,
+        tabSwitchViolation: tabSwitchCountRef.current >= 2
+      },
       utterances,
     };
     onTranscriptChange(JSON.stringify(transcript, null, 2));
@@ -1450,8 +1461,24 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   useEffect(() => {
     const onHidden = () => {
-      if (document.visibilityState === "hidden") {
+      if (document.visibilityState === "hidden" && sessionActiveRef.current) {
+        // Increment tab switch count
+        const newCount = tabSwitchCountRef.current + 1;
+        tabSwitchCountRef.current = newCount;
+        setTabSwitchCount(newCount);
+        
+        // Stop audio/mic immediately
         silentEndBecauseUserLeftRef.current();
+        
+        // Show warning when user returns
+        setShowTabWarning(true);
+        
+        // If 2nd switch, terminate interview after showing warning
+        if (newCount >= 2) {
+          setTimeout(() => {
+            void abandonInterview(utterancesRef.current, "tab_switch_violation");
+          }, 3000); // 3s delay to show final warning
+        }
       }
     };
     const onPageHide = () => {
@@ -1608,6 +1635,48 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                   {abandoning ? "Ending..." : "Yes, end interview"}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showTabWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 dark:bg-zinc-900 shadow-xl space-y-4 border-2 border-red-500">
+              <div className="flex items-center gap-3">
+                <div className="text-3xl">⚠️</div>
+                <h2 className="text-xl font-bold text-red-600 dark:text-red-400">
+                  {tabSwitchCount === 1 ? "Warning: Tab Switch Detected" : "Final Warning: Interview Terminating"}
+                </h2>
+              </div>
+              
+              <div className="space-y-2 text-sm">
+                <p className="font-semibold">
+                  You switched tabs/windows during the interview. This is not allowed.
+                </p>
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  {tabSwitchCount === 1 
+                    ? "This is your first warning. One more tab switch will automatically terminate your interview."
+                    : "You have exceeded the maximum allowed tab switches (2). Your interview is being terminated and marked as WITHDRAWN."}
+                </p>
+                <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+                  <p className="text-xs font-mono">
+                    Tab switches: <span className="font-bold text-red-600">{tabSwitchCount}/2</span>
+                  </p>
+                </div>
+              </div>
+              
+              {tabSwitchCount === 1 ? (
+                <button
+                  onClick={() => setShowTabWarning(false)}
+                  className="w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700"
+                >
+                  I Understand - Continue Interview
+                </button>
+              ) : (
+                <div className="text-center text-sm text-zinc-500">
+                  Redirecting to dashboard in 3 seconds...
+                </div>
+              )}
             </div>
           </div>
         )}
