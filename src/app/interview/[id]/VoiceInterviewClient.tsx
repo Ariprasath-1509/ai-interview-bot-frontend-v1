@@ -289,7 +289,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
     // Add termination message to transcript based on reason
     let terminationMessage = "";
-    if (reason === "tab_switching_violation") {
+    if (reason === "tab_switch_violation") {
       terminationMessage = "[INTERVIEW TERMINATED] Candidate switched tabs/windows more than 2 times during the interview. This is considered a violation of interview integrity guidelines.";
     } else if (reason === "ai_manipulation") {
       terminationMessage = "[INTERVIEW TERMINATED] Multiple attempts to manipulate the AI interviewer were detected.";
