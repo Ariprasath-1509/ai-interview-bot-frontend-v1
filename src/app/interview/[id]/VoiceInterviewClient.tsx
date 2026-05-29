@@ -273,7 +273,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   async function abandonInterview(
     currentUtterances: { speaker: string; text: string; at: string }[],
-    reason: "not_prepared" | "time_expired" | "ai_manipulation"
+    reason: "not_prepared" | "time_expired" | "ai_manipulation" | "tab_switching_violation"
   ) {
     if (abandoning) return;
     setAbandoning(true);
@@ -282,7 +282,23 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     releaseMicStream();
     finalizeVoiceValidation();
 
-    const transcriptJson = JSON.stringify({ utterances: currentUtterances });
+    // Add termination message to transcript based on reason
+    let terminationMessage = "";
+    if (reason === "tab_switching_violation") {
+      terminationMessage = "[INTERVIEW TERMINATED] Candidate switched tabs/windows more than 2 times during the interview. This is considered a violation of interview integrity guidelines.";
+    } else if (reason === "ai_manipulation") {
+      terminationMessage = "[INTERVIEW TERMINATED] Multiple attempts to manipulate the AI interviewer were detected.";
+    } else if (reason === "not_prepared") {
+      terminationMessage = "[INTERVIEW ENDED] Candidate indicated they were not prepared and chose to end the interview early.";
+    } else if (reason === "time_expired") {
+      terminationMessage = "[INTERVIEW ENDED] Time limit expired.";
+    }
+
+    const finalUtterances = terminationMessage 
+      ? [...currentUtterances, { speaker: "BOT" as const, text: terminationMessage, at: nowIso() }]
+      : currentUtterances;
+
+    const transcriptJson = JSON.stringify({ utterances: finalUtterances });
     try {
       await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/abandon`, {
         method: "POST",
