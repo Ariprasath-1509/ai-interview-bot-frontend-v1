@@ -7,7 +7,7 @@ const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 const BodySchema = z.object({
   transcriptJson: z.string(),
-  reason: z.enum(["not_prepared", "time_expired", "ai_manipulation"]),
+  reason: z.enum(["not_prepared", "time_expired", "ai_manipulation", "tab_switch_violation"]),
 });
 
 export async function POST(
