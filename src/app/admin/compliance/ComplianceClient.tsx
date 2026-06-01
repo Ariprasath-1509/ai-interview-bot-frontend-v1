@@ -9,6 +9,7 @@ import { EnhancedDataTable } from '@/components/common/EnhancedDataTable';
 interface AuditLog {
   id: string;
   actorId: string;
+  actorName: string;
   actorRole: string;
   action: string;
   resource: string;
@@ -116,7 +117,7 @@ export default function ComplianceClient() {
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-zinc-400 shrink-0" />
             <div>
-              <div className="font-medium text-zinc-900 dark:text-zinc-100">{row.original.actorId}</div>
+              <div className="font-medium text-zinc-900 dark:text-zinc-100">{row.original.actorName}</div>
               <div className="text-xs text-zinc-500">{row.original.actorRole}</div>
             </div>
           </div>
