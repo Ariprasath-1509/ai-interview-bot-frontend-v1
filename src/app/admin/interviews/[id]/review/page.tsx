@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { TranscriptView } from "./TranscriptView";
+import { ProctoringTimelinePanel } from "./ProctoringTimelinePanel";
 import { RerunAssessmentButton } from "./RerunAssessmentButton";
 import { AppShell } from "@/app/components/AppShell";
 import { AssessmentBanners } from "@/app/interview/AssessmentBanners";
@@ -89,12 +90,13 @@ export default async function InterviewReviewPage({
 
   const session = await getSession();
 
-  const [interviewRes, scoresRes, summaryRes, signOffRes, slotQuestionsRes] = await Promise.all([
+  const [interviewRes, scoresRes, summaryRes, signOffRes, slotQuestionsRes, proctoringRes] = await Promise.all([
     apiServer(`/interviews/${id}`, session?.token),
     apiServer(`/scores/${id}`, session?.token),
     apiServer(`/interviews/summary`, session?.token),
     apiServer(`/reviews/${id}`, session?.token),
     apiServer(`/interviews/${id}/questions`, session?.token),
+    apiServer(`/interviews/${id}/proctoring/timeline`, session?.token),
   ]);
 
   if (!interviewRes.ok) return <div className="mx-auto max-w-4xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
@@ -125,6 +127,33 @@ export default async function InterviewReviewPage({
       slotQuestions = (await slotQuestionsRes.json()) as SlotQuestion[];
     }
   } catch { /* ignore */ }
+
+  let proctoringTimeline: Record<string, unknown> | null = null;
+  try {
+    if (proctoringRes?.ok) {
+      proctoringTimeline = (await proctoringRes.json()) as Record<string, unknown>;
+    }
+  } catch { /* ignore */ }
+
+  if (!proctoringTimeline?.events || (Array.isArray(proctoringTimeline.events) && proctoringTimeline.events.length === 0)) {
+    try {
+      const doc = JSON.parse(interview.transcriptJson ?? "{}") as {
+        meta?: { videoProctoring?: Record<string, unknown> };
+      };
+      const fromTranscript = doc.meta?.videoProctoring;
+      if (fromTranscript) {
+        proctoringTimeline = {
+          interviewId: id,
+          integrityScore: fromTranscript.integrityScore ?? null,
+          status: fromTranscript.status ?? "NOT_AVAILABLE",
+          strikes: fromTranscript.strikes ?? {},
+          events: [],
+          snapshots: [],
+          summary: fromTranscript,
+        };
+      }
+    } catch { /* ignore */ }
+  }
 
   scores = mergeAssessmentScores(scores, ai).map((s, i) => ({
     ...s,
@@ -369,6 +398,13 @@ export default async function InterviewReviewPage({
         </div>
       )}
 
+      <div className="mt-6">
+        <ProctoringTimelinePanel
+          interviewId={interview.id}
+          timeline={proctoringTimeline as Parameters<typeof ProctoringTimelinePanel>[0]["timeline"]}
+        />
+      </div>
+
       <div className="mt-6 grid gap-5 lg:grid-cols-3">
         <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 lg:col-span-2">
           <div className="flex items-center gap-2 font-medium mb-4">
@@ -439,11 +475,11 @@ export default async function InterviewReviewPage({
                   <span className="text-red-600 dark:text-red-400 font-medium">✕ Not demonstrated:</span>
                   <span className="ml-2 text-zinc-600 dark:text-zinc-400">{ai.resumeConsistency.notDemonstrated?.join(", ") || "None"}</span>
                 </div>
-                {ai.resumeConsistency.flags?.length > 0 && (
+                {(ai.resumeConsistency.flags?.length ?? 0) > 0 && (
                   <div className="mt-3 rounded-lg bg-amber-50 p-3 text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
                     <div className="mb-1 text-xs font-medium">Flags</div>
                     <ul className="list-disc list-inside text-xs space-y-1">
-                      {ai.resumeConsistency.flags.map((flag: string, i: number) => (
+                      {ai.resumeConsistency.flags!.map((flag: string, i: number) => (
                         <li key={i}>{flag}</li>
                       ))}
                     </ul>

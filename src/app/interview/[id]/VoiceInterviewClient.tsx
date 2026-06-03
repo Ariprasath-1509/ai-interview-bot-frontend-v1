@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
+import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
+import { useVideoProctoring } from "@/hooks/useVideoProctoring";
 import type { QuestionMeta } from "./codingTypes";
 
 const SPEECH_TIMEOUT_MS = 10000; // 10 seconds of silence before considering speech done
@@ -292,6 +295,55 @@ export function VoiceInterviewClient({
   const sessionChunkedUploadRef = useRef(false);
   const manipulationCountRef = useRef(0);
   const micPhaseRef = useRef<MicPhase>("idle");
+  const [proctorSessionActive, setProctorSessionActive] = useState(false);
+  const proctorPausedRef = useRef(false);
+  const onProctorTerminateRef = useRef<(reasons: string[]) => void>(() => {});
+
+  const proctoring = useVideoProctoring({
+    enabled: true,
+    active: proctorSessionActive && !timeExpired && !abandoning,
+    interviewId,
+    onTerminate: (reasons) => onProctorTerminateRef.current(reasons),
+    onViolationLevelChange: (level) => {
+      proctorPausedRef.current = level === "paused";
+    },
+  });
+  const proctorCanStart = proctoring.snapshot.ready && proctoring.snapshot.enrolled;
+  const getProctorVideoTrackRef = useRef(proctoring.getVideoTrack);
+  getProctorVideoTrackRef.current = proctoring.getVideoTrack;
+  const crossSignalReportedRef = useRef(false);
+
+  const fullscreen = useFullscreenEnforcement({
+    active: proctorSessionActive && !timeExpired && !abandoning,
+    onExit: (count) => {
+      proctoring.reportExternalEvent(
+        "fullscreen_exit",
+        [`Exited fullscreen mode (${count} time${count === 1 ? "" : "s"})`],
+        count >= 2 ? "hard" : "soft",
+      );
+    },
+  });
+
+  useEffect(() => {
+    void proctoring.requestCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!isCodingSlotActive || !proctorSessionActive) return;
+    const blockClipboard = (e: ClipboardEvent) => {
+      e.preventDefault();
+    };
+    document.addEventListener("copy", blockClipboard);
+    document.addEventListener("cut", blockClipboard);
+    document.addEventListener("paste", blockClipboard);
+    return () => {
+      document.removeEventListener("copy", blockClipboard);
+      document.removeEventListener("cut", blockClipboard);
+      document.removeEventListener("paste", blockClipboard);
+    };
+  }, [isCodingSlotActive, proctorSessionActive]);
+
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot>({
     status: "PENDING_ENROLLMENT",
     enrolled: false,
@@ -307,6 +359,27 @@ export function VoiceInterviewClient({
   const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSpeechTimeRef = useRef<number>(0);
   const timerIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!proctorSessionActive || crossSignalReportedRef.current) return;
+    const noFace =
+      proctoring.snapshot.lastReasons.some((r) => r.includes("No face") || r.includes("No authorized")) ||
+      (proctoring.snapshot.strikes.no_face ?? 0) > 0;
+    if (voiceValidation.status === "FAILED" && noFace) {
+      crossSignalReportedRef.current = true;
+      proctoring.reportExternalEvent(
+        "cross_signal",
+        ["Voice identity failed while face was absent — possible impersonation or proxy"],
+        "hard",
+      );
+    }
+  }, [
+    proctorSessionActive,
+    proctoring,
+    voiceValidation.status,
+    proctoring.snapshot.lastReasons,
+    proctoring.snapshot.strikes.no_face,
+  ]);
 
   useEffect(() => { micPhaseRef.current = micPhase; }, [micPhase]);
   useEffect(() => { manipulationCountRef.current = manipulationCount; }, [manipulationCount]);
@@ -350,7 +423,12 @@ export function VoiceInterviewClient({
 
   async function abandonInterview(
     currentUtterances: { speaker: string; text: string; at: string }[],
-    reason: "not_prepared" | "time_expired" | "ai_manipulation" | "tab_switch_violation"
+    reason:
+      | "not_prepared"
+      | "time_expired"
+      | "ai_manipulation"
+      | "tab_switch_violation"
+      | "proctoring_violation"
   ) {
     if (abandoning) return;
     setAbandoning(true);
@@ -369,6 +447,9 @@ export function VoiceInterviewClient({
       terminationMessage = "[INTERVIEW ENDED] Candidate indicated they were not prepared and chose to end the interview early.";
     } else if (reason === "time_expired") {
       terminationMessage = "[INTERVIEW ENDED] Time limit expired.";
+    } else if (reason === "proctoring_violation") {
+      terminationMessage =
+        "[INTERVIEW TERMINATED] Video proctoring detected repeated integrity violations (phone/recording device, camera obstruction, or suspicious movement).";
     }
 
     const finalUtterances = terminationMessage
@@ -386,8 +467,15 @@ export function VoiceInterviewClient({
       // best effort
     }
     void stopSessionRecordingAndUpload();
+    setProctorSessionActive(false);
     window.location.href = "/candidate/dashboard";
   }
+
+  useEffect(() => {
+    onProctorTerminateRef.current = () => {
+      void abandonInterview(utterancesRef.current, "proctoring_violation");
+    };
+  });
 
   useEffect(() => {
     if (!timeExpired) return;
@@ -712,8 +800,16 @@ export function VoiceInterviewClient({
 
   async function startSessionRecording() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const videoTrack = getProctorVideoTrackRef.current()?.clone();
+      const tracks = [...audioStream.getAudioTracks(), ...(videoTrack ? [videoTrack] : [])];
+      const stream = new MediaStream(tracks);
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+          ? "video/webm;codecs=vp8,opus"
+          : "video/webm";
+      const rec = new MediaRecorder(stream, { mimeType });
       sessionChunksRef.current = [];
       sessionChunkIndexRef.current = 0;
       sessionChunkedUploadRef.current = false;
@@ -724,7 +820,10 @@ export function VoiceInterviewClient({
           void uploadRecordingChunk(e.data, idx, false);
         }
       };
-      rec.onstop = () => stream.getTracks().forEach((t) => t.stop());
+      rec.onstop = () => {
+        audioStream.getTracks().forEach((t) => t.stop());
+        stream.getVideoTracks().forEach((t) => t.stop());
+      };
       sessionRecorderRef.current = rec;
       rec.start(5000);
       setSessionRecording(true);
@@ -752,10 +851,10 @@ export function VoiceInterviewClient({
     }
     try {
       if (sessionChunkedUploadRef.current) {
-        await uploadRecordingChunk(new Blob([], { type: "audio/webm" }), sessionChunkIndexRef.current, true);
+        await uploadRecordingChunk(new Blob([], { type: "video/webm" }), sessionChunkIndexRef.current, true);
         setSessionRecordingUploaded(true);
       } else if (sessionChunksRef.current.length > 0) {
-        const blob = new Blob(sessionChunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(sessionChunksRef.current, { type: "video/webm" });
         const fd = new FormData();
         fd.append("recording", blob, "session.webm");
         const res = await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/recording`, { method: "POST", body: fd });
@@ -883,6 +982,36 @@ export function VoiceInterviewClient({
     }
   }
 
+  useEffect(() => {
+    const paused = proctoring.snapshot.violationLevel === "paused";
+    proctorPausedRef.current = paused;
+    if (!proctorSessionActive || timeExpired || abandoning) return;
+
+    if (paused && micPhase === "listening") {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
+      void stopAnswerRecordingBlob();
+      setMicPhase("idle");
+    } else if (!paused && micPhase === "idle" && sessionActiveRef.current) {
+      if (typedOnlyRef.current) {
+        setMicPhase("listening");
+      } else if (serverVoiceModeRef.current) {
+        setMicPhase("listening");
+        startAnswerRecording();
+      } else {
+        try {
+          recognitionRef.current?.start();
+          setMicPhase("listening");
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [proctoring.snapshot.violationLevel, proctorSessionActive, micPhase, timeExpired, abandoning]);
+
   async function fetchNextQuestion(args: {
     slot: number;
     lastAnswer: string;
@@ -991,13 +1120,15 @@ export function VoiceInterviewClient({
         source: "web-speech",
         at: nowIso(),
         voiceValidation,
+        videoProctoring: proctoring.getSnapshotForTranscript(),
         tabSwitchCount: tabSwitchCountRef.current,
-        tabSwitchViolation: tabSwitchCountRef.current >= 2
+        tabSwitchViolation: tabSwitchCountRef.current >= 2,
+        fullscreenExitCount: fullscreen.exitCount,
       },
       utterances,
     };
     onTranscriptChange(JSON.stringify(transcript, null, 2));
-  }, [utterances, voiceValidation, onTranscriptChange]);
+  }, [utterances, voiceValidation, proctoring.snapshot, fullscreen.exitCount, onTranscriptChange]);
 
   function syncUtterances(next: Utterance[]) {
     utterancesRef.current = next;
@@ -1510,6 +1641,10 @@ export function VoiceInterviewClient({
   }
 
   async function startTypedOnly() {
+    if (!proctorCanStart) {
+      setSpeechError("Complete face enrollment before starting the interview.");
+      return;
+    }
     setSpeechError(null);
     resetVoiceValidationSession();
     releaseMicStream();
@@ -1521,6 +1656,8 @@ export function VoiceInterviewClient({
       note: "Typed-only mode used. Voice continuity cannot be guaranteed.",
     });
     sessionActiveRef.current = true;
+    setProctorSessionActive(true);
+    void fullscreen.requestFullscreen();
     pausedForTtsRef.current = false;
     commitAfterEndRef.current = false;
     explicitStopRef.current = false;
@@ -1563,6 +1700,10 @@ export function VoiceInterviewClient({
 
   async function start() {
     if (!supported) return;
+    if (!proctorCanStart) {
+      setSpeechError("Complete face enrollment before starting the interview.");
+      return;
+    }
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
     serverVoiceModeRef.current = true;
@@ -1579,6 +1720,8 @@ export function VoiceInterviewClient({
 
     void startSessionRecording();
     sessionActiveRef.current = true;
+    setProctorSessionActive(true);
+    void fullscreen.requestFullscreen();
     pausedForTtsRef.current = false;
     commitAfterEndRef.current = false;
     explicitStopRef.current = false;
@@ -1630,6 +1773,11 @@ export function VoiceInterviewClient({
     if (serverVoiceModeRef.current) {
       setMicPhase("listening");
       startAnswerRecording();
+      return;
+    }
+
+    if (!rec) {
+      scheduleRecognitionStart("start missing rec");
       return;
     }
 
@@ -1720,6 +1868,15 @@ export function VoiceInterviewClient({
         tabSwitchCountRef.current = newCount;
         setTabSwitchCount(newCount);
 
+        const phoneVisible = proctoring.snapshot.lastReasons.some((r) => r.includes("Recording device"));
+        if (phoneVisible) {
+          proctoring.reportExternalEvent(
+            "cross_signal",
+            ["Tab switch while recording device was visible in camera"],
+            "hard",
+          );
+        }
+
         // Stop audio/mic immediately
         silentEndBecauseUserLeftRef.current();
 
@@ -1763,6 +1920,13 @@ export function VoiceInterviewClient({
 
   return (
     <div className="card p-4">
+      <VideoProctorPanel
+        proctoring={proctoring}
+        canStart={proctorCanStart}
+        sessionActive={proctorSessionActive}
+        onRequestCamera={() => void proctoring.requestCamera()}
+        onRetryEnrollment={() => void proctoring.retryEnrollment()}
+      />
       {speechError ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="font-medium">Microphone / speech</div>
@@ -1957,15 +2121,17 @@ export function VoiceInterviewClient({
           {micPhase === "idle" && !timeExpired ? (
             <>
               <button
-                className="rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
+                className="rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
+                disabled={!proctorCanStart}
                 onClick={() => void start()}
               >
                 Start (mic)
               </button>
               <button
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
+                disabled={!proctorCanStart}
                 onClick={() => void startTypedOnly()}
               >
                 Typed answers only

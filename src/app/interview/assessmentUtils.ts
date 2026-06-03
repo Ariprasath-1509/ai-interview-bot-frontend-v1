@@ -8,6 +8,50 @@ export type ScoreRow = {
   confidence?: "high" | "medium" | "low";
 };
 
+export type ResumeConsistency = {
+  consistencyScore: number;
+  demonstrated?: string[];
+  notDemonstrated?: string[];
+  flags?: string[];
+};
+
+export type BehavioralSignals = {
+  ownership?: string;
+  learningAgility?: string;
+  communication?: string;
+  confidenceCalibration?: string;
+  summary?: string;
+};
+
+export type InterviewQuality = {
+  coverageScore?: number;
+  categoriesCovered?: string[];
+  covered?: string[];
+  categoriesMissed?: string[];
+  missed?: string[];
+  note?: string;
+};
+
+export type ProsConsItem = {
+  pros?: string;
+  cons?: string;
+};
+
+export type RoadmapItem = {
+  day?: number | string;
+  focus?: string;
+  resource?: string;
+  whyItMatters?: string;
+  resourceUrl?: string;
+  category?: string;
+};
+
+export type CandidateFeedback = {
+  prosAndCons?: ProsConsItem[];
+  resumeConsistencyForCandidate?: Array<{ claim: string; consistent: boolean; evidence?: string }>;
+  roadmap?: RoadmapItem[];
+};
+
 export type AiAssessment = {
   source?: string;
   scoredAt?: string;
@@ -18,7 +62,10 @@ export type AiAssessment = {
   categoryScores?: ScoreRow[];
   technicalKnowledge?: { score: number; rationale?: string };
   communication?: { score: number; rationale?: string };
-  candidateFeedback?: Record<string, unknown>;
+  resumeConsistency?: ResumeConsistency;
+  behavioralSignals?: BehavioralSignals;
+  interviewQuality?: InterviewQuality;
+  candidateFeedback?: CandidateFeedback;
   speechAnalytics?: Record<string, unknown>;
 };
 
