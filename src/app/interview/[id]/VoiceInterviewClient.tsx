@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { QuestionMeta } from "./codingTypes";
 
 const SPEECH_TIMEOUT_MS = 10000; // 10 seconds of silence before considering speech done
 
@@ -32,7 +33,12 @@ type Props = {
   onVoiceValidationChange?: (snapshot: VoiceValidationSnapshot) => void;
   onTimeExpired?: () => void;
   onRegisterSubmitAnswer?: (fn: (answer: string) => void) => void;
+  onRegisterEnsureRecording?: (fn: () => Promise<void>) => void;
+  onSessionRecordingChange?: (state: { recording: boolean; uploaded: boolean; uploading: boolean }) => void;
+  isCodingSlotActive?: boolean;
+  codingSlotSatisfied?: boolean;
   onQuestionChange?: (question: string) => void;
+  onQuestionMetaChange?: (meta: QuestionMeta) => void;
 };
 
 type MicPhase = "idle" | "listening" | "bot_speaking";
@@ -88,52 +94,97 @@ function normalizeVector(v: number[]): number[] {
   return v.map((x) => x / norm);
 }
 
-/** Speak and resolve when playback finishes (or immediately if unsupported). */
-function speakWhenDone(text: string): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
+let activeTtsAudio: HTMLAudioElement | null = null;
+
+function cancelActiveTts() {
+  if (activeTtsAudio) {
+    activeTtsAudio.pause();
+    activeTtsAudio = null;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** Coqui TTS via ai-service (port 6014); falls back to browser speech if unavailable. */
+async function speakWhenDone(text: string): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  cancelActiveTts();
+
+  try {
+    const res = await fetch("/api/ai/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob.size > 0) {
+        const url = URL.createObjectURL(blob);
+        await new Promise<void>((resolve) => {
+          const audio = new Audio(url);
+          activeTtsAudio = audio;
+          let resolved = false;
+          const done = () => {
+            if (!resolved) {
+              resolved = true;
+              URL.revokeObjectURL(url);
+              if (activeTtsAudio === audio) activeTtsAudio = null;
+              resolve();
+            }
+          };
+          const timer = setTimeout(done, Math.max(text.length * 80, 8000) + 5000);
+          audio.onended = () => {
+            clearTimeout(timer);
+            done();
+          };
+          audio.onerror = () => {
+            clearTimeout(timer);
+            done();
+          };
+          void audio.play().catch(() => {
+            clearTimeout(timer);
+            done();
+          });
+        });
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn("[TTS] Server Coqui failed, using browser:", e);
+  }
 
   const synth = window.speechSynthesis;
-  if (!synth) return Promise.resolve();
+  if (!synth) return;
 
-  return new Promise((resolve) => {
-    try {
-      synth.cancel();
-    } catch (e) {
-      console.warn("[TTS] Cancel failed:", e);
-    }
-
+  await new Promise<void>((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 1.0;
     u.pitch = 1.0;
-
     let resolved = false;
-
     const done = () => {
       if (!resolved) {
         resolved = true;
         resolve();
       }
     };
-
-    const timeoutMs = Math.max(text.length * 80, 4000) + 5000;
-
-    const timer = setTimeout(done, timeoutMs);
-
+    const timer = setTimeout(done, Math.max(text.length * 80, 4000) + 5000);
     u.onend = () => {
       clearTimeout(timer);
       done();
     };
-
-    u.onerror = (e) => {
-      console.warn("[TTS] Error:", e);
+    u.onerror = () => {
       clearTimeout(timer);
       done();
     };
-
     try {
       synth.speak(u);
-    } catch (e) {
-      console.warn("[TTS] Speak failed:", e);
+    } catch {
       clearTimeout(timer);
       done();
     }
@@ -169,10 +220,29 @@ function isEndInterviewIntent(text: string): boolean {
   return patterns.some((re) => re.test(t));
 }
 
-export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candidateProfileJson, durationMinutes, interviewMode, onTranscriptChange, onVoiceValidationChange, onTimeExpired, onRegisterSubmitAnswer, onQuestionChange }: Props) {
+export function VoiceInterviewClient({
+  jdTitle,
+  interviewId,
+  rubricJson,
+  candidateProfileJson,
+  durationMinutes,
+  interviewMode,
+  onTranscriptChange,
+  onVoiceValidationChange,
+  onTimeExpired,
+  onRegisterSubmitAnswer,
+  onRegisterEnsureRecording,
+  onSessionRecordingChange,
+  isCodingSlotActive = false,
+  codingSlotSatisfied = true,
+  onQuestionChange,
+  onQuestionMetaChange,
+}: Props) {
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
+    const hasMic = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+    if (hasMic) setSupported(true);
     const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
     const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | undefined;
     if (!Ctor) return;
@@ -181,7 +251,6 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     rec.interimResults = true;
     rec.lang = "en-US";
     recognitionRef.current = rec;
-    setSupported(true);
   }, []);
   const [micPhase, setMicPhase] = useState<MicPhase>("idle");
   const [utterances, setUtterances] = useState<Utterance[]>([]);
@@ -204,20 +273,23 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   const [showTabWarning, setShowTabWarning] = useState(false);
   const tabSwitchCountRef = useRef(0);
 
-  // Whisper STT state
-  const [whisperEnabled, setWhisperEnabled] = useState(false);
+  // Server Whisper STT (primary for voice answers)
   const [whisperLang, setWhisperLang] = useState("auto");
-  const [whisperRecording, setWhisperRecording] = useState(false);
+  const [answerRecording, setAnswerRecording] = useState(false);
   const [whisperProcessing, setWhisperProcessing] = useState(false);
   const [whisperError, setWhisperError] = useState<string | null>(null);
-  const whisperMediaRef = useRef<MediaRecorder | null>(null);
-  const whisperChunksRef = useRef<Blob[]>([]);
+  const answerMediaRef = useRef<MediaRecorder | null>(null);
+  const answerChunksRef = useRef<Blob[]>([]);
+  const serverVoiceModeRef = useRef(true);
 
   // Session recording state
   const [sessionRecording, setSessionRecording] = useState(false);
   const [sessionRecordingUploaded, setSessionRecordingUploaded] = useState(false);
+  const [sessionRecordingUploading, setSessionRecordingUploading] = useState(false);
   const sessionRecorderRef = useRef<MediaRecorder | null>(null);
   const sessionChunksRef = useRef<Blob[]>([]);
+  const sessionChunkIndexRef = useRef(0);
+  const sessionChunkedUploadRef = useRef(false);
   const manipulationCountRef = useRef(0);
   const micPhaseRef = useRef<MicPhase>("idle");
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot>({
@@ -313,6 +385,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     } catch {
       // best effort
     }
+    void stopSessionRecordingAndUpload();
     window.location.href = "/candidate/dashboard";
   }
 
@@ -624,90 +697,187 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     }
   }
 
+  async function uploadRecordingChunk(blob: Blob, chunkIndex: number, isFinal: boolean) {
+    const fd = new FormData();
+    fd.append("chunk", blob, `chunk-${chunkIndex}.webm`);
+    fd.append("chunkIndex", String(chunkIndex));
+    fd.append("isFinal", String(isFinal));
+    const res = await fetch(
+      `/api/interviews/${encodeURIComponent(interviewId)}/recording/chunk`,
+      { method: "POST", body: fd },
+    );
+    if (res.ok) sessionChunkedUploadRef.current = true;
+    return res.ok;
+  }
+
   async function startSessionRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
       sessionChunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) sessionChunksRef.current.push(e.data); };
+      sessionChunkIndexRef.current = 0;
+      sessionChunkedUploadRef.current = false;
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          sessionChunksRef.current.push(e.data);
+          const idx = sessionChunkIndexRef.current++;
+          void uploadRecordingChunk(e.data, idx, false);
+        }
+      };
       rec.onstop = () => stream.getTracks().forEach((t) => t.stop());
       sessionRecorderRef.current = rec;
-      rec.start(5000); // collect in 5s chunks
+      rec.start(5000);
       setSessionRecording(true);
     } catch {
       // silent — recording is optional
     }
   }
 
-  async function stopSessionRecordingAndUpload() {
+  const stopSessionRecordingAndUpload = useCallback(async () => {
+    if (sessionRecordingUploaded || sessionRecordingUploading) return;
     const rec = sessionRecorderRef.current;
-    if (!rec || rec.state === "inactive") return;
+    if (!rec || rec.state === "inactive") {
+      if (sessionChunksRef.current.length === 0) return;
+    }
+    setSessionRecordingUploading(true);
     setSessionRecording(false);
-    await new Promise<void>((resolve) => {
-      rec.onstop = () => { sessionRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop()); resolve(); };
-      rec.stop();
-    });
-    if (sessionChunksRef.current.length === 0) return;
+    if (rec && rec.state !== "inactive") {
+      await new Promise<void>((resolve) => {
+        rec.onstop = () => {
+          sessionRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
+          resolve();
+        };
+        rec.stop();
+      });
+    }
     try {
-      const blob = new Blob(sessionChunksRef.current, { type: "audio/webm" });
-      const fd = new FormData();
-      fd.append("recording", blob, "session.webm");
-      await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/recording`, { method: "POST", body: fd });
-      setSessionRecordingUploaded(true);
+      if (sessionChunkedUploadRef.current) {
+        await uploadRecordingChunk(new Blob([], { type: "audio/webm" }), sessionChunkIndexRef.current, true);
+        setSessionRecordingUploaded(true);
+      } else if (sessionChunksRef.current.length > 0) {
+        const blob = new Blob(sessionChunksRef.current, { type: "audio/webm" });
+        const fd = new FormData();
+        fd.append("recording", blob, "session.webm");
+        const res = await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/recording`, { method: "POST", body: fd });
+        if (res.ok) setSessionRecordingUploaded(true);
+      }
     } catch {
       // best effort
+    } finally {
+      setSessionRecordingUploading(false);
     }
+  }, [interviewId, sessionRecordingUploaded, sessionRecordingUploading]);
+
+  const ensureSessionRecordingUploaded = useCallback(async () => {
+    if (sessionRecordingUploaded) return;
+    if (sessionRecording || sessionChunksRef.current.length > 0) {
+      await stopSessionRecordingAndUpload();
+    }
+    const deadline = Date.now() + 30_000;
+    while (sessionRecordingUploading && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }, [sessionRecording, sessionRecordingUploaded, sessionRecordingUploading, stopSessionRecordingAndUpload]);
+
+  useEffect(() => {
+    onSessionRecordingChange?.({
+      recording: sessionRecording,
+      uploaded: sessionRecordingUploaded,
+      uploading: sessionRecordingUploading,
+    });
+  }, [sessionRecording, sessionRecordingUploaded, sessionRecordingUploading, onSessionRecordingChange]);
+
+  useEffect(() => {
+    onRegisterEnsureRecording?.(ensureSessionRecordingUploaded);
+  }, [onRegisterEnsureRecording, ensureSessionRecordingUploaded]);
+
+  async function transcribeAnswerBlob(blob: Blob): Promise<string> {
+    const fd = new FormData();
+    fd.append("audio", blob, "answer.webm");
+    if (whisperLang !== "auto") fd.append("language", whisperLang);
+    const res = await fetch("/api/ai/transcribe", { method: "POST", body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { detail?: string; error?: string };
+      throw new Error(err.detail ?? err.error ?? "Transcription failed");
+    }
+    const data = await res.json() as { text?: string };
+    return data.text?.trim() ?? "";
   }
 
-  async function startWhisperRecording() {
-    setWhisperError(null);
+  function startAnswerRecording() {
+    const stream = micStreamRef.current;
+    if (!stream || typedOnlyRef.current) return;
+    if (answerMediaRef.current?.state === "recording") return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      answerChunksRef.current = [];
       const rec = new MediaRecorder(stream);
-      whisperChunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) whisperChunksRef.current.push(e.data); };
-      rec.onstop = () => stream.getTracks().forEach((t) => t.stop());
-      whisperMediaRef.current = rec;
-      rec.start();
-      setWhisperRecording(true);
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) answerChunksRef.current.push(e.data);
+      };
+      answerMediaRef.current = rec;
+      rec.start(1000);
+      setAnswerRecording(true);
+      setWhisperError(null);
     } catch {
-      setWhisperError("Microphone access denied.");
+      setWhisperError("Could not start answer recording.");
     }
   }
 
-  async function stopWhisperAndTranscribe() {
-    const rec = whisperMediaRef.current;
-    if (!rec) return;
-    setWhisperRecording(false);
-    setWhisperProcessing(true);
-    setWhisperError(null);
-
+  async function stopAnswerRecordingBlob(): Promise<Blob | null> {
+    const rec = answerMediaRef.current;
+    if (!rec || rec.state === "inactive") {
+      setAnswerRecording(false);
+      return answerChunksRef.current.length
+        ? new Blob(answerChunksRef.current, { type: "audio/webm" })
+        : null;
+    }
+    setAnswerRecording(false);
     await new Promise<void>((resolve) => {
-      rec.onstop = () => { whisperMediaRef.current?.stream?.getTracks().forEach((t) => t.stop()); resolve(); };
+      rec.onstop = () => resolve();
       rec.stop();
     });
+    answerMediaRef.current = null;
+    if (answerChunksRef.current.length === 0) return null;
+    return new Blob(answerChunksRef.current, { type: "audio/webm" });
+  }
 
+  async function sendVoiceAnswer() {
+    if (!sessionActiveRef.current || advancingRef.current || typedOnlyRef.current) return;
+    if (isCodingSlotActive && !codingSlotSatisfied) {
+      setWhisperError("This is a coding question — use Run & Submit in the code editor before sending a voice answer.");
+      return;
+    }
+    setWhisperProcessing(true);
+    setWhisperError(null);
     try {
-      const blob = new Blob(whisperChunksRef.current, { type: "audio/webm" });
-      const fd = new FormData();
-      fd.append("audio", blob, "answer.webm");
-      if (whisperLang !== "auto") fd.append("language", whisperLang);
-
-      const res = await fetch("/api/ai/transcribe", { method: "POST", body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { detail?: string };
-        setWhisperError(err.detail ?? "Transcription failed. Is the whisper model pulled in Ollama?");
+      recognitionRef.current?.stop();
+    } catch {
+      /* ignore */
+    }
+    const blob = await stopAnswerRecordingBlob();
+    if (!blob || blob.size < 200) {
+      setWhisperError("No speech recorded. Speak your answer, then click Send answer again.");
+      startAnswerRecording();
+      return;
+    }
+    try {
+      const text = await transcribeAnswerBlob(blob);
+      if (!text) {
+        setWhisperError("No speech detected. Try speaking louder or use the typed box.");
+        startAnswerRecording();
         return;
       }
-      const data = await res.json() as { text?: string };
-      const text = data.text?.trim() ?? "";
-      if (text) {
-        setTypedDraft((prev) => (prev ? prev + " " + text : text));
-      } else {
-        setWhisperError("No speech detected in recording.");
+      advancingRef.current = true;
+      if (isEndInterviewIntent(text)) {
+        advancingRef.current = false;
+        void endInterviewFromVoice(text);
+        return;
       }
-    } catch {
-      setWhisperError("Network error during transcription.");
+      addCandidate(text);
+      void advanceAfterAnswer(text);
+    } catch (e) {
+      setWhisperError(e instanceof Error ? e.message : "Transcription failed");
+      startAnswerRecording();
     } finally {
       setWhisperProcessing(false);
     }
@@ -718,7 +888,15 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     lastAnswer: string;
     transcript: Utterance[];
     manipulationCount: number;
-  }): Promise<{ question: string; manipulationDetected?: boolean; terminateInterview?: boolean; interviewComplete?: boolean } | null> {
+  }): Promise<{
+    question: string;
+    manipulationDetected?: boolean;
+    terminateInterview?: boolean;
+    interviewComplete?: boolean;
+    isCoding?: boolean;
+    preferredLanguage?: string;
+    starterCode?: string | null;
+  } | null> {
     // Cancel any previous in-flight request
     nextQuestionAbortRef.current?.abort();
     const controller = new AbortController();
@@ -750,13 +928,24 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
           if (RETRYABLE_STATUSES.has(res.status) && attempt < MAX_RETRIES - 1) continue;
           return null;
         }
-        const data = (await res.json()) as { question?: string; manipulationDetected?: boolean; terminateInterview?: boolean; interviewComplete?: boolean };
+        const data = (await res.json()) as {
+          question?: string;
+          manipulationDetected?: boolean;
+          terminateInterview?: boolean;
+          interviewComplete?: boolean;
+          isCoding?: boolean;
+          preferredLanguage?: string;
+          starterCode?: string | null;
+        };
         if (typeof data.question === "string") {
           return {
             question: data.question,
             manipulationDetected: data.manipulationDetected,
             terminateInterview: data.terminateInterview,
             interviewComplete: data.interviewComplete,
+            isCoding: data.isCoding,
+            preferredLanguage: data.preferredLanguage,
+            starterCode: data.starterCode,
           };
         }
         return null;
@@ -883,13 +1072,25 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     finalizeVoiceValidation();
   }
 
-  async function addBot(text: string) {
+  function emitQuestionMeta(text: string, slot: number, meta?: { isCoding?: boolean; preferredLanguage?: string; starterCode?: string | null }) {
+    onQuestionChange?.(text);
+    onQuestionMetaChange?.({
+      question: text,
+      slot,
+      isCoding: meta?.isCoding ?? false,
+      preferredLanguage: meta?.preferredLanguage ?? "python",
+      starterCode: meta?.starterCode ?? null,
+    });
+  }
+
+  async function addBot(text: string, meta?: { isCoding?: boolean; preferredLanguage?: string; starterCode?: string | null }) {
     const row: Utterance = { speaker: "BOT", text, at: nowIso() };
     syncUtterances([...utterancesRef.current, row]);
-    onQuestionChange?.(text);
+    emitQuestionMeta(text, botPromptIdxRef.current, meta);
 
+    void stopAnswerRecordingBlob();
     const rec = recognitionRef.current;
-    if (rec && sessionActiveRef.current) {
+    if (rec && sessionActiveRef.current && !serverVoiceModeRef.current) {
       pausedForTtsRef.current = true;
       finalBufferRef.current = "";
       interimRef.current = "";
@@ -921,7 +1122,14 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       if (sessionActiveRef.current) {
         setMicPhase("listening");
       }
+      return;
+    }
 
+    if (serverVoiceModeRef.current) {
+      if (sessionActiveRef.current) {
+        setMicPhase("listening");
+        startAnswerRecording();
+      }
       return;
     }
 
@@ -1021,7 +1229,8 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         } catch { /* ignore */ }
         releaseMicStream();
         setMicPhase("idle");
-        
+        void stopSessionRecordingAndUpload();
+
         // Add the completion message
         await playClosingLine(nextQ.question);
         return;
@@ -1034,7 +1243,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
     botPromptIdxRef.current = nextSlot;
     setBotPromptIdx(nextSlot);
-    await addBot(q);
+    await addBot(q, {
+      isCoding: nextQ?.isCoding,
+      preferredLanguage: nextQ?.preferredLanguage,
+      starterCode: nextQ?.starterCode,
+    });
     } finally {
       advancingRef.current = false;
     }
@@ -1268,6 +1481,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   async function submitTypedReply() {
     const text = typedDraft.trim();
     if (!text || !sessionActiveRef.current || micPhase !== "listening" || advancingRef.current) return;
+    if (isCodingSlotActive && !codingSlotSatisfied) {
+      setSpeechError("Complete the coding challenge with Run & Submit in the editor first.");
+      return;
+    }
     setTypedDraft("");
     setSpeechError(null);
     if (speechTimeoutRef.current) {
@@ -1293,11 +1510,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   }
 
   async function startTypedOnly() {
-    if (!recognitionRef.current) return;
     setSpeechError(null);
     resetVoiceValidationSession();
     releaseMicStream();
     typedOnlyRef.current = true;
+    serverVoiceModeRef.current = false;
     setTypedAnswersOnly(true);
     updateVoiceValidation({
       status: "NOT_VERIFIED",
@@ -1329,6 +1546,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       syncUtterances([...utterancesRef.current, row]);
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
+      emitQuestionMeta(q, 1, {
+        isCoding: nextQ?.isCoding,
+        preferredLanguage: nextQ?.preferredLanguage,
+        starterCode: nextQ?.starterCode,
+      });
       await speakWhenDone(q);
       if (sessionActiveRef.current) {
         setMicPhase("listening");
@@ -1340,9 +1562,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   }
 
   async function start() {
-    if (!recognitionRef.current) return;
+    if (!supported) return;
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
+    serverVoiceModeRef.current = true;
     setSpeechError(null);
     resetVoiceValidationSession();
     const micOk = await ensureMicStream();
@@ -1352,6 +1575,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       return;
     }
 
+    await fetch(`/api/interviews/${interviewId}/start`, { method: "POST" }).catch(() => null);
+
+    void startSessionRecording();
     sessionActiveRef.current = true;
     pausedForTtsRef.current = false;
     commitAfterEndRef.current = false;
@@ -1380,6 +1606,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
       syncUtterances([...utterancesRef.current, row]);
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
+      emitQuestionMeta(q, 1, {
+        isCoding: nextQ?.isCoding,
+        preferredLanguage: nextQ?.preferredLanguage,
+        starterCode: nextQ?.starterCode,
+      });
       await speakWhenDone(q);
       if (sessionActiveRef.current) {
         setMicPhase("listening");
@@ -1393,6 +1624,12 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
     if (!sessionActiveRef.current) {
       setMicPhase("idle");
+      return;
+    }
+
+    if (serverVoiceModeRef.current) {
+      setMicPhase("listening");
+      startAnswerRecording();
       return;
     }
 
@@ -1412,12 +1649,13 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     pausedForTtsRef.current = false;
     commitAfterEndRef.current = false;
     explicitStopRef.current = true;
+    void stopAnswerRecordingBlob();
     releaseMicStream();
     if (restartTimerRef.current) {
       clearTimeout(restartTimerRef.current);
       restartTimerRef.current = null;
     }
-    window.speechSynthesis?.cancel();
+    cancelActiveTts();
     if (speechTimeoutRef.current) {
       clearTimeout(speechTimeoutRef.current);
       speechTimeoutRef.current = null;
@@ -1426,6 +1664,8 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
     const rec = recognitionRef.current;
     if (!rec) {
       explicitStopRef.current = false;
+      finalizeVoiceValidation();
+      void stopSessionRecordingAndUpload();
       void playClosingLine(
         "Alright, stopping here. Thanks for your time—you can mark this interview complete below when you’re ready.",
       );
@@ -1446,11 +1686,8 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
   silentEndBecauseUserLeftRef.current = () => {
     releaseMicStream();
-    try {
-      window.speechSynthesis?.cancel();
-    } catch (e) {
-      console.warn("[TTS] Cancel on tab switch failed:", e);
-    }
+    cancelActiveTts();
+    void stopAnswerRecordingBlob();
     if (!sessionActiveRef.current) {
       return;
     }
@@ -1519,7 +1756,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
   if (!supported) {
     return (
       <div className="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-        Voice demo isn’t supported in this browser. Use Chrome/Edge on desktop (Web Speech API).
+        Voice interview is not supported in this browser. Please use Chrome or Edge on desktop.
       </div>
     );
   }
@@ -1540,9 +1777,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
           !typedAnswersOnly &&
           !micStreamRef.current?.active && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
-                <div className="font-medium">
-                  ⚠️ Microphone disconnected
-                </div>
+                <div className="font-medium">Microphone disconnected</div>
 
                 <p className="mt-1">
                   Your microphone appears to be disconnected.
@@ -1561,12 +1796,12 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                   ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
                   : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
               }`}>
-                ⏱ {formatTime(secondsLeft)}
+                {formatTime(secondsLeft)}
               </div>
             )}
             {timeExpired && (
               <div className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 text-sm font-semibold px-3 py-0.5 rounded-full">
-                ⏰ Time's up!
+                Time expired
               </div>
             )}
           </div>
@@ -1579,21 +1814,16 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
                 I&apos;m not prepared — end interview
               </button>
             )}
-            {/* Session recording toggle */}
-            {!timeExpired && (
-              <button
-                type="button"
-                onClick={() => sessionRecording ? void stopSessionRecordingAndUpload() : void startSessionRecording()}
-                className={`text-xs px-2 py-1 rounded border transition-colors ${
+            {!timeExpired && (sessionRecording || sessionRecordingUploaded) && (
+              <span
+                className={`text-xs px-2 py-1 rounded border ${
                   sessionRecording
                     ? "bg-red-100 border-red-300 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300"
-                    : sessionRecordingUploaded
-                      ? "bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300"
-                      : "bg-zinc-100 border-zinc-300 text-zinc-600 dark:bg-zinc-800 dark:border-zinc-600 dark:text-zinc-400"
+                    : "bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300"
                 }`}
               >
-                {sessionRecording ? "⏹ Stop rec" : sessionRecordingUploaded ? "✓ Recorded" : "● Record"}
-              </button>
+                {sessionRecording ? "Recording session" : "Session saved"}
+              </span>
             )}
             <div
               className={`shrink-0 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -1657,13 +1887,10 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
         {showTabWarning && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-xl bg-white p-6 dark:bg-zinc-900 shadow-xl space-y-4 border-2 border-red-500">
-              <div className="flex items-center gap-3">
-                <div className="text-3xl">⚠️</div>
-                <h2 className="text-xl font-bold text-red-600 dark:text-red-400">
-                  {tabSwitchCount === 1 ? "Warning: Tab Switch Detected" : "Final Warning: Interview Terminating"}
-                </h2>
-              </div>
+            <div className="w-full max-w-md rounded-xl border-2 border-red-500 bg-white p-6 shadow-xl dark:bg-zinc-900 space-y-4">
+              <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                {tabSwitchCount === 1 ? "Tab switch detected" : "Interview ending"}
+              </h2>
 
               <div className="space-y-2 text-sm">
                 <p className="font-semibold">
@@ -1698,7 +1925,9 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
         )}
 
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Mic pauses while bot speaks. Click <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> after speaking, or say <span className="font-medium text-zinc-700 dark:text-zinc-300">stop the interview</span> to end.
+          Bot voice uses Coqui TTS; your answers use Whisper STT (ports 6014 / 6013). Click{" "}
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
+          Session audio records automatically from Start.
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -1745,7 +1974,7 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
           ) : timeExpired ? (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
               <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                ⏰ Time's up! Your interview has ended. Please click "Mark complete" below to submit your responses for assessment.
+                Time has expired. Click Mark complete below to submit your responses for assessment.
               </p>
             </div>
           ) : (
@@ -1774,23 +2003,18 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
             : you will hear the first question, then you can speak and/or type your reply.
           </div>
         )}
-        {listening && !typedAnswersOnly && interimText ? (
-          <div className="mt-3 border-t border-zinc-200 pt-3 text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-            <span className="font-medium text-zinc-700 dark:text-zinc-200">Heard (live):</span> {interimText}
-            {finalBufferRef.current.trim() && (
-              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
-                <span className="font-medium">Captured:</span> {finalBufferRef.current.trim().substring(0, 100)}{finalBufferRef.current.trim().length > 100 ? '...' : ''}
-              </div>
+        {listening && !typedAnswersOnly ? (
+          <div className="mt-3 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+            {answerRecording ? (
+              <span className="text-red-600 dark:text-red-400 animate-pulse">● Recording your answer (Whisper)…</span>
+            ) : whisperProcessing ? (
+              <span>Transcribing with Whisper…</span>
+            ) : (
+              <span>Speak your answer, then click <span className="font-medium">Send answer</span>.</span>
             )}
-          </div>
-        ) : listening && !typedAnswersOnly && !interimText && finalBufferRef.current.trim() ? (
-          <div className="mt-3 border-t border-zinc-200 pt-3 text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-            <span className="font-medium text-zinc-700 dark:text-zinc-200">Captured so far:</span> {finalBufferRef.current.trim().substring(0, 150)}{finalBufferRef.current.trim().length > 150 ? '...' : ''}
-            <div className="mt-1 text-xs text-zinc-400">Continue speaking or click "Send answer" when done.</div>
-          </div>
-        ) : listening && !typedAnswersOnly && !interimText ? (
-          <div className="mt-3 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-400">
-            Waiting for speech… if this stays blank, use the typed box below or try another browser.
+            {whisperError && (
+              <div className="mt-1 text-red-600 dark:text-red-400">{whisperError}</div>
+            )}
           </div>
         ) : null}
         <div ref={transcriptEndRef} />
@@ -1798,52 +2022,23 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
 
       {listening && !timeExpired ? (
         <div className="mt-4 space-y-3">
-          {/* Whisper STT panel */}
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-200 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={whisperEnabled}
-                  onChange={(e) => setWhisperEnabled(e.target.checked)}
-                  className="rounded"
-                />
-                Use Whisper STT (server-side, multi-language)
+          {!typedAnswersOnly && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="whisper-lang">
+                Answer language (Whisper STT)
               </label>
-              {whisperEnabled && (
-                <select
-                  value={whisperLang}
-                  onChange={(e) => setWhisperLang(e.target.value)}
-                  className="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1"
-                >
-                  {WHISPER_LANGUAGES.map((l) => (
-                    <option key={l.id} value={l.id}>{l.label}</option>
-                  ))}
-                </select>
-              )}
+              <select
+                id="whisper-lang"
+                value={whisperLang}
+                onChange={(e) => setWhisperLang(e.target.value)}
+                className="mt-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1"
+              >
+                {WHISPER_LANGUAGES.map((l) => (
+                  <option key={l.id} value={l.id}>{l.label}</option>
+                ))}
+              </select>
             </div>
-            {whisperEnabled && (
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors ${
-                    whisperRecording ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
-                  } disabled:opacity-50`}
-                  disabled={whisperProcessing}
-                  onClick={() => whisperRecording ? void stopWhisperAndTranscribe() : void startWhisperRecording()}
-                >
-                  {whisperProcessing ? "Transcribing…" : whisperRecording ? "⏹ Stop & transcribe" : "🎙 Record answer (Whisper)"}
-                </button>
-                {whisperRecording && (
-                  <span className="text-xs text-red-600 dark:text-red-400 animate-pulse">● Recording…</span>
-                )}
-                {whisperError && (
-                  <span className="text-xs text-red-600 dark:text-red-400">{whisperError}</span>
-                )}
-                <span className="text-xs text-zinc-400">Transcribed text appears in the box below</span>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Typed answer box */}
           <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
@@ -1878,32 +2073,11 @@ export function VoiceInterviewClient({ jdTitle, interviewId, rubricJson, candida
             </p>
             <button
               type="button"
-              disabled={!listening || typedAnswersOnly}
+              disabled={!listening || typedAnswersOnly || whisperProcessing}
               className="w-fit rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-              onClick={() => {
-                const rec = recognitionRef.current;
-                if (!rec || !sessionActiveRef.current) return;
-                // Stitch any live interim text into the final buffer NOW before stopping,
-                // because Chrome with continuous=true rarely fires isFinal while mic is open.
-                const pending = `${finalBufferRef.current.trim()} ${interimRef.current.trim()}`.trim();
-                if (pending) {
-                  finalBufferRef.current = pending + " ";
-                  interimRef.current = "";
-                  setInterimText("");
-                }
-                commitAfterEndRef.current = true;
-                try {
-                  rec.stop();
-                } catch {
-                  commitAfterEndRef.current = false;
-                  flushSpokenAnswer();
-                  if (sessionActiveRef.current) {
-                    scheduleRecognitionStart("send answer sync fallback");
-                  }
-                }
-              }}
+              onClick={() => void sendVoiceAnswer()}
             >
-              Send answer (voice)
+              {whisperProcessing ? "Transcribing…" : "Send answer (Whisper)"}
             </button>
           </>
         )}

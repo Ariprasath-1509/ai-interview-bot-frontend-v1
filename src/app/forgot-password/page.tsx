@@ -97,7 +97,7 @@ export default function ForgotPasswordPage() {
 
       <main className="z-10 w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-black dark:text-zinc-50">Reset Password</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Reset Password</h1>
           <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
             {step === "email" ? "Enter your email to receive an OTP" : "Enter the OTP sent to your email"}
           </p>

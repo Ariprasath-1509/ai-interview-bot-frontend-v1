@@ -53,7 +53,7 @@ export const DURATION_OPTIONS = [
 ];
 
 export const MODE_COLORS = {
-  SCREENING: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+  SCREENING: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200',
   L1: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   L2: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
   L3: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
@@ -72,5 +72,5 @@ export const VERDICT_COLORS = {
   NEEDS_1_WEEK_PREP: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
   NEEDS_RESKILLING: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
   MISMATCH_WITH_JD: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  WITHDRAWN: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+  WITHDRAWN: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300'
 };

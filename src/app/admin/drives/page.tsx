@@ -43,7 +43,7 @@ export default function DrivesPage() {
 
   const getStatusBadge = (status: string) => {
     const colors = {
-      DRAFT: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300',
+      DRAFT: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
       ACTIVE: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
       CLOSED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
     };
@@ -87,7 +87,7 @@ export default function DrivesPage() {
           <div className="text-sm text-zinc-500 dark:text-zinc-400">Active Drives</div>
         </div>
         <div className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
-          <div className="text-2xl font-bold text-gray-600 dark:text-gray-400">
+          <div className="text-2xl font-bold text-zinc-600 dark:text-zinc-400">
             {drives.filter(d => d.status === 'DRAFT').length}
           </div>
           <div className="text-sm text-zinc-500 dark:text-zinc-400">Draft Drives</div>

@@ -306,7 +306,7 @@ export function SidebarLayout({
 
         {/* Page content */}
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6 w-full min-w-0 max-w-full">
-          {children}
+          <div className="page-content min-w-0">{children}</div>
         </main>
       </div>
     </div>

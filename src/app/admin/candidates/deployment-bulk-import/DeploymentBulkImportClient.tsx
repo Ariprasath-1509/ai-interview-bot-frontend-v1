@@ -114,7 +114,7 @@ export default function DeploymentBulkImportClient() {
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Bulk Import Deployment Data</h1>
-        <p className="text-gray-600">Upload Excel file to update deployment information for multiple candidates</p>
+        <p className="text-zinc-600">Upload Excel file to update deployment information for multiple candidates</p>
         <div className="mt-4">
           <Button 
             variant="outline" 
@@ -153,7 +153,7 @@ export default function DeploymentBulkImportClient() {
                 <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
                   <FileSpreadsheet className="h-5 w-5 text-blue-600" />
                   <span className="text-sm font-medium">{file.name}</span>
-                  <span className="text-sm text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                  <span className="text-sm text-zinc-500">({(file.size / 1024).toFixed(1)} KB)</span>
                 </div>
               )}
 
@@ -187,7 +187,7 @@ export default function DeploymentBulkImportClient() {
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-blue-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Total Rows</p>
+                    <p className="text-sm text-zinc-600">Total Rows</p>
                     <p className="text-2xl font-bold">{importResult.totalRows}</p>
                   </div>
                 </div>
@@ -199,7 +199,7 @@ export default function DeploymentBulkImportClient() {
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Success</p>
+                    <p className="text-sm text-zinc-600">Success</p>
                     <p className="text-2xl font-bold text-green-600">{importResult.successCount}</p>
                   </div>
                 </div>
@@ -211,7 +211,7 @@ export default function DeploymentBulkImportClient() {
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-yellow-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Warnings</p>
+                    <p className="text-sm text-zinc-600">Warnings</p>
                     <p className="text-2xl font-bold text-yellow-600">{importResult.warningCount}</p>
                   </div>
                 </div>
@@ -223,7 +223,7 @@ export default function DeploymentBulkImportClient() {
                 <div className="flex items-center gap-2">
                   <XCircle className="h-5 w-5 text-red-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Failures</p>
+                    <p className="text-sm text-zinc-600">Failures</p>
                     <p className="text-2xl font-bold text-red-600">{importResult.failureCount}</p>
                   </div>
                 </div>
@@ -262,14 +262,14 @@ export default function DeploymentBulkImportClient() {
                           <span className="text-sm font-medium">{detail.name}</span>
                         )}
                         {detail.email && (
-                          <span className="text-xs text-gray-600">{detail.email}</span>
+                          <span className="text-xs text-zinc-600">{detail.email}</span>
                         )}
                         {detail.empId && (
                           <Badge variant="outline" className="text-xs">{detail.empId}</Badge>
                         )}
                       </div>
                       {detail.clientName && detail.deployedDate && (
-                        <div className="text-xs text-gray-600 mb-1">
+                        <div className="text-xs text-zinc-600 mb-1">
                           {detail.clientName} • {detail.deployedDate}
                           {detail.mentor && ` • Mentor: ${detail.mentor}`}
                         </div>

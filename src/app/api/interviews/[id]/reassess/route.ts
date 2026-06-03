@@ -30,6 +30,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No transcript available for this interview' }, { status: 400 });
     }
 
+    let codeSubmissionJson: string | undefined;
+    try {
+      const doc = JSON.parse(interview.transcriptJson) as {
+        meta?: { codeSubmissions?: unknown; codeSubmission?: unknown };
+      };
+      const subs = doc.meta?.codeSubmissions ?? (doc.meta?.codeSubmission ? [doc.meta.codeSubmission] : null);
+      if (subs) codeSubmissionJson = JSON.stringify(subs);
+    } catch { /* ignore */ }
+
     // Fetch JD
     let jdTitle = 'Target role';
     let jdText = '';
@@ -76,7 +85,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         transcriptJson: interview.transcriptJson,
         rubricJson,
         candidateProfileJson,
-        interviewMode: interview.interviewMode ?? 'L3'
+        interviewMode: interview.interviewMode ?? 'L3',
+        ...(codeSubmissionJson ? { codeSubmissionJson } : {}),
       })
     });
 
@@ -91,8 +101,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       [key: string]: any;
     };
 
-    // Save updated scores
-    if (assessment.categoryScores?.length) {
+    // Save updated scores (prefer categoryScores; fallback to legacy technicalKnowledge/communication)
+    const assessmentScores = assessment.categoryScores?.length
+      ? assessment.categoryScores
+      : [
+          {
+            dimension: 'TechnicalKnowledge',
+            value: (assessment as { technicalKnowledge?: { score?: number } }).technicalKnowledge?.score ?? 1,
+            rationale: (assessment as { technicalKnowledge?: { rationale?: string } }).technicalKnowledge?.rationale,
+          },
+          {
+            dimension: 'Communication',
+            value: (assessment as { communication?: { score?: number } }).communication?.score ?? 1,
+            rationale: (assessment as { communication?: { rationale?: string } }).communication?.rationale,
+          },
+        ];
+
+    if (assessmentScores.length) {
       await fetch(`${GATEWAY}/scores`, {
         method: 'POST',
         headers: {
@@ -101,7 +126,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
         body: JSON.stringify({
           interviewId: id,
-          scores: assessment.categoryScores.map(s => ({
+          scores: assessmentScores.map(s => ({
             dimension: s.dimension,
             value: s.value,
             rationale: s.rationale,

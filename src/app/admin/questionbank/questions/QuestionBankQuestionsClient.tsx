@@ -206,7 +206,7 @@ export default function QuestionBankQuestionsClient() {
 
             {error && (
               <div className="flex items-center gap-4 p-4 border border-destructive/30 bg-destructive/10 rounded-md">
-                <span className="text-xl">⚠</span>
+                <span className="text-xs font-semibold uppercase text-amber-600">Alert</span>
                 <div className="flex-1">
                   <div className="text-destructive font-mono text-sm">PARSE_ERROR</div>
                   <p className="text-destructive/80 text-sm">{error}</p>

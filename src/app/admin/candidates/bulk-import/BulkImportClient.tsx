@@ -171,7 +171,7 @@ export default function BulkImportClient() {
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Bulk Import Candidates</h1>
-        <p className="text-gray-600">Upload Excel file to import B2B and Bench candidates with automatic credential generation</p>
+        <p className="text-zinc-600">Upload Excel file to import B2B and Bench candidates with automatic credential generation</p>
         <div className="mt-4">
           <Button 
             variant="outline" 
@@ -210,7 +210,7 @@ export default function BulkImportClient() {
                 <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
                   <FileSpreadsheet className="h-5 w-5 text-blue-600" />
                   <span className="text-sm font-medium">{file.name}</span>
-                  <span className="text-sm text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                  <span className="text-sm text-zinc-500">({(file.size / 1024).toFixed(1)} KB)</span>
                 </div>
               )}
 
@@ -244,7 +244,7 @@ export default function BulkImportClient() {
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-blue-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Total Rows</p>
+                    <p className="text-sm text-zinc-600">Total Rows</p>
                     <p className="text-2xl font-bold">{validationResult.totalRows}</p>
                   </div>
                 </div>
@@ -256,7 +256,7 @@ export default function BulkImportClient() {
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Valid Rows</p>
+                    <p className="text-sm text-zinc-600">Valid Rows</p>
                     <p className="text-2xl font-bold text-green-600">{validationResult.validRows}</p>
                   </div>
                 </div>
@@ -268,7 +268,7 @@ export default function BulkImportClient() {
                 <div className="flex items-center gap-2">
                   <XCircle className="h-5 w-5 text-red-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Error Rows</p>
+                    <p className="text-sm text-zinc-600">Error Rows</p>
                     <p className="text-2xl font-bold text-red-600">{validationResult.errorRows}</p>
                   </div>
                 </div>
@@ -295,7 +295,7 @@ export default function BulkImportClient() {
                       <span className="text-sm font-medium">{error.field}:</span>
                       <span className="text-sm">{error.message}</span>
                       {error.value && (
-                        <span className="text-sm text-gray-500">({error.value})</span>
+                        <span className="text-sm text-zinc-500">({error.value})</span>
                       )}
                     </div>
                   ))}
@@ -340,7 +340,7 @@ export default function BulkImportClient() {
                     </tbody>
                   </table>
                   {validationResult.credentialPreviews.length > 10 && (
-                    <p className="text-sm text-gray-500 mt-2">
+                    <p className="text-sm text-zinc-500 mt-2">
                       ... and {validationResult.credentialPreviews.length - 10} more candidates
                     </p>
                   )}
@@ -383,11 +383,11 @@ export default function BulkImportClient() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Successfully Created</p>
+                    <p className="text-sm text-zinc-600">Successfully Created</p>
                     <p className="text-2xl font-bold text-green-600">{importResult.successCount}</p>
                   </div>
                   <div className="p-4 bg-red-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Failed</p>
+                    <p className="text-sm text-zinc-600">Failed</p>
                     <p className="text-2xl font-bold text-red-600">{importResult.errorCount}</p>
                   </div>
                 </div>

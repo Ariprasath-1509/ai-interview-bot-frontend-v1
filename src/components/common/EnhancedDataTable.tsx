@@ -314,8 +314,8 @@ export function EnhancedDataTable<TData extends object>({
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {table.getFilteredRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={Math.max(1, visibleLeafCount)} className="px-4 py-10 text-center text-zinc-500">
-                  {emptyMessage}
+                <td colSpan={Math.max(1, visibleLeafCount)} className="p-0">
+                  <div className="empty-state m-2 text-sm text-zinc-500">{emptyMessage}</div>
                 </td>
               </tr>
             ) : (

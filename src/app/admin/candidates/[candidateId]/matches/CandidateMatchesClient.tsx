@@ -130,7 +130,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
       CONSIDER: 'bg-yellow-100 text-yellow-800 border-yellow-300',
       NOT_SUITABLE: 'bg-red-100 text-red-800 border-red-300'
     };
-    return colors[recommendation as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+    return colors[recommendation as keyof typeof colors] || 'bg-zinc-100 text-zinc-800';
   };
 
   const getRatingBadge = (rating: string) => {
@@ -139,7 +139,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
       MEDIUM: 'bg-yellow-100 text-yellow-800',
       LIABILITY: 'bg-red-100 text-red-800'
     };
-    return colors[rating as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+    return colors[rating as keyof typeof colors] || 'bg-zinc-100 text-zinc-800';
   };
 
   const filteredAndSortedMatches = matchingResult?.matches
@@ -180,9 +180,9 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
     return (
       <div className="container mx-auto p-6">
         <div className="text-center py-12">
-          <AlertCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Matching Data Available</h3>
-          <p className="text-gray-600 mb-4">Unable to load candidate matching information.</p>
+          <AlertCircle className="h-16 w-16 mx-auto mb-4 text-zinc-300" />
+          <h3 className="text-lg font-semibold text-zinc-900 mb-2">No Matching Data Available</h3>
+          <p className="text-zinc-600 mb-4">Unable to load candidate matching information.</p>
           <Button onClick={() => router.back()} variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Go Back
@@ -211,7 +211,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
               <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Client Matches
               </h1>
-              <p className="text-gray-600 dark:text-gray-300 mt-1">
+              <p className="text-zinc-600 dark:text-zinc-300 mt-1">
                 AI-powered client matching for <span className="font-semibold text-blue-600">{matchingResult.candidateName}</span>
               </p>
             </div>
@@ -239,8 +239,8 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                   <Users className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{matchingResult.candidateName}</h2>
-                  <p className="text-gray-600 dark:text-gray-300 text-lg">{matchingResult.candidateEmail}</p>
+                  <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">{matchingResult.candidateName}</h2>
+                  <p className="text-zinc-600 dark:text-zinc-300 text-lg">{matchingResult.candidateEmail}</p>
                   <div className="flex items-center gap-3 mt-3">
                     <Badge className={`${getRatingBadge(matchingResult.rating)} px-3 py-1 text-sm font-semibold`}>
                       {matchingResult.rating}
@@ -248,7 +248,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                     <Badge variant="outline" className="px-3 py-1 text-sm font-semibold border-blue-200 text-blue-700">
                       {matchingResult.skillSet}
                     </Badge>
-                    <span className="text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+                    <span className="text-sm text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-700 px-3 py-1 rounded-full">
                       {matchingResult.yoeActual} years exp • {matchingResult.systemInterviewCount} interviews
                     </span>
                   </div>
@@ -260,13 +260,13 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                     <div className="text-3xl font-bold text-blue-600">
                       {matchingResult.matchingClientsCount}
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">Matching Clients</p>
+                    <p className="text-sm text-zinc-500 font-medium">Matching Clients</p>
                   </div>
                   <div>
                     <div className="text-3xl font-bold text-purple-600">
                       {Math.round(matchingResult.averageMatchScore * 100)}%
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">Avg Match Score</p>
+                    <p className="text-sm text-zinc-500 font-medium">Avg Match Score</p>
                   </div>
                 </div>
               </div>
@@ -275,9 +275,9 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
         </Card>
 
         {/* Search and Filters */}
-        <Card className="shadow-lg border-0 bg-gradient-to-r from-white to-gray-50 dark:from-slate-800 dark:to-slate-700">
+        <Card className="card border-0 shadow-sm bg-gradient-to-r from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-800">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <CardTitle className="text-lg font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
               🔍 Search & Filter Matches
             </CardTitle>
           </CardHeader>
@@ -288,10 +288,10 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                 placeholder="🔍 Search by client name, role, description, or AI analysis..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full h-12 text-base border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white dark:bg-slate-800"
+                className="w-full h-12 text-base border-zinc-200 focus:border-blue-500 focus:ring-blue-500 bg-white dark:bg-slate-800"
               />
               {searchTerm && (
-                <p className="text-sm text-gray-500 mt-2">
+                <p className="text-sm text-zinc-500 mt-2">
                   Searching in: client names, job roles, descriptions, and AI analysis
                 </p>
               )}
@@ -300,37 +300,37 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
             {/* Filter Controls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  📊 Sort Results
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Sort results
                 </label>
                 <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                  <SelectTrigger className="w-full h-11 border-gray-200 bg-white dark:bg-slate-800">
+                  <SelectTrigger className="w-full h-11 border-zinc-200 bg-white dark:bg-slate-800">
                     <SelectValue placeholder="Select sort option">
-                      {sortBy === 'score' && '📊 Match Score (High to Low)'}
-                      {sortBy === 'name' && '🏢 Client Name (A to Z)'}
-                      {sortBy === 'date' && '📅 Last Updated (Recent First)'}
+                      {sortBy === 'score' && 'Match score (high to low)'}
+                      {sortBy === 'name' && 'Client name (A to Z)'}
+                      {sortBy === 'date' && 'Last updated (recent first)'}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="score">📊 Match Score (High to Low)</SelectItem>
-                    <SelectItem value="name">🏢 Client Name (A to Z)</SelectItem>
-                    <SelectItem value="date">📅 Last Updated (Recent First)</SelectItem>
+                    <SelectItem value="score">Match score (high to low)</SelectItem>
+                    <SelectItem value="name">Client name (A to Z)</SelectItem>
+                    <SelectItem value="date">Last updated (recent first)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                   🎯 Filter by Recommendation
                 </label>
                 <Select value={filterBy} onValueChange={(value: any) => setFilterBy(value)}>
-                  <SelectTrigger className="w-full h-11 border-gray-200 bg-white dark:bg-slate-800">
+                  <SelectTrigger className="w-full h-11 border-zinc-200 bg-white dark:bg-slate-800">
                     <SelectValue placeholder="Select filter option">
                       {filterBy === 'all' && '🎯 All Recommendations'}
                       {filterBy === 'highly_recommended' && '⭐ Highly Recommended'}
                       {filterBy === 'recommended' && '👍 Recommended'}
                       {filterBy === 'consider' && '🤔 Consider'}
-                      {filterBy === 'not_suitable' && '❌ Not Suitable'}
+                      {filterBy === 'not_suitable' && 'Not suitable'}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -338,17 +338,17 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                     <SelectItem value="highly_recommended">⭐ Highly Recommended</SelectItem>
                     <SelectItem value="recommended">👍 Recommended</SelectItem>
                     <SelectItem value="consider">🤔 Consider</SelectItem>
-                    <SelectItem value="not_suitable">❌ Not Suitable</SelectItem>
+                    <SelectItem value="not_suitable">Not suitable</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             
             {/* Results Summary */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-zinc-200 dark:border-zinc-600">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-full font-medium">
-                  📊 <span className="font-semibold text-blue-700 dark:text-blue-300">{matchingResult.totalClientsAnalyzed}</span> total clients
+                  <span className="font-semibold text-blue-700 dark:text-blue-300">{matchingResult.totalClientsAnalyzed}</span> total clients analyzed
                 </span>
                 <span className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full font-medium">
                   🎯 <span className="font-semibold text-green-700 dark:text-green-300">{filteredAndSortedMatches.length}</span> matches shown
@@ -366,7 +366,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                   onClick={() => { setSearchTerm(''); setFilterBy('all'); }}
                   variant="outline"
                   size="sm"
-                  className="border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700"
                 >
                   🔄 Clear All Filters
                 </Button>
@@ -379,11 +379,11 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
         {filteredAndSortedMatches.length === 0 ? (
           <Card className="shadow-lg border-0">
             <CardContent className="text-center py-16">
-              <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Building2 className="h-12 w-12 text-gray-400" />
+              <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-700">
+                <Building2 className="h-12 w-12 text-zinc-400" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">No Matching Clients Found</h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md mx-auto">
+              <h3 className="text-xl font-semibold text-zinc-900 dark:text-white mb-3">No Matching Clients Found</h3>
+              <p className="text-zinc-600 dark:text-zinc-300 mb-6 max-w-md mx-auto">
                 {searchTerm || filterBy !== 'all' 
                   ? 'Try adjusting your search or filter criteria to find more matches.' 
                   : 'This candidate doesn\'t match any active client requirements at the moment.'}
@@ -411,7 +411,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                   <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-3 mb-4">
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">{match.clientName}</h3>
+                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{match.clientName}</h3>
                         <Badge className={`${getRecommendationBadge(match.recommendation)} px-3 py-1 text-sm font-bold border-2`}>
                           {match.recommendation === 'HIGHLY_RECOMMENDED' ? '⭐ HIGHLY RECOMMENDED' :
                            match.recommendation === 'RECOMMENDED' ? '👍 RECOMMENDED' :
@@ -419,13 +419,13 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                            match.recommendation}
                         </Badge>
                         <Badge variant="outline" className={`px-3 py-1 text-sm font-semibold ${
-                          match.clientStatus === 'ACTIVE' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700'
+                          match.clientStatus === 'ACTIVE' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-zinc-50 text-zinc-700'
                         }`}>
-                          {match.clientStatus === 'ACTIVE' ? '✅ ACTIVE' : match.clientStatus}
+                          {match.clientStatus === 'ACTIVE' ? 'Active' : match.clientStatus}
                         </Badge>
                       </div>
                       <h4 className="text-lg font-semibold text-blue-600 mb-3">{match.jdRole}</h4>
-                      <p className="text-gray-700 dark:text-gray-300 mb-4 leading-relaxed line-clamp-3">
+                      <p className="text-zinc-700 dark:text-zinc-300 mb-4 leading-relaxed line-clamp-3">
                         {match.jdDescription}
                       </p>
                     </div>
@@ -435,7 +435,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                       }`}>
                         {Math.round(match.matchScore * 100)}%
                       </div>
-                      <p className="text-sm text-gray-500 font-medium mt-2">Match Score</p>
+                      <p className="text-sm text-zinc-500 font-medium mt-2">Match Score</p>
                     </div>
                   </div>
 
@@ -468,7 +468,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                       <ul className="space-y-2">
                         {match.concerns.slice(0, 3).map((concern, idx) => (
                           <li key={idx} className="text-orange-700 dark:text-orange-300 flex items-start gap-2 text-sm">
-                            <span className="text-orange-500 mt-1 font-bold">⚠</span>
+                            <span className="mt-1 text-xs font-semibold uppercase text-amber-600 dark:text-amber-400">Note</span>
                             <span>{concern}</span>
                           </li>
                         ))}
@@ -489,7 +489,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                   </div>
 
                   <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-600 dark:text-zinc-300">
                       <span className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-full">
                         <Briefcase className="h-4 w-4" />
                         <span className="font-semibold">{match.benchB2bCandidatesNeeded}</span> BENCH/B2B needed
@@ -498,7 +498,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                         <Users className="h-4 w-4" />
                         <span className="font-semibold">{match.marketCandidatesNeeded}</span> MARKET needed
                       </span>
-                      <span className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+                      <span className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-700 px-3 py-1 rounded-full">
                         <Clock className="h-4 w-4" />
                         {new Date(match.lastComputedAt).toLocaleDateString()}
                       </span>
@@ -511,7 +511,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                         onClick={() => router.push(`/admin/clients/${match.clientId}`)}
                         className="border-blue-200 text-blue-600 hover:bg-blue-50"
                       >
-                        👁️ View Client
+                        View client
                       </Button>
                       <Button 
                         onClick={() => createInterviewWithAutoFill(match)}

@@ -109,7 +109,7 @@ export default function TestFlowPage() {
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Resume Upload & Auto-fill Test Flow</h1>
-        <p className="text-gray-600">Test the complete user journey from resume upload to interview creation</p>
+        <p className="text-zinc-600">Test the complete user journey from resume upload to interview creation</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -131,18 +131,18 @@ export default function TestFlowPage() {
                         ? 'bg-green-100 text-green-800 border-2 border-green-300'
                         : index === currentStep
                         ? 'bg-blue-100 text-blue-800 border-2 border-blue-300'
-                        : 'bg-gray-100 text-gray-500 border-2 border-gray-200'
+                        : 'bg-zinc-100 text-zinc-500 border-2 border-zinc-200'
                     }`}>
                       {step.completed ? '✓' : index + 1}
                     </div>
                     
                     <div className="flex-1">
                       <h3 className={`font-medium ${
-                        step.completed ? 'text-green-800' : index === currentStep ? 'text-blue-800' : 'text-gray-600'
+                        step.completed ? 'text-green-800' : index === currentStep ? 'text-blue-800' : 'text-zinc-600'
                       }`}>
                         {step.title}
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1">{step.description}</p>
+                      <p className="text-sm text-zinc-500 mt-1">{step.description}</p>
                       
                       {step.action && !step.completed && index <= currentStep && (
                         <Button
@@ -202,7 +202,7 @@ export default function TestFlowPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="mb-4 p-3 bg-gray-100 rounded text-sm">
+                <div className="mb-4 p-3 bg-zinc-100 rounded text-sm">
                   <strong>Debug Info:</strong><br/>
                   Candidate ID: {testData.candidateId}<br/>
                   Resume Uploaded: {testData.resumeUploaded ? 'Yes' : 'No'}<br/>
@@ -258,7 +258,7 @@ export default function TestFlowPage() {
                     className={`w-full p-2 border rounded-md ${
                       testData.autoFillApplied && testData.formData.engineerEmail
                         ? 'border-blue-300 bg-blue-50/50'
-                        : 'border-gray-300'
+                        : 'border-zinc-300'
                     }`}
                     placeholder="candidate@example.com"
                   />
@@ -273,7 +273,7 @@ export default function TestFlowPage() {
                     className={`w-full p-2 border rounded-md ${
                       testData.autoFillApplied && testData.formData.engineerName
                         ? 'border-blue-300 bg-blue-50/50'
-                        : 'border-gray-300'
+                        : 'border-zinc-300'
                     }`}
                     placeholder="John Doe"
                   />
@@ -288,7 +288,7 @@ export default function TestFlowPage() {
                     className={`w-full p-2 border rounded-md ${
                       testData.autoFillApplied && testData.formData.jdTitle
                         ? 'border-blue-300 bg-blue-50/50'
-                        : 'border-gray-300'
+                        : 'border-zinc-300'
                     }`}
                     placeholder="Senior Java Developer"
                   />
@@ -302,7 +302,7 @@ export default function TestFlowPage() {
                     className={`w-full p-2 border rounded-md h-24 ${
                       testData.summaryGenerated
                         ? 'border-blue-300 bg-blue-50/50'
-                        : 'border-gray-300'
+                        : 'border-zinc-300'
                     }`}
                     placeholder="AI-generated resume summary will appear here..."
                   />

@@ -1,5 +1,6 @@
 // Layout Components
 export { SidebarLayout } from "./SidebarLayout";
+export { EmptyState, PageSection, StandalonePage } from "./PagePrimitives";
 
 // UI Components
 export { ToastProvider, useToast } from "./Toast";

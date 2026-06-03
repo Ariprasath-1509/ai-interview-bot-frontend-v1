@@ -24,7 +24,7 @@ export default async function CandidateMatchesPage() {
       case "CONSIDER":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300";
+        return "bg-zinc-100 text-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300";
     }
   };
 

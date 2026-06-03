@@ -99,7 +99,7 @@ export default function RegisterPage() {
 
       <main className="z-10 w-full max-w-lg space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-black dark:text-zinc-50 sm:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
             Candidate Registration
           </h1>
           <p className="mt-2 text-sm text-zinc-500">Fill in your profile to get started with interviews.</p>

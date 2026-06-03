@@ -6,6 +6,13 @@ import { apiServer } from "@/lib/apiClient";
 import { TranscriptView } from "./TranscriptView";
 import { RerunAssessmentButton } from "./RerunAssessmentButton";
 import { AppShell } from "@/app/components/AppShell";
+import { AssessmentBanners } from "@/app/interview/AssessmentBanners";
+import {
+  buildAssessmentBanners,
+  mergeAssessmentScores,
+  parseAiAssessment,
+  type ScoreRow,
+} from "@/app/interview/assessmentUtils";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,7 +23,7 @@ const SignOffSchema = z.object({
   note: z.string().min(1),
 });
 
-type Score = { id: string; dimension: string; value: number; rationale?: string; gap?: string; evidence?: string; confidence?: "high" | "medium" | "low" };
+type Score = ScoreRow & { id: string };
 type Interview = {
   id: string;
   status: string;
@@ -34,20 +41,18 @@ function parseTranscript(transcriptJson: string | null): { speaker: string; text
   } catch { return []; }
 }
 
-function parseAiAssessment(transcriptJson: string | null) {
-  if (!transcriptJson) return null;
+function parseCodeSubmissions(transcriptJson: string | null): Record<string, unknown>[] {
+  if (!transcriptJson) return [];
   try {
-    const doc = JSON.parse(transcriptJson) as { meta?: { aiAssessment?: any } };
-    return doc.meta?.aiAssessment ?? null;
-  } catch { return null; }
-}
-
-function parseCodeSubmission(transcriptJson: string | null) {
-  if (!transcriptJson) return null;
-  try {
-    const doc = JSON.parse(transcriptJson) as { meta?: { codeSubmission?: any } };
-    return doc.meta?.codeSubmission ?? null;
-  } catch { return null; }
+    const doc = JSON.parse(transcriptJson) as { meta?: { codeSubmissions?: unknown; codeSubmission?: unknown } };
+    if (Array.isArray(doc.meta?.codeSubmissions)) {
+      return doc.meta.codeSubmissions as Record<string, unknown>[];
+    }
+    if (doc.meta?.codeSubmission) {
+      return [doc.meta.codeSubmission as Record<string, unknown>];
+    }
+    return [];
+  } catch { return []; }
 }
 
 type SignOff = { signedOff: boolean; finalVerdict?: string; note?: string; signedOffAt?: string };
@@ -84,11 +89,12 @@ export default async function InterviewReviewPage({
 
   const session = await getSession();
 
-  const [interviewRes, scoresRes, summaryRes, signOffRes] = await Promise.all([
+  const [interviewRes, scoresRes, summaryRes, signOffRes, slotQuestionsRes] = await Promise.all([
     apiServer(`/interviews/${id}`, session?.token),
     apiServer(`/scores/${id}`, session?.token),
     apiServer(`/interviews/summary`, session?.token),
     apiServer(`/reviews/${id}`, session?.token),
+    apiServer(`/interviews/${id}/questions`, session?.token),
   ]);
 
   if (!interviewRes.ok) return <div className="mx-auto max-w-4xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
@@ -104,13 +110,34 @@ export default async function InterviewReviewPage({
   const ai = parseAiAssessment(interview.transcriptJson);
   const utterances = parseTranscript(interview.transcriptJson);
   const speech = ai?.speechAnalytics ?? null;
-  const codeSubmission = parseCodeSubmission(interview.transcriptJson);
+  const codeSubmissions = parseCodeSubmissions(interview.transcriptJson);
+  const assessFailed = Boolean((ai as { assessFailed?: boolean } | null)?.assessFailed);
+  type SlotQuestion = {
+    slotNumber: number;
+    questionText: string;
+    candidateAnswer?: string | null;
+    questionType?: string | null;
+    source?: string | null;
+  };
+  let slotQuestions: SlotQuestion[] = [];
+  try {
+    if (slotQuestionsRes?.ok) {
+      slotQuestions = (await slotQuestionsRes.json()) as SlotQuestion[];
+    }
+  } catch { /* ignore */ }
 
-  // Fallback to reading from transcriptJson if API didn't provide it
-  // and we don't have scores yet
-  if (scores.length === 0 && ai?.categoryScores) {
-    scores = ai.categoryScores.map((s: Omit<Score, "id">, i: number) => ({ ...s, id: `ai-${i}` }));
-  }
+  scores = mergeAssessmentScores(scores, ai).map((s, i) => ({
+    ...s,
+    id: s.id ?? `merged-${i}`,
+  })) as Score[];
+
+  const banners = buildAssessmentBanners({
+    ai,
+    transcriptJson: interview.transcriptJson,
+    recordingPath: interview.recordingPath,
+    hasCodeSubmissions: codeSubmissions.length > 0,
+    assessFailed,
+  });
 
   return (
     <AppShell title="Review interview" subtitle={summary?.candidateName ?? "Unknown candidate"}>
@@ -152,6 +179,10 @@ export default async function InterviewReviewPage({
             ← Back to Reviews
           </Link>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <AssessmentBanners banners={banners} />
       </div>
 
       {ai?.summary ? (
@@ -208,42 +239,47 @@ export default async function InterviewReviewPage({
         </div>
       )}
 
-      {codeSubmission?.code && (
-        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+      {codeSubmissions.length > 0 && codeSubmissions.map((codeSubmission, idx) => (
+        codeSubmission?.code ? (
+        <div key={idx} className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 font-medium">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">💻</span>
-              Code Submission
-              <span className="text-xs font-normal text-zinc-400 ml-1">{codeSubmission.language}</span>
+              Code Submission{codeSubmission.slot != null ? ` — Slot ${String(codeSubmission.slot)}` : ""}
+              <span className="text-xs font-normal text-zinc-400 ml-1">{String(codeSubmission.language ?? "")}</span>
             </div>
-            {codeSubmission.aiReview && (
+            {(codeSubmission.aiReview as Record<string, unknown> | undefined) && (
               <div className="flex items-center gap-3 text-xs">
                 <span className={`font-semibold ${
-                  codeSubmission.aiReview.correctness === "correct" ? "text-emerald-600 dark:text-emerald-400"
-                  : codeSubmission.aiReview.correctness === "partial" ? "text-amber-600 dark:text-amber-400"
+                  (codeSubmission.aiReview as { correctness?: string }).correctness === "correct" ? "text-emerald-600 dark:text-emerald-400"
+                  : (codeSubmission.aiReview as { correctness?: string }).correctness === "partial" ? "text-amber-600 dark:text-amber-400"
                   : "text-red-600 dark:text-red-400"
-                }`}>{codeSubmission.aiReview.correctness}</span>
+                }`}>{String((codeSubmission.aiReview as { correctness?: string }).correctness ?? "")}</span>
                 <span className="text-zinc-400">·</span>
-                <span className="font-mono text-zinc-600 dark:text-zinc-400">{codeSubmission.aiReview.timeComplexity}</span>
+                <span className="font-mono text-zinc-600 dark:text-zinc-400">{String((codeSubmission.aiReview as { timeComplexity?: string }).timeComplexity ?? "")}</span>
                 <span className="text-zinc-400">·</span>
                 <span className={`font-bold ${
-                  codeSubmission.aiReview.score >= 4 ? "text-emerald-600 dark:text-emerald-400"
-                  : codeSubmission.aiReview.score >= 3 ? "text-amber-600 dark:text-amber-400"
+                  Number((codeSubmission.aiReview as { score?: number }).score) >= 4 ? "text-emerald-600 dark:text-emerald-400"
+                  : Number((codeSubmission.aiReview as { score?: number }).score) >= 3 ? "text-amber-600 dark:text-amber-400"
                   : "text-red-600 dark:text-red-400"
-                }`}>{codeSubmission.aiReview.score}/5</span>
+                }`}>{String((codeSubmission.aiReview as { score?: number }).score ?? 0)}/5</span>
               </div>
             )}
           </div>
 
-          {/* Code block */}
+          {typeof codeSubmission.question === "string" && codeSubmission.question && (
+            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+              <span className="font-medium">Question:</span> {codeSubmission.question}
+            </p>
+          )}
+
           <pre className="max-h-64 overflow-auto rounded-lg bg-zinc-950 p-4 text-xs font-mono text-zinc-100 leading-relaxed">
-            {codeSubmission.code}
+            {String(codeSubmission.code)}
           </pre>
 
-          {/* Test results */}
-          {codeSubmission.results?.length > 0 && (
+          {Array.isArray(codeSubmission.results) && codeSubmission.results.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {codeSubmission.results.map((r: any, i: number) => (
+              {(codeSubmission.results as { passed?: boolean; name?: string }[]).map((r, i) => (
                 <span key={i} className={`text-xs px-2 py-1 rounded-full font-medium ${
                   r.passed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                   : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
@@ -254,38 +290,38 @@ export default async function InterviewReviewPage({
             </div>
           )}
 
-          {/* AI review summary */}
-          {codeSubmission.aiReview?.overallFeedback && (
+          {(codeSubmission.aiReview as { overallFeedback?: string } | undefined)?.overallFeedback && (
             <div className="mt-3 rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900 p-3 text-sm text-violet-900 dark:text-violet-200">
-              {codeSubmission.aiReview.overallFeedback}
+              {(codeSubmission.aiReview as { overallFeedback?: string }).overallFeedback}
             </div>
           )}
 
-          {codeSubmission.aiReview?.bugs?.length > 0 && (
+          {Array.isArray((codeSubmission.aiReview as { bugs?: string[] } | undefined)?.bugs) && (
             <div className="mt-3">
               <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">🐛 Bugs</div>
-              <ul className="space-y-0.5">{codeSubmission.aiReview.bugs.map((b: string, i: number) => (
+              <ul className="space-y-0.5">{((codeSubmission.aiReview as { bugs: string[] }).bugs).map((b, i) => (
                 <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">• {b}</li>
               ))}</ul>
             </div>
           )}
 
-          {codeSubmission.aiReview?.improvements?.length > 0 && (
+          {Array.isArray((codeSubmission.aiReview as { improvements?: string[] } | undefined)?.improvements) && (
             <div className="mt-3">
               <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">💡 Improvements</div>
-              <ul className="space-y-0.5">{codeSubmission.aiReview.improvements.map((imp: string, i: number) => (
+              <ul className="space-y-0.5">{((codeSubmission.aiReview as { improvements: string[] }).improvements).map((imp, i) => (
                 <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">• {imp}</li>
               ))}</ul>
             </div>
           )}
 
-          {codeSubmission.complexity && (
+          {typeof codeSubmission.complexity === "string" && codeSubmission.complexity && (
             <div className="mt-3 text-xs text-zinc-500">
               <span className="font-medium">Candidate stated complexity:</span> {codeSubmission.complexity}
             </div>
           )}
         </div>
-      )}
+        ) : null
+      ))}
 
       {interview.recordingPath && (
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -301,6 +337,35 @@ export default async function InterviewReviewPage({
             Your browser does not support audio playback.
           </audio>
           <p className="mt-2 text-xs text-zinc-400">Audio recorded during the interview session.</p>
+        </div>
+      )}
+
+      {slotQuestions.length > 0 && (
+        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center gap-2 font-medium mb-4">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">📋</span>
+            Question slots (persisted)
+          </div>
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {slotQuestions.map((q) => (
+              <div key={q.slotNumber} className="rounded-lg border border-zinc-100 p-3 text-sm dark:border-zinc-800">
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">Slot {q.slotNumber}</span>
+                  {q.questionType && <span>· {q.questionType}</span>}
+                  {q.source && <span>· {q.source}</span>}
+                </div>
+                <p className="mt-1 font-medium text-zinc-800 dark:text-zinc-200">{q.questionText}</p>
+                {q.candidateAnswer ? (
+                  <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+                    <span className="font-medium">Answer:</span> {q.candidateAnswer.substring(0, 500)}
+                    {q.candidateAnswer.length > 500 ? "…" : ""}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-zinc-400">No answer recorded for this slot.</p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -376,7 +441,7 @@ export default async function InterviewReviewPage({
                 </div>
                 {ai.resumeConsistency.flags?.length > 0 && (
                   <div className="mt-3 rounded-lg bg-amber-50 p-3 text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
-                    <div className="font-medium text-xs mb-1">⚠ Flags:</div>
+                    <div className="mb-1 text-xs font-medium">Flags</div>
                     <ul className="list-disc list-inside text-xs space-y-1">
                       {ai.resumeConsistency.flags.map((flag: string, i: number) => (
                         <li key={i}>{flag}</li>
@@ -434,7 +499,7 @@ export default async function InterviewReviewPage({
                   <span className="ml-2 text-zinc-600 dark:text-zinc-400">{(ai.interviewQuality.categoriesCovered || ai.interviewQuality.covered)?.join(", ") || "None"}</span>
                 </div>
                 <div>
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ Missed:</span>
+                  <span className="font-medium text-amber-600 dark:text-amber-400">Missed</span>
                   <span className="ml-2 text-zinc-600 dark:text-zinc-400">{(ai.interviewQuality.categoriesMissed || ai.interviewQuality.missed)?.join(", ") || "None"}</span>
                 </div>
                 {ai.interviewQuality.note && (
@@ -505,7 +570,7 @@ export default async function InterviewReviewPage({
 
       <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex items-center gap-2 font-medium">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">✅</span>
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">OK</span>
           Sign-off
         </div>
 

@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { VoiceInterviewClient } from "./VoiceInterviewClient";
 import { CodeWorkspace } from "./CodeWorkspace";
-import type { CodeSubmission } from "./CodeWorkspace";
+import type { CodeSubmissionRecord, QuestionMeta } from "./codingTypes";
+import { isCodingKeywords } from "./codingTypes";
 import { Loader2 } from "lucide-react";
+
 type VoiceValidationSnapshot = {
   status: "PENDING_ENROLLMENT" | "VERIFIED" | "RISK" | "FAILED" | "NOT_VERIFIED";
   enrolled: boolean;
@@ -19,19 +21,29 @@ type VoiceValidationSnapshot = {
   note: string;
 };
 
-function SubmitButton({ disabled }: { disabled?: boolean }) {
+function SubmitButton({
+  disabled,
+  waitingRecording,
+  onMarkComplete,
+}: {
+  disabled?: boolean;
+  waitingRecording?: boolean;
+  onMarkComplete: () => void;
+}) {
   const { pending } = useFormStatus();
+  const busy = pending || waitingRecording;
 
   return (
     <button
-      className="inline-flex w-fit items-center gap-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-60 disabled:cursor-not-allowed"
-      type="submit"
-      disabled={pending || disabled}
+      className="btn-primary inline-flex w-fit items-center gap-2 px-6 py-2.5 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+      type="button"
+      disabled={busy || disabled}
+      onClick={onMarkComplete}
     >
-      {pending ? (
+      {busy ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
-          Assessing interview...
+          {waitingRecording ? "Saving session recording…" : "Running AI assessment…"}
         </>
       ) : (
         <>
@@ -66,11 +78,58 @@ export function VoiceInterviewForm({
   const [transcriptJson, setTranscriptJson] = useState("");
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot | null>(null);
   const [timeExpired, setTimeExpired] = useState(false);
-  const [codeSubmission, setCodeSubmission] = useState<CodeSubmission | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<string>("");
+  const [questionMeta, setQuestionMeta] = useState<QuestionMeta>({
+    question: "",
+    slot: 0,
+    isCoding: false,
+    preferredLanguage: "python",
+  });
+  const [codeSubmissions, setCodeSubmissions] = useState<CodeSubmissionRecord[]>([]);
+  const latestSubmissionRef = useRef<CodeSubmissionRecord | null>(null);
+  const [recordingState, setRecordingState] = useState({ recording: false, uploaded: false, uploading: false });
+  const [waitingRecording, setWaitingRecording] = useState(false);
+  const [mediaHealth, setMediaHealth] = useState<{
+    mediaReady?: boolean;
+    whisperReachable?: boolean;
+    coquiReachable?: boolean;
+  } | null>(null);
 
-  // Ref that VoiceInterviewClient populates so CodeWorkspace can submit answers into the voice flow
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/ai/media-health", { cache: "no-store" }).catch(() => null);
+      if (!res?.ok || cancelled) return;
+      const data = (await res.json()) as {
+        mediaReady?: boolean;
+        whisperReachable?: boolean;
+        coquiReachable?: boolean;
+      };
+      if (!cancelled) setMediaHealth(data);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const ensureRecordingRef = useRef<(() => Promise<void>) | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
   const submitAnswerRef = useRef<((answer: string) => void) | null>(null);
+
+  const hardBlockSubmit = voiceValidation?.status === "FAILED" && !timeExpired;
+
+  const isCodingSlotActive = questionMeta.isCoding || isCodingKeywords(questionMeta.question);
+  const codingSlotSatisfied =
+    !isCodingSlotActive ||
+    codeSubmissions.some((s) => s.slot === questionMeta.slot && !!s.submittedAt);
+
+  const handleMarkComplete = useCallback(async () => {
+    if (hardBlockSubmit) return;
+    setWaitingRecording(true);
+    try {
+      await ensureRecordingRef.current?.();
+    } finally {
+      setWaitingRecording(false);
+    }
+    formRef.current?.requestSubmit();
+  }, [hardBlockSubmit]);
 
   const onTranscriptChange = useCallback((json: string) => {
     setTranscriptJson(json);
@@ -80,10 +139,37 @@ export function VoiceInterviewForm({
     setVoiceValidation(snapshot);
   }, []);
 
-  const hardBlockSubmit = voiceValidation?.status === "FAILED" && !timeExpired;
+  const onQuestionMetaChange = useCallback((meta: QuestionMeta) => {
+    setQuestionMeta(meta);
+  }, []);
+
+  const onSubmissionChange = useCallback((sub: CodeSubmissionRecord) => {
+    latestSubmissionRef.current = sub;
+    setCodeSubmissions((prev) => {
+      const withoutSlot = prev.filter((s) => s.slot !== sub.slot);
+      return [...withoutSlot, sub].sort((a, b) => a.slot - b.slot);
+    });
+  }, []);
+
+  const onSubmitAsAnswer = useCallback((answer: string) => {
+    if (latestSubmissionRef.current) {
+      const finalized: CodeSubmissionRecord = {
+        ...latestSubmissionRef.current,
+        submittedAt: new Date().toISOString(),
+      };
+      setCodeSubmissions((prev) => {
+        const withoutSlot = prev.filter((s) => s.slot !== finalized.slot);
+        return [...withoutSlot, finalized].sort((a, b) => a.slot - b.slot);
+      });
+    }
+    submitAnswerRef.current?.(answer);
+  }, []);
+
+  const recordingBlocksSubmit =
+    (recordingState.recording || recordingState.uploading) && !recordingState.uploaded;
 
   return (
-    <div className="flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="card flex flex-col gap-5 p-6">
       <div>
         <div className="flex items-center gap-2">
           <svg className="h-5 w-5 text-zinc-700 dark:text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -94,10 +180,18 @@ export function VoiceInterviewForm({
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
           AI-scored on <span className="font-medium text-zinc-700 dark:text-zinc-300">Technical Knowledge</span> and{" "}
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Communication</span> vs the JD.
-          Requires <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-800">CLAUDE_API_KEY</code>;
-          otherwise a heuristic placeholder runs.
+          Coding questions open an editor automatically — use <strong>Run &amp; Submit</strong> to execute, review, and advance.
         </p>
       </div>
+
+      {mediaHealth && mediaHealth.mediaReady === false && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <span className="font-semibold">Voice services warming up.</span>{" "}
+          Whisper STT {!mediaHealth.whisperReachable ? "unavailable" : "ok"},{" "}
+          Coqui TTS {!mediaHealth.coquiReachable ? "unavailable" : "ok"}.
+          You can still type answers; voice playback and transcription may fail until services are ready.
+        </div>
+      )}
 
       <VoiceInterviewClient
         jdTitle={jdTitle}
@@ -110,24 +204,24 @@ export function VoiceInterviewForm({
         onVoiceValidationChange={onVoiceValidationChange}
         onTimeExpired={() => setTimeExpired(true)}
         onRegisterSubmitAnswer={(fn) => { submitAnswerRef.current = fn; }}
-        onQuestionChange={setCurrentQuestion}
+        onRegisterEnsureRecording={(fn) => { ensureRecordingRef.current = fn; }}
+        onSessionRecordingChange={setRecordingState}
+        isCodingSlotActive={isCodingSlotActive}
+        codingSlotSatisfied={codingSlotSatisfied}
+        onQuestionMetaChange={onQuestionMetaChange}
       />
 
-      {/* Coding Workspace — available for all rounds */}
-      <div className="mt-2">
-        <div className="flex items-center gap-2 mb-2">
-          <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
-          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Coding Workspace</h2>
-          <span className="text-xs text-zinc-400">(optional — use for any coding questions)</span>
+      {isCodingSlotActive && !codingSlotSatisfied && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+          <span className="font-semibold">Coding slot active.</span> Use <strong>Run &amp; Submit</strong> in the editor below before advancing with voice or typed answers.
         </div>
-        <CodeWorkspace
-          question={currentQuestion}
-          onSubmissionChange={setCodeSubmission}
-          onSubmitAsAnswer={(answer) => submitAnswerRef.current?.(answer)}
-        />
-      </div>
+      )}
+
+      <CodeWorkspace
+        questionMeta={questionMeta}
+        onSubmissionChange={onSubmissionChange}
+        onSubmitAsAnswer={onSubmitAsAnswer}
+      />
 
       {voiceValidation && (
         <div className={`rounded-lg border p-3 text-xs ${
@@ -143,11 +237,11 @@ export function VoiceInterviewForm({
         </div>
       )}
 
-      <form action={completeInterview} className="grid gap-4 border-t border-zinc-100 pt-5 dark:border-zinc-800">
+      <form ref={formRef} action={completeInterview} className="grid gap-4 border-t border-zinc-100 pt-5 dark:border-zinc-800">
         <input type="hidden" name="interviewId" value={interviewId} />
         <input type="hidden" name="transcriptJson" value={transcriptJson} />
         <input type="hidden" name="voiceValidationJson" value={voiceValidation ? JSON.stringify(voiceValidation) : ""} />
-        <input type="hidden" name="codeSubmissionJson" value={codeSubmission ? JSON.stringify(codeSubmission) : ""} />
+        <input type="hidden" name="codeSubmissionJson" value={codeSubmissions.length > 0 ? JSON.stringify(codeSubmissions) : ""} />
 
         <label className="grid gap-1.5 text-sm font-medium">
           Candidate notes
@@ -159,11 +253,20 @@ export function VoiceInterviewForm({
           />
         </label>
 
-        <SubmitButton disabled={hardBlockSubmit} />
+        <SubmitButton
+          disabled={hardBlockSubmit || recordingBlocksSubmit}
+          waitingRecording={waitingRecording}
+          onMarkComplete={handleMarkComplete}
+        />
 
         <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          This will trigger AI assessment which may take 30-60 seconds. Please wait.
+          Session recording uploads first, then AI assessment runs in the background (typically 30–90 seconds). Please keep this tab open.
         </p>
+        {recordingBlocksSubmit && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Session recording is still in progress — Mark complete will be available once upload finishes.
+          </p>
+        )}
       </form>
     </div>
   );

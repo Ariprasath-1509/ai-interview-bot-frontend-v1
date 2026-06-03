@@ -29,7 +29,17 @@ type Interview = {
 export default async function InterviewPage({ params }: { params: Promise<{ id: string }> }) {
   const p = await params;
   const id = z.string().min(1).safeParse(p?.id).data;
-  if (!id) return <div className="mx-auto max-w-3xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
+  if (!id) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 dark:bg-[#050505]">
+        <div className="card max-w-md p-8 text-center">
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Interview not found</h1>
+          <p className="mt-2 text-sm text-zinc-500">This link may be invalid or the interview was removed.</p>
+          <Link href="/candidate/dashboard" className="btn-primary mt-6 inline-flex">Back to dashboard</Link>
+        </div>
+      </div>
+    );
+  }
 
   const session = await getSession();
   const isCandidate = session?.role === "CANDIDATE";
@@ -38,7 +48,17 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
   if (!isCandidate && !isOwner && !isManager) redirect("/login");
 
   const interviewRes = await apiServer(`/interviews/${id}`, session?.token);
-  if (!interviewRes.ok) return <div className="mx-auto max-w-3xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
+  if (!interviewRes.ok) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 dark:bg-[#050505]">
+        <div className="card max-w-md p-8 text-center">
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Interview not found</h1>
+          <p className="mt-2 text-sm text-zinc-500">We could not load this interview. Check the link or contact your recruiter.</p>
+          <Link href="/candidate/dashboard" className="btn-primary mt-6 inline-flex">Back to dashboard</Link>
+        </div>
+      </div>
+    );
+  }
 
   const interview = (await interviewRes.json()) as Interview;
 
@@ -80,20 +100,23 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-black">
+      <div className="min-h-screen bg-zinc-50 dark:bg-[#050505]">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-xl font-semibold sm:text-2xl">Live interview</h1>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">JD: {jdTitle} • Status: {interview.status}</p>
+              <p className="section-label">Live session</p>
+              <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{jdTitle}</h1>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Mode: {interview.interviewMode} · {durationMinutes} min · Status: {interview.status.replace(/_/g, " ")}
+              </p>
             </div>
-            <div className="flex shrink-0 gap-3 text-sm">
+            <div className="flex shrink-0 flex-wrap gap-2">
               {isCandidate ? (
-                  <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/candidate/dashboard">Dashboard</Link>
+                  <Link className="btn-secondary" href="/candidate/dashboard">Dashboard</Link>
               ) : (
                   <>
-                    <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href={`/observer/interview/${interview.id}`}>Observer</Link>
-                    <Link className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" href="/dashboard">Dashboard</Link>
+                    <Link className="btn-secondary" href={`/observer/interview/${interview.id}`}>Observer view</Link>
+                    <Link className="btn-secondary" href="/admin">Admin home</Link>
                   </>
               )}
             </div>
@@ -131,13 +154,13 @@ async function completeInterview(formData: FormData) {
     codeSubmissionJson: formData.get("codeSubmissionJson"),
   });
 
-  // Parse code submission if present
-  let codeSubmission: Record<string, unknown> | null = null;
+  // Parse code submission(s) if present — array of per-slot submissions or legacy single object
+  let codeSubmissionPayload: unknown = null;
   try {
     if (parsed.codeSubmissionJson?.trim()) {
-      codeSubmission = JSON.parse(parsed.codeSubmissionJson) as Record<string, unknown>;
+      codeSubmissionPayload = JSON.parse(parsed.codeSubmissionJson);
     }
-  } catch { codeSubmission = null; }
+  } catch { codeSubmissionPayload = null; }
 
   const transcriptJson = parsed.transcriptJson?.trim() || JSON.stringify({
     meta: { generated: true },
@@ -174,52 +197,99 @@ async function completeInterview(formData: FormData) {
     }
   }
 
-  // Call ai-service for assessment (may take 60-120s)
-  const assessRes = await apiServer("/ai/assess", session.token, {
-    method: "POST",
-    body: JSON.stringify({
-      interviewId: parsed.interviewId,
-      jdTitle,
-      jdText,
-      resumeSummary,
-      transcriptJson,
-      rubricJson,
-      candidateProfileJson,
-      interviewMode: interview.interviewMode ?? "L3",
-      ...(codeSubmission ? { codeSubmission: JSON.stringify(codeSubmission) } : {}),
-    }),
-    timeoutMs: 120_000,
-  });
+  type AssessmentPayload = {
+    technicalKnowledge?: { score: number; rationale: string };
+    communication?: { score: number; rationale: string };
+    proposedVerdict?: string;
+    summary?: string;
+    strengths?: string[];
+    gaps?: string[];
+    source?: string;
+    categoryScores?: { dimension: string; value: number; rationale?: string; gap?: string; evidence?: string }[];
+  };
+
+  const assessBody = {
+    interviewId: parsed.interviewId,
+    jdTitle,
+    jdText,
+    resumeSummary,
+    transcriptJson,
+    rubricJson,
+    candidateProfileJson,
+    interviewMode: interview.interviewMode ?? "L3",
+    ...(codeSubmissionPayload ? { codeSubmissionJson: JSON.stringify(codeSubmissionPayload) } : {}),
+  };
 
   let proposedVerdict = "";
   let assessmentMeta: Record<string, unknown> = {};
+  let assessment: AssessmentPayload | null = null;
 
-  if (assessRes.ok) {
-    const assessment = (await assessRes.json()) as {
-      technicalKnowledge?: { score: number; rationale: string };
-      communication?: { score: number; rationale: string };
-      proposedVerdict: string;
-      summary: string;
-      strengths: string[];
-      gaps: string[];
-      source: string;
-      categoryScores?: { dimension: string; value: number; rationale?: string; gap?: string; evidence?: string }[];
-    };
+  const asyncStart = await apiServer("/ai/assess-async", session.token, {
+    method: "POST",
+    body: JSON.stringify(assessBody),
+    timeoutMs: 30_000,
+  });
 
-    proposedVerdict = assessment.proposedVerdict;
-    assessmentMeta = { ...assessment, scoredAt: new Date().toISOString() };
+  if (asyncStart.ok) {
+    for (let attempt = 0; attempt < 90; attempt++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const statusRes = await apiServer(`/ai/assess-status/${parsed.interviewId}`, session.token, {
+        timeoutMs: 15_000,
+      });
+      if (!statusRes.ok) continue;
+      const status = (await statusRes.json()) as {
+        status?: string;
+        result?: AssessmentPayload;
+        error?: string;
+      };
+      if (status.status === "COMPLETED" && status.result) {
+        assessment = status.result;
+        break;
+      }
+      if (status.status === "FAILED") {
+        assessmentMeta = {
+          assessFailed: true,
+          assessError: status.error ?? "failed",
+          scoredAt: new Date().toISOString(),
+          summary: "AI assessment failed. A reviewer can re-run assessment from the review page.",
+        };
+        break;
+      }
+    }
+  }
 
-    // Save scores to review-service
+  if (!assessment && !assessmentMeta.assessFailed) {
+    const assessRes = await apiServer("/ai/assess", session.token, {
+      method: "POST",
+      body: JSON.stringify(assessBody),
+      timeoutMs: 120_000,
+    });
+    if (assessRes.ok) {
+      assessment = (await assessRes.json()) as AssessmentPayload;
+    } else {
+      assessmentMeta = {
+        assessFailed: true,
+        assessError: assessRes.status,
+        scoredAt: new Date().toISOString(),
+        summary: "AI assessment did not complete. A reviewer can re-run assessment from the review page.",
+      };
+    }
+  }
+
+  if (assessment) {
+    proposedVerdict = assessment.proposedVerdict ?? "";
+    assessmentMeta = { ...assessment, scoredAt: new Date().toISOString(), assessMode: "async" };
+
     await apiServer("/scores", session.token, {
       method: "POST",
       body: JSON.stringify({
         interviewId: parsed.interviewId,
-        scores: assessment.categoryScores?.length ? assessment.categoryScores.map(s => ({
+        scores: assessment.categoryScores?.length ? assessment.categoryScores.map((s) => ({
           dimension: s.dimension,
           value: s.value,
           rationale: s.rationale,
           evidence: s.evidence,
-          gap: s.gap
+          gap: s.gap,
         })) : [
           { dimension: "TechnicalKnowledge", value: assessment.technicalKnowledge?.score ?? 1, rationale: assessment.technicalKnowledge?.rationale ?? "No rationale provided" },
           { dimension: "Communication", value: assessment.communication?.score ?? 1, rationale: assessment.communication?.rationale ?? "No rationale provided" },
@@ -245,7 +315,7 @@ async function completeInterview(formData: FormData) {
       ...(transcriptDoc.meta as object ?? {}),
       aiAssessment: assessmentMeta,
       ...(voiceValidationMeta ? { voiceValidation: voiceValidationMeta } : {}),
-      ...(codeSubmission ? { codeSubmission } : {}),
+      ...(codeSubmissionPayload ? { codeSubmissions: codeSubmissionPayload, codeSubmission: Array.isArray(codeSubmissionPayload) ? codeSubmissionPayload[codeSubmissionPayload.length - 1] : codeSubmissionPayload } : {}),
     },
   });
 

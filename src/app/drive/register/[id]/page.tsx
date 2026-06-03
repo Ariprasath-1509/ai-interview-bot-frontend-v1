@@ -89,8 +89,10 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#050505] p-4">
         <div className="max-w-md w-full bg-white dark:bg-zinc-950 p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">Drive Not Found</h2>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+            <span className="text-xl font-bold">!</span>
+          </div>
+          <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Drive not found</h2>
           <p className="text-zinc-600 dark:text-zinc-400">{error}</p>
         </div>
       </div>
@@ -101,8 +103,10 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#050505] p-4">
         <div className="max-w-md w-full bg-white dark:bg-zinc-950 p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-center">
-          <div className="text-6xl mb-4">🚫</div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">Registration Closed</h2>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            <span className="text-sm font-semibold">Closed</span>
+          </div>
+          <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Registration closed</h2>
           <p className="text-zinc-600 dark:text-zinc-400">
             This drive is currently {drive?.status.toLowerCase()}. Registration is only available for active drives.
           </p>
@@ -115,8 +119,10 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#050505] p-4">
         <div className="max-w-md w-full bg-white dark:bg-zinc-950 p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-center">
-          <div className="text-6xl mb-4">✅</div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">Registration Successful!</h2>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <span className="text-xl font-bold">✓</span>
+          </div>
+          <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Registration successful</h2>
           <p className="text-zinc-600 dark:text-zinc-400 mb-6">
             Thank you for registering for <strong>{drive.title}</strong>. 
             You will receive further instructions via email at <strong>{formData.candidateEmail}</strong>.

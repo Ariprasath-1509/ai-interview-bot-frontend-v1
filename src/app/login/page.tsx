@@ -150,7 +150,7 @@ export default function LoginPage() {
 
       <main className="z-10 w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-black dark:text-zinc-50">Bench Readiness</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Bench Readiness</h1>
           <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">AI-led voice interviews with admin sign-off.</p>
         </div>
 

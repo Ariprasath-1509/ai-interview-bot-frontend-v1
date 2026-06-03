@@ -89,7 +89,7 @@ export default function ExistingCredentialsDownload() {
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-zinc-600">
             {loading ? 'Loading candidates...' : `${candidates.length} candidates available`}
           </div>
           <Button

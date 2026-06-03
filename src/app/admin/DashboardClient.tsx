@@ -140,7 +140,7 @@ export default function DashboardClient() {
         <div>
           {tokenData && (tokenData.nearLimit || tokenData.overLimit) && (
             <div className={`px-4 py-2 rounded-lg text-sm font-medium ${tokenData.overLimit ? 'bg-red-50 text-red-900 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-900/50' : 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-900/50'}`}>
-              {tokenData.overLimit ? '🚫 Token Limit Exceeded' : '⚠️ Approaching Token Limit'} ({tokenData.usage.toLocaleString()} / {tokenData.limit.toLocaleString()})
+              {tokenData.overLimit ? 'Token limit exceeded' : 'Approaching token limit'} ({tokenData.usage.toLocaleString()} / {tokenData.limit.toLocaleString()})
             </div>
           )}
         </div>
@@ -150,16 +150,13 @@ export default function DashboardClient() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex space-x-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl overflow-x-auto">
+      <div className="tab-bar">
         {tabs.map(tab => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
-              activeTab === tab.id 
-                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' 
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800/50'
-            }`}
+            className={activeTab === tab.id ? 'tab-bar-item tab-bar-item-active' : 'tab-bar-item'}
           >
             {tab.label}
           </button>
@@ -180,11 +177,11 @@ export default function DashboardClient() {
                 <p className="text-xs text-zinc-400 mt-0.5">Current status of all interviews in the system</p>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <StatusCard title="Draft" description="Created but not yet scheduled" count={analytics?.statusCounts.scheduled || 0} color="indigo" icon="📝" linkTo="/admin/review?status=DRAFT" />
-                <StatusCard title="Scheduled" description="Booked but not yet started" count={analytics?.statusCounts.scheduled || 0} color="blue" icon="📅" linkTo="/admin/review?status=SCHEDULED" />
-                <StatusCard title="Review Pending" description="Awaiting manager sign-off" count={reviewPendingCount} color="yellow" icon="⏳" linkTo="/admin/review?status=REVIEW_PENDING" />
-                <StatusCard title="Completed" description="Fully assessed by AI" count={analytics?.statusCounts.completed || 0} color="green" icon="✅" linkTo="/admin/review?status=COMPLETED" />
-                <StatusCard title="Signed Off" description="Final verdict submitted" count={analytics?.statusCounts.signedOff || 0} color="purple" icon="✍️" linkTo="/admin/review?status=SIGNED_OFF" />
+                <StatusCard title="Draft" description="Created but not yet scheduled" count={analytics?.statusCounts.scheduled || 0} color="indigo" linkTo="/admin/review?status=DRAFT" />
+                <StatusCard title="Scheduled" description="Booked but not yet started" count={analytics?.statusCounts.scheduled || 0} color="blue" linkTo="/admin/review?status=SCHEDULED" />
+                <StatusCard title="Review Pending" description="Awaiting manager sign-off" count={reviewPendingCount} color="yellow" linkTo="/admin/review?status=REVIEW_PENDING" />
+                <StatusCard title="Completed" description="Fully assessed by AI" count={analytics?.statusCounts.completed || 0} color="green" linkTo="/admin/review?status=COMPLETED" />
+                <StatusCard title="Signed Off" description="Final verdict submitted" count={analytics?.statusCounts.signedOff || 0} color="purple" linkTo="/admin/review?status=SIGNED_OFF" />
               </div>
             </div>
 
@@ -195,10 +192,10 @@ export default function DashboardClient() {
                 <p className="text-xs text-zinc-400 mt-0.5">Interview volume, client positions, and readiness results</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatusCard title="Interviews Today" description="Created or updated today" count={analytics?.timePeriods.today || 0} color="indigo" icon="📊" />
-                <StatusCard title="Interviews This Week" description="Created or updated this week" count={analytics?.timePeriods.thisWeek || 0} color="teal" icon="📈" />
-                <StatusCard title="Total Clients" description="Active client positions" count={clientAnalytics?.totalClients || 0} color="blue" icon="🏢" linkTo="/admin/clients" />
-                <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" icon="✅" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
+                <StatusCard title="Interviews Today" description="Created or updated today" count={analytics?.timePeriods.today || 0} color="indigo" />
+                <StatusCard title="Interviews This Week" description="Created or updated this week" count={analytics?.timePeriods.thisWeek || 0} color="teal" />
+                <StatusCard title="Total Clients" description="Active client positions" count={clientAnalytics?.totalClients || 0} color="blue" linkTo="/admin/clients" />
+                <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
               </div>
             </div>
 
@@ -258,12 +255,11 @@ export default function DashboardClient() {
                   </div>
                 </div>
               ) : (
-                <div className="card p-8 text-center">
-                  <div className="text-zinc-400 text-4xl mb-3">🏢</div>
-                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">No Active Clients</h3>
-                  <p className="text-zinc-500 dark:text-zinc-400 mb-4">Create client positions to start matching candidates.</p>
-                  <Link href="/admin/clients" className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
-                    Add Client
+                <div className="empty-state">
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">No active clients</h3>
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Create client positions to start matching candidates.</p>
+                  <Link href="/admin/clients" className="btn-primary mt-4 inline-flex">
+                    Add client
                   </Link>
                 </div>
               )}
@@ -433,10 +429,11 @@ export default function DashboardClient() {
                 </div>
               </>
             ) : (
-              <div className="card p-12 text-center">
-                <div className="text-zinc-400 text-6xl mb-4">📊</div>
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">No Candidate Data Available</h3>
-                <p className="text-zinc-500 dark:text-zinc-400">Complete some interviews to see candidate performance analytics.</p>
+              <div className="empty-state">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">No candidate data yet</h3>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  Complete interviews to see performance analytics here.
+                </p>
               </div>
             )}
           </div>
@@ -552,39 +549,41 @@ export default function DashboardClient() {
   );
 }
 
-function StatusCard({ title, description, count, color, icon, subtitle, linkTo }: {
+function StatusCard({ title, description, count, color, subtitle, linkTo }: {
   title: string;
   description?: string;
   count: number | string;
   color: string;
-  icon: string;
   subtitle?: string;
   linkTo?: string;
 }) {
-  const colorClasses = {
-    blue: 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-900/30 dark:text-blue-100',
-    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:border-yellow-900/30 dark:text-yellow-100',
-    green: 'bg-green-50 border-green-200 text-green-900 dark:bg-emerald-900/20 dark:border-emerald-900/30 dark:text-emerald-100',
-    purple: 'bg-purple-50 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:border-purple-900/30 dark:text-purple-100',
-    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-900 dark:bg-indigo-900/20 dark:border-indigo-900/30 dark:text-indigo-100',
-    teal: 'bg-teal-50 border-teal-200 text-teal-900 dark:bg-teal-900/20 dark:border-teal-900/30 dark:text-teal-100',
-    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-900/20 dark:border-emerald-900/30 dark:text-emerald-100'
+  const accentClasses = {
+    blue: 'border-l-blue-500 bg-blue-50/80 dark:bg-blue-950/20',
+    yellow: 'border-l-amber-500 bg-amber-50/80 dark:bg-amber-950/20',
+    green: 'border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20',
+    purple: 'border-l-purple-500 bg-purple-50/80 dark:bg-purple-950/20',
+    indigo: 'border-l-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/20',
+    teal: 'border-l-teal-500 bg-teal-50/80 dark:bg-teal-950/20',
+    emerald: 'border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20',
   };
 
   const content = (
-    <div className={`h-full p-5 rounded-xl border shadow-sm transition-all duration-200 ${colorClasses[color as keyof typeof colorClasses]} ${linkTo ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}`}>
+    <div
+      className={`card h-full border-l-4 p-5 transition-shadow duration-200 ${
+        accentClasses[color as keyof typeof accentClasses] ?? 'border-l-zinc-400'
+      } ${linkTo ? 'cursor-pointer hover:shadow-md' : ''}`}
+    >
       <div className="flex h-full flex-col justify-between">
         <div>
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-semibold leading-snug">{title}</p>
-            <span className="text-xl opacity-70 shrink-0">{icon}</span>
-          </div>
-          {description && <p className="text-xs opacity-55 mt-1 leading-snug">{description}</p>}
+          <p className="text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">{title}</p>
+          {description && (
+            <p className="mt-1 text-xs leading-snug text-zinc-500 dark:text-zinc-400">{description}</p>
+          )}
         </div>
-        <div className="mt-3">
-          <p className="text-3xl font-bold tabular-nums">{count}</p>
-          {subtitle && <p className="text-xs mt-1 opacity-65">{subtitle}</p>}
-          {linkTo && <p className="text-xs mt-2 opacity-55 font-medium">View →</p>}
+        <div className="mt-4">
+          <p className="text-3xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{count}</p>
+          {subtitle && <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
+          {linkTo && <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">View details</p>}
         </div>
       </div>
     </div>

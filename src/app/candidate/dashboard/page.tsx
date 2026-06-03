@@ -54,7 +54,7 @@ const VERDICT_LABEL: Record<string, string> = {
   NEEDS_1_WEEK_PREP: "Needs 1-week prep",
   NEEDS_RESKILLING: "Needs Reskilling",
   MISMATCH_WITH_JD: "Mismatch with JD",
-  WITHDRAWN: "⚠ Ended early",
+  WITHDRAWN: "Ended early",
 };
 
 const VERDICT_COLOR: Record<string, string> = {
@@ -129,7 +129,7 @@ export default async function CandidateDashboard() {
         {clientMatches.length > 0 && (
           <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Client Matches</h2>
-            <div className="rounded-2xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
+            <div className="card p-5">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">You match with {clientMatches.length} client{clientMatches.length > 1 ? 's' : ''}:</p>
@@ -158,7 +158,7 @@ export default async function CandidateDashboard() {
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Upcoming</h2>
           {upcoming.length ? (
-            <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/70 shadow-lg backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
+            <div className="card overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 text-left">
@@ -198,8 +198,8 @@ export default async function CandidateDashboard() {
               </table>
             </div>
           ) : (
-            <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">
-              No upcoming interviews.
+            <div className="empty-state text-sm text-zinc-500">
+              No upcoming interviews scheduled.
             </div>
           )}
         </section>
@@ -208,7 +208,7 @@ export default async function CandidateDashboard() {
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Past Interviews</h2>
           {past.length ? (
-            <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/70 shadow-lg backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
+            <div className="card overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 text-left">
@@ -254,7 +254,7 @@ export default async function CandidateDashboard() {
               </table>
             </div>
           ) : (
-            <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="empty-state text-sm text-zinc-500">
               No completed interviews yet.
             </div>
           )}

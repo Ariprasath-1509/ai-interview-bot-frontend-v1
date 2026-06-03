@@ -165,7 +165,7 @@ export default function AIMatchingClient() {
       MEDIUM: 'bg-yellow-100 text-yellow-800',
       LIABILITY: 'bg-red-100 text-red-800'
     };
-    return colors[rating as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+    return colors[rating as keyof typeof colors] || 'bg-zinc-100 text-zinc-800';
   };
 
   if (loading) {
@@ -186,7 +186,7 @@ export default function AIMatchingClient() {
               <span className="text-blue-600"> - {selectedClient.clientName}</span>
             )}
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-zinc-600 mt-2">
             {selectedClient 
               ? `Find the best candidates for ${selectedClient.jdRole} at ${selectedClient.clientName}` 
               : 'Find the best candidates for client positions using AI-powered matching'
@@ -214,7 +214,7 @@ export default function AIMatchingClient() {
         </CardHeader>
         <CardContent>
           {clients.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-zinc-500">
               <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-semibold mb-2">No client positions available</p>
               <p className="text-sm mb-4">Create a new client position to start matching candidates</p>
@@ -240,14 +240,14 @@ export default function AIMatchingClient() {
                   className={`cursor-pointer transition-all border-2 ${
                     selectedClient?.id === client.id 
                       ? 'border-blue-500 bg-blue-50 shadow-lg' 
-                      : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                      : 'border-zinc-200 hover:border-zinc-300 hover:shadow-md'
                   }`}
                   onClick={() => setSelectedClient(client)}
                 >
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
-                        <h3 className="font-bold text-xl text-gray-900 mb-1">
+                        <h3 className="font-bold text-xl text-zinc-900 mb-1">
                           {client.clientName || 'Unnamed Client'}
                         </h3>
                         <h4 className="font-semibold text-lg text-blue-600 mb-2">
@@ -266,7 +266,7 @@ export default function AIMatchingClient() {
                     </div>
 
                     <div className="mb-4">
-                      <p className="text-sm text-gray-700 line-clamp-3 leading-relaxed">
+                      <p className="text-sm text-zinc-700 line-clamp-3 leading-relaxed">
                         {client.jdDescription && client.jdDescription.trim() !== '' 
                           ? client.jdDescription 
                           : 'No job description available'
@@ -275,35 +275,35 @@ export default function AIMatchingClient() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <div className="text-2xl font-bold text-gray-900">{client.positionsVacant || 0}</div>
-                        <div className="text-xs text-gray-600">Total Positions</div>
+                      <div className="bg-zinc-50 p-3 rounded-lg">
+                        <div className="text-2xl font-bold text-zinc-900">{client.positionsVacant || 0}</div>
+                        <div className="text-xs text-zinc-600">Total Positions</div>
                       </div>
                       <div className="bg-blue-50 p-3 rounded-lg">
                         <div className="text-2xl font-bold text-blue-600">
                           {(client.benchB2bCandidatesNeeded || 0) + (client.marketCandidatesNeeded || 0)}
                         </div>
-                        <div className="text-xs text-gray-600">Candidates Needed</div>
+                        <div className="text-xs text-zinc-600">Candidates Needed</div>
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">BENCH/B2B Candidates:</span>
+                        <span className="text-zinc-600">BENCH/B2B Candidates:</span>
                         <span className="font-semibold text-orange-600">
                           {client.benchB2bCandidatesNeeded || 0} needed
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">MARKET Candidates:</span>
+                        <span className="text-zinc-600">MARKET Candidates:</span>
                         <span className="font-semibold text-purple-600">
                           {client.marketCandidatesNeeded || 0} needed
                         </span>
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex justify-between items-center text-xs text-gray-500">
+                    <div className="mt-4 pt-4 border-t border-zinc-200">
+                      <div className="flex justify-between items-center text-xs text-zinc-500">
                         <span>Created: {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : 'Unknown'}</span>
                         <div className="flex gap-2">
                           {client.benchReviewed && (
@@ -331,9 +331,9 @@ export default function AIMatchingClient() {
       {!selectedClient && clients.length > 0 && (
         <Card>
           <CardContent className="text-center py-12">
-            <TrendingUp className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Select a Client Position</h3>
-            <p className="text-gray-600">
+            <TrendingUp className="h-16 w-16 mx-auto mb-4 text-zinc-300" />
+            <h3 className="text-lg font-semibold text-zinc-900 mb-2">Select a Client Position</h3>
+            <p className="text-zinc-600">
               Choose a client position above to start AI-powered candidate matching
             </p>
           </CardContent>
@@ -348,7 +348,7 @@ export default function AIMatchingClient() {
               <TrendingUp className="h-5 w-5" />
               AI Matching Configuration
             </CardTitle>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-zinc-600 mt-1">
               Configure matching parameters for <span className="font-semibold text-blue-600">
                 {selectedClient?.clientName || 'Selected Client'}
               </span> - {selectedClient?.jdRole || 'Position'}
@@ -357,7 +357,7 @@ export default function AIMatchingClient() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Candidate Source</label>
+                <label className="block text-sm font-medium text-zinc-700">Candidate Source</label>
                 <Select value={selectedSource} onValueChange={setSelectedSource}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -377,7 +377,7 @@ export default function AIMatchingClient() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-zinc-500">
                   {selectedSource === 'BENCH_B2B' 
                     ? `Internal bench and B2B candidates for ${selectedClient?.clientName || 'selected client'}` 
                     : `External market candidates for ${selectedClient?.clientName || 'selected client'}`
@@ -386,7 +386,7 @@ export default function AIMatchingClient() {
               </div>
               
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Maximum Results</label>
+                <label className="block text-sm font-medium text-zinc-700">Maximum Results</label>
                 <Input
                   type="number"
                   value={maxCandidates}
@@ -395,7 +395,7 @@ export default function AIMatchingClient() {
                   max={50}
                   className="w-full"
                 />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-zinc-500">
                   AI will return top {maxCandidates} matching candidates
                 </p>
               </div>
@@ -419,7 +419,7 @@ export default function AIMatchingClient() {
                     </>
                   )}
                 </Button>
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs text-zinc-500 text-center">
                   Find best matches for {selectedClient?.clientName || 'selected client'}
                 </p>
               </div>
@@ -429,13 +429,13 @@ export default function AIMatchingClient() {
               <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
                 <div className="flex items-start gap-4">
                   <div className="flex-1">
-                    <h4 className="font-bold text-lg text-gray-900 mb-1">
+                    <h4 className="font-bold text-lg text-zinc-900 mb-1">
                       {selectedClient?.clientName || 'Selected Client'}
                     </h4>
                     <h5 className="font-semibold text-blue-600 mb-3">
                       {selectedClient?.jdRole || 'Position'}
                     </h5>
-                    <p className="text-sm text-gray-700 mb-4 leading-relaxed">
+                    <p className="text-sm text-zinc-700 mb-4 leading-relaxed">
                       {selectedClient?.jdDescription && selectedClient.jdDescription.trim() !== '' 
                         ? selectedClient.jdDescription 
                         : 'No detailed job description available'
@@ -443,22 +443,22 @@ export default function AIMatchingClient() {
                     </p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div className="bg-white p-3 rounded-lg shadow-sm">
-                        <div className="font-semibold text-gray-900">{selectedClient.positionsVacant || 0}</div>
-                        <div className="text-gray-600">Total Positions</div>
+                        <div className="font-semibold text-zinc-900">{selectedClient.positionsVacant || 0}</div>
+                        <div className="text-zinc-600">Total Positions</div>
                       </div>
                       <div className="bg-white p-3 rounded-lg shadow-sm">
                         <div className="font-semibold text-orange-600">{selectedClient.benchB2bCandidatesNeeded || 0}</div>
-                        <div className="text-gray-600">BENCH/B2B</div>
+                        <div className="text-zinc-600">BENCH/B2B</div>
                       </div>
                       <div className="bg-white p-3 rounded-lg shadow-sm">
                         <div className="font-semibold text-purple-600">{selectedClient.marketCandidatesNeeded || 0}</div>
-                        <div className="text-gray-600">MARKET</div>
+                        <div className="text-zinc-600">MARKET</div>
                       </div>
                       <div className="bg-white p-3 rounded-lg shadow-sm">
                         <Badge variant={selectedClient.status === 'ACTIVE' ? 'default' : 'secondary'}>
                           {selectedClient.status}
                         </Badge>
-                        <div className="text-gray-600 mt-1">Status</div>
+                        <div className="text-zinc-600 mt-1">Status</div>
                       </div>
                     </div>
                   </div>
@@ -505,7 +505,7 @@ export default function AIMatchingClient() {
               </div>
             </CardTitle>
             {matchingResults.totalFound > 0 && (
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-zinc-600 mt-1">
                 Candidates are ranked by AI match score based on skills, experience, and interview performance
               </p>
             )}
@@ -513,9 +513,9 @@ export default function AIMatchingClient() {
           <CardContent>
             {matchingResults.totalFound === 0 ? (
               <div className="text-center py-12">
-                <Users className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Matching Candidates Found</h3>
-                <p className="text-gray-600 mb-4">
+                <Users className="h-16 w-16 mx-auto mb-4 text-zinc-300" />
+                <h3 className="text-lg font-semibold text-zinc-900 mb-2">No Matching Candidates Found</h3>
+                <p className="text-zinc-600 mb-4">
                   No {matchingResults.source === 'BENCH_B2B' ? 'BENCH/B2B' : 'MARKET'} candidates match the requirements for this position.
                 </p>
                 <div className="bg-blue-50 p-4 rounded-lg text-left max-w-md mx-auto">
@@ -536,13 +536,13 @@ export default function AIMatchingClient() {
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-lg font-semibold">{candidate.candidateName}</h3>
-                        <p className="text-gray-600">{candidate.candidateEmail}</p>
+                        <p className="text-zinc-600">{candidate.candidateEmail}</p>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge className={getRatingBadge(candidate.rating)}>
                             {candidate.rating}
                           </Badge>
                           <Badge variant="outline">{candidate.skillSet}</Badge>
-                          <span className="text-sm text-gray-500">
+                          <span className="text-sm text-zinc-500">
                             {candidate.yoeActual} years exp
                           </span>
                         </div>
@@ -552,7 +552,7 @@ export default function AIMatchingClient() {
                         <div className={`text-2xl font-bold px-3 py-1 rounded-lg ${getScoreColor(candidate.matchScore)}`}>
                           {Math.round(candidate.matchScore * 100)}%
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Match Score</p>
+                        <p className="text-xs text-zinc-500 mt-1">Match Score</p>
                       </div>
                     </div>
 
@@ -582,13 +582,13 @@ export default function AIMatchingClient() {
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                    <div className="bg-zinc-50 p-3 rounded-lg mb-4">
                       <p className="text-sm font-medium mb-1">AI Rationale:</p>
-                      <p className="text-sm text-gray-700">{candidate.matchRationale}</p>
+                      <p className="text-sm text-zinc-700">{candidate.matchRationale}</p>
                     </div>
 
                     <div className="flex justify-between items-center">
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-zinc-500">
                         <span>Interviews: {candidate.noOfInterviews}</span>
                         {candidate.lastVerdict && (
                           <span className="ml-4">Last: {candidate.lastVerdict}</span>

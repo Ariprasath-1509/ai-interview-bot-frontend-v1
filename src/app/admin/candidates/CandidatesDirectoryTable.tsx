@@ -57,7 +57,7 @@ function ViewMatchesButton({
   const isEligible = candidateStatus === "RFD" && (systemInterviewCount || 0) >= 1;
   if (!isEligible) {
     return (
-      <span className="cursor-not-allowed text-xs text-gray-400" title="Candidate must be RFD with 1+ interviews">
+      <span className="cursor-not-allowed text-xs text-zinc-400" title="Candidate must be RFD with 1+ interviews">
         View Matches
       </span>
     );

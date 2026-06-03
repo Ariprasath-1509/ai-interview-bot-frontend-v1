@@ -186,7 +186,7 @@ export function SmartInterviewCreator({ positionId, positionTitle, onInterviewCr
           <div className="space-y-4">
             {matches.length > 0 ? (
               <>
-                <div className="text-sm text-gray-600 mb-4">
+                <div className="text-sm text-zinc-600 mb-4">
                   Found {matches.length} potential candidates. Click "Create Interview" to auto-fill interview details.
                 </div>
                 {matches.map((match) => (
@@ -195,7 +195,7 @@ export function SmartInterviewCreator({ positionId, positionTitle, onInterviewCr
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-lg">{match.candidateName}</CardTitle>
-                          <p className="text-sm text-gray-600">{match.candidateEmail}</p>
+                          <p className="text-sm text-zinc-600">{match.candidateEmail}</p>
                         </div>
                         <div className="text-right">
                           <Badge className={`text-lg px-3 py-1 ${getScoreColor(match.overallScore)}`}>
@@ -213,33 +213,33 @@ export function SmartInterviewCreator({ positionId, positionTitle, onInterviewCr
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-4 gap-4">
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600">Skills</div>
+                          <div className="text-sm font-medium text-zinc-600">Skills</div>
                           <div className={`text-xl font-bold ${getScoreColor(match.skillsScore).split(' ')[0]}`}>
                             {match.skillsScore}%
                           </div>
                         </div>
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600">Experience</div>
+                          <div className="text-sm font-medium text-zinc-600">Experience</div>
                           <div className={`text-xl font-bold ${getScoreColor(match.experienceScore).split(' ')[0]}`}>
                             {match.experienceScore}%
                           </div>
                         </div>
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600">Performance</div>
+                          <div className="text-sm font-medium text-zinc-600">Performance</div>
                           <div className={`text-xl font-bold ${getScoreColor(match.feedbackScore).split(' ')[0]}`}>
                             {match.feedbackScore}%
                           </div>
                         </div>
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600">Relevance</div>
+                          <div className="text-sm font-medium text-zinc-600">Relevance</div>
                           <div className={`text-xl font-bold ${getScoreColor(match.questionRelevanceScore).split(' ')[0]}`}>
                             {match.questionRelevanceScore}%
                           </div>
                         </div>
                       </div>
                       
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-700">{match.matchingSummary}</p>
+                      <div className="bg-zinc-50 rounded-lg p-3">
+                        <p className="text-sm text-zinc-700">{match.matchingSummary}</p>
                       </div>
                       
                       <Button 
@@ -265,9 +265,9 @@ export function SmartInterviewCreator({ positionId, positionTitle, onInterviewCr
               </>
             ) : (
               <div className="text-center py-12">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No matches found</h3>
-                <p className="text-gray-500">
+                <Users className="h-12 w-12 text-zinc-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-zinc-900 mb-2">No matches found</h3>
+                <p className="text-zinc-500">
                   No candidates currently match the requirements for this position.
                 </p>
               </div>

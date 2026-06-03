@@ -220,7 +220,7 @@ export default function InterviewSetupClient() {
               </option>
             ))}
           </select>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-zinc-500 mt-1">
             {autoFillMode ? 'Recommended based on position experience level' : `Default: ${selectedMode?.questions} questions in ${defaultDuration} minutes (${selectedMode?.difficulty} difficulty)`}
           </p>
         </div>
@@ -245,7 +245,7 @@ export default function InterviewSetupClient() {
               </option>
             ))}
           </select>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-zinc-500 mt-1">
             Override the default duration for this interview
           </p>
         </div>

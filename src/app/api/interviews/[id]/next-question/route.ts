@@ -143,6 +143,9 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
     terminateInterview?: boolean;
     questionBankId?: string;
     source?: string;
+    isCoding?: boolean;
+    preferredLanguage?: string;
+    starterCode?: string | null;
   };
   
   // Update used question IDs if a question bank question was selected
@@ -157,12 +160,41 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
     }).catch((err) => console.error("Failed to update usedQuestionIds:", err));
   }
   
+  const slot = body.data.slot;
+  const isCoding = data.isCoding ?? false;
+
+  const lastAnswer = (body.data.lastAnswer ?? "").trim();
+  if (lastAnswer.length > 0 && slot > 1) {
+    await fetch(`${GATEWAY}/interviews/${id}/answers`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ slot: slot - 1, answerText: lastAnswer }),
+    }).catch((err) => console.warn("[next-question] Failed to persist answer:", err));
+  }
+
+  // Persist question slot to interview-service (best effort)
+  await fetch(`${GATEWAY}/interviews/${id}/questions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      slot,
+      questionText: data.question,
+      questionType: isCoding ? "CODING" : "TECHNICAL",
+      questionBankId: data.questionBankId ?? undefined,
+      source: data.source ?? "AI_GENERATED",
+      isCoding,
+    }),
+  }).catch((err) => console.warn("[next-question] Failed to persist question slot:", err));
+
   return Response.json({ 
     question: data.question,
     manipulationDetected: data.manipulationDetected,
     terminateInterview: data.terminateInterview,
     questionBankId: data.questionBankId,
     source: data.source,
+    isCoding,
+    preferredLanguage: data.preferredLanguage ?? "python",
+    starterCode: data.starterCode ?? null,
   });
 }
 

@@ -114,7 +114,7 @@ export function PositionSearch({ onSelect, onClear }: PositionSearchProps) {
       ) : (
         <div className="relative">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-400" />
             <input
               type="text"
               value={query}
@@ -135,13 +135,13 @@ export function PositionSearch({ onSelect, onClear }: PositionSearchProps) {
                 <button
                   key={position.id}
                   onClick={() => handleSelect(position)}
-                  className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800 border-b dark:border-zinc-800 last:border-b-0"
+                  className="w-full p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 border-b dark:border-zinc-800 last:border-b-0"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-medium">{position.title}</span>
                     <Badge variant="outline" className="text-xs">{position.experienceLevel}</Badge>
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400 mb-2">
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3 w-3" />
                       {position.location}
@@ -166,14 +166,14 @@ export function PositionSearch({ onSelect, onClear }: PositionSearchProps) {
           )}
           
           {showResults && positions.length === 0 && !loading && (
-            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-lg shadow-lg p-4 text-center text-gray-500">
+            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-lg shadow-lg p-4 text-center text-zinc-500">
               No open positions found
             </div>
           )}
         </div>
       )}
       
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-zinc-500">
         Select a position to auto-fill JD title, description, focus areas, and recommended interview mode
       </p>
     </div>

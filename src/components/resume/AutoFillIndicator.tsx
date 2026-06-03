@@ -99,7 +99,7 @@ export function AutoFillIndicator({
               <span className="font-medium text-sm">{getConfidenceText()}</span>
             </div>
             
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-3">
               {fieldsPopulated.length} field{fieldsPopulated.length !== 1 ? 's' : ''} populated automatically. 
               Review and edit as needed.
             </p>
@@ -134,7 +134,7 @@ export function AutoFillIndicator({
                 size="sm"
                 variant="ghost"
                 onClick={onRevert}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-zinc-500 hover:text-zinc-700"
               >
                 Clear Auto-fill
               </Button>

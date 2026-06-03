@@ -153,9 +153,9 @@ export function ResumeUploadWidget({
               <div>
                 <p className="font-medium text-sm">Resume</p>
                 {existingResume ? (
-                  <p className="text-xs text-gray-500">{existingResume.filename}</p>
+                  <p className="text-xs text-zinc-500">{existingResume.filename}</p>
                 ) : (
-                  <p className="text-xs text-gray-500">No resume uploaded</p>
+                  <p className="text-xs text-zinc-500">No resume uploaded</p>
                 )}
               </div>
             </div>
@@ -212,7 +212,7 @@ export function ResumeUploadWidget({
                 ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20'
                 : file
                 ? 'border-green-300 bg-green-50 dark:bg-green-950/20'
-                : 'border-gray-300 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-600'
+                : 'border-zinc-300 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-600'
             }`}
           >
             <input
@@ -227,8 +227,8 @@ export function ResumeUploadWidget({
               <div className="flex flex-col items-center gap-3">
                 <FileText className="h-12 w-12 text-green-600" />
                 <div>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{file.name}</p>
-                  <p className="text-sm text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="font-medium text-zinc-900 dark:text-zinc-100">{file.name}</p>
+                  <p className="text-sm text-zinc-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
                 
               <div className="flex gap-2">
@@ -266,12 +266,12 @@ export function ResumeUploadWidget({
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
-                <Upload className="h-12 w-12 text-gray-400" />
+                <Upload className="h-12 w-12 text-zinc-400" />
                 <div>
-                  <p className="font-medium text-gray-700 dark:text-gray-300">
+                  <p className="font-medium text-zinc-700 dark:text-zinc-300">
                     Drop your resume here or click to browse
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-zinc-500 mt-1">
                     PDF, DOC, DOCX — max 5MB
                   </p>
                 </div>
@@ -290,8 +290,8 @@ export function ResumeUploadWidget({
                 <CheckCircle className="h-5 w-5 text-green-600" />
                 <div>
                   <p className="font-medium">Current Resume</p>
-                  <p className="text-sm text-gray-500">{existingResume.filename}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-sm text-zinc-500">{existingResume.filename}</p>
+                  <p className="text-xs text-zinc-400">
                     Uploaded {new Date(existingResume.uploadedAt).toLocaleDateString()}
                   </p>
                 </div>
@@ -318,8 +318,8 @@ export function ResumeUploadWidget({
               </div>
               
               {existingResume.summary ? (
-                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg">
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
                     {existingResume.summary}
                   </p>
                 </div>

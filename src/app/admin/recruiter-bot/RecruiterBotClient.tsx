@@ -384,7 +384,7 @@ export default function RecruiterBotClient() {
             ) : (
               <>
                 <span className="text-zinc-300 dark:text-zinc-600">•</span>
-                <span className="text-amber-600">⚠ No JD file uploaded — upload one via Client Management to use the bot</span>
+                <span className="text-amber-600 dark:text-amber-400">No JD file uploaded. Upload one via Client Management to use the bot.</span>
               </>
             )}
           </div>

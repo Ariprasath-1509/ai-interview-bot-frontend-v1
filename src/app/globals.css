@@ -123,6 +123,50 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
   @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
 }
 
+/* Primary / secondary actions */
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white
+         transition-colors duration-150 hover:bg-zinc-700
+         disabled:cursor-not-allowed disabled:opacity-50
+         dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700
+         transition-colors duration-150 hover:bg-zinc-50
+         dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900;
+}
+
+.btn-danger {
+  @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white
+         transition-colors duration-150 hover:bg-red-700 disabled:opacity-50;
+}
+
+/* Empty list / table placeholder */
+.empty-state {
+  @apply rounded-xl border border-dashed border-zinc-200 bg-zinc-50/80 px-6 py-10 text-center
+         dark:border-zinc-800 dark:bg-zinc-900/40;
+}
+
+/* Segmented tab bar (dashboard, filters) */
+.tab-bar {
+  @apply flex gap-1 overflow-x-auto rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900;
+}
+
+.tab-bar-item {
+  @apply whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors
+         hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200;
+}
+
+.tab-bar-item-active {
+  @apply bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50;
+}
+
+/* Page content width inside app shell */
+.page-content {
+  @apply mx-auto w-full max-w-7xl;
+}
+
 /* ── Animations ─────────────────────────────────────────────────────── */
 @keyframes slide-in-from-bottom {
   from { transform: translateY(0.75rem); opacity: 0; }

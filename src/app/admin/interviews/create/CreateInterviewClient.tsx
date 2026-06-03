@@ -705,7 +705,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                     className="pr-10"
                   />
                   {searchingCandidates && (
-                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-zinc-400" />
                   )}
                 </div>
                 {selectedCandidate && (
@@ -724,19 +724,19 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               
               {/* Search Results */}
               {showCandidateResults && candidateResults.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
                   {candidateResults.map((candidate) => (
                     <div
                       key={candidate.id}
-                      className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      className="p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0"
                       onClick={() => selectCandidate(candidate)}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-gray-900">{candidate.name}</p>
-                          <p className="text-sm text-gray-600">{candidate.email}</p>
+                          <p className="font-medium text-zinc-900">{candidate.name}</p>
+                          <p className="text-sm text-zinc-600">{candidate.email}</p>
                           {candidate.skillSet && (
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-zinc-500 mt-1">
                               {candidate.skillSet} • {candidate.yoeActual || 0} years exp
                             </p>
                           )}
@@ -753,8 +753,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               )}
               
               {showCandidateResults && candidateResults.length === 0 && !searchingCandidates && candidateSearch.trim() && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg p-3">
-                  <p className="text-sm text-gray-500">No candidates found</p>
+                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg p-3">
+                  <p className="text-sm text-zinc-500">No candidates found</p>
                 </div>
               )}
             </div>
@@ -789,14 +789,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
             </CardHeader>
             <CardContent className="space-y-3">
               {searchingClients && (
-                <div className="flex items-center gap-2 text-gray-600">
+                <div className="flex items-center gap-2 text-zinc-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Loading clients...</span>
                 </div>
               )}
               {!searchingClients && clientResults.length === 0 && (
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
-                  <p className="text-sm text-gray-600">No clients available</p>
+                <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-md">
+                  <p className="text-sm text-zinc-600">No clients available</p>
                 </div>
               )}
               {clientResults.map((client) => (
@@ -806,20 +806,20 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                   className={`cursor-pointer rounded-lg border p-3 transition-colors ${
                     selectedClient?.id === client.id
                       ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-sm text-gray-900">{client.clientName}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{client.jdRole}</p>
+                      <p className="font-medium text-sm text-zinc-900">{client.clientName}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{client.jdRole}</p>
                     </div>
                     {selectedClient?.id === client.id && (
                       <span className="text-xs font-medium text-blue-600">Selected</span>
                     )}
                   </div>
                   {client.focusAreas && (
-                    <p className="text-xs text-gray-400 mt-1 truncate">Focus: {client.focusAreas}</p>
+                    <p className="text-xs text-zinc-400 mt-1 truncate">Focus: {client.focusAreas}</p>
                   )}
                 </div>
               ))}
@@ -843,7 +843,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
             </CardHeader>
             <CardContent className="space-y-3">
               {searchingClients && (
-                <div className="flex items-center gap-2 text-gray-600">
+                <div className="flex items-center gap-2 text-zinc-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Finding matches...</span>
                 </div>
@@ -861,13 +861,13 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                   STRONG:    'bg-emerald-100 text-emerald-700 border-emerald-200',
                   GOOD:      'bg-blue-100 text-blue-700 border-blue-200',
                   PARTIAL:   'bg-amber-100 text-amber-700 border-amber-200',
-                  AVAILABLE: 'bg-gray-100 text-gray-600 border-gray-200',
+                  AVAILABLE: 'bg-zinc-100 text-zinc-600 border-zinc-200',
                 };
                 const cardColors = {
                   STRONG:    isSelected ? 'border-emerald-400 bg-emerald-50' : 'border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/50',
                   GOOD:      isSelected ? 'border-blue-400 bg-blue-50' : 'border-blue-200 hover:border-blue-300 hover:bg-blue-50/50',
                   PARTIAL:   isSelected ? 'border-amber-400 bg-amber-50' : 'border-amber-100 hover:border-amber-200 hover:bg-amber-50/50',
-                  AVAILABLE: isSelected ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
+                  AVAILABLE: isSelected ? 'border-zinc-400 bg-zinc-50' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50',
                 };
                 const label = client.matchLabel ?? 'AVAILABLE';
                 return (
@@ -879,7 +879,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm text-gray-900">{client.clientName}</p>
+                          <p className="font-medium text-sm text-zinc-900">{client.clientName}</p>
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${labelColors[label]}`}>
                             {label}
                           </span>
@@ -887,14 +887,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                             <span className="text-[10px] font-semibold text-blue-600">✓ Selected</span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-600 mt-0.5">{client.jdRole}</p>
+                        <p className="text-xs text-zinc-600 mt-0.5">{client.jdRole}</p>
                         {client.focusAreas && (
-                          <p className="text-xs text-gray-400 mt-0.5 truncate">Focus: {client.focusAreas}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5 truncate">Focus: {client.focusAreas}</p>
                         )}
                         {client.matchReasons && client.matchReasons.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {client.matchReasons.map((r, i) => (
-                              <span key={i} className="text-[10px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">
+                              <span key={i} className="text-[10px] bg-white border border-zinc-200 rounded px-1.5 py-0.5 text-zinc-500">
                                 {r}
                               </span>
                             ))}
@@ -980,7 +980,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 className={autoFilledFields.includes('resumeSummary') && !manuallyEdited.has('resumeSummary') ? 'border-blue-300 bg-blue-50/50' : ''}
               />
               {!formData.resumeSummary && !selectedCandidate && (
-                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
                   Search for a candidate above to auto-populate resume summary
                 </p>
@@ -1098,7 +1098,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2 text-sm text-zinc-600">
               <FileText className="h-4 w-4" />
               <span>
                 {formData.interviewMode} mode includes{' '}
@@ -1118,10 +1118,10 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-md">
-              <span className="text-sm text-gray-600">Choose one option:</span>
+            <div className="flex items-center gap-4 p-3 bg-zinc-50 rounded-md">
+              <span className="text-sm text-zinc-600">Choose one option:</span>
               <Badge variant="outline" className="text-xs">Question Bank</Badge>
-              <span className="text-gray-400">or</span>
+              <span className="text-zinc-400">or</span>
               <Badge variant="outline" className="text-xs">Manual Entry</Badge>
             </div>
 
@@ -1140,20 +1140,20 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               >
                 {useQuestionBank
                   ? <CheckSquare className="h-5 w-5 text-blue-600" />
-                  : <Square className="h-5 w-5 text-gray-400" />}
+                  : <Square className="h-5 w-5 text-zinc-400" />}
                 Select from Question Bank
               </button>
             </div>
 
             {useQuestionBank && (
               <div className="space-y-3">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-zinc-500">
                   The AI will pick randomly from your selected questions. Once all are used, it continues generating questions until the timer ends.
                 </p>
 
                 {/* Search */}
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
                   <Input
                     placeholder="Search questions..."
                     value={bankSearch}
@@ -1167,14 +1167,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 </div>
 
                 {/* Question list */}
-                <div className="border border-gray-200 rounded-md max-h-64 overflow-y-auto">
+                <div className="border border-zinc-200 rounded-md max-h-64 overflow-y-auto">
                   {bankLoading && (
-                    <div className="flex items-center justify-center p-4 gap-2 text-gray-500">
+                    <div className="flex items-center justify-center p-4 gap-2 text-zinc-500">
                       <Loader2 className="h-4 w-4 animate-spin" /> Loading questions...
                     </div>
                   )}
                   {!bankLoading && bankQuestions.length === 0 && (
-                    <p className="p-4 text-sm text-gray-500">No questions found.</p>
+                    <p className="p-4 text-sm text-zinc-500">No questions found.</p>
                   )}
                   {!bankLoading && bankQuestions.map(q => {
                     const isSelected = selectedQuestions.some(s => s.id === q.id);
@@ -1182,21 +1182,21 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                       <div
                         key={q.id}
                         onClick={() => toggleQuestion(q)}
-                        className={`flex items-start gap-3 p-3 cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-gray-50 ${
+                        className={`flex items-start gap-3 p-3 cursor-pointer border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 ${
                           isSelected ? 'bg-blue-50' : ''
                         }`}
                       >
                         {isSelected
                           ? <CheckSquare className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                          : <Square className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />}
+                          : <Square className="h-4 w-4 text-zinc-400 mt-0.5 shrink-0" />}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-900 line-clamp-2">{q.text}</p>
+                          <p className="text-sm text-zinc-900 line-clamp-2">{q.text}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            {q.category && <span className="text-xs text-gray-500">{q.category}</span>}
+                            {q.category && <span className="text-xs text-zinc-500">{q.category}</span>}
                             <Badge variant="outline" className={`text-xs ${
                               q.relevancyLabel === 'HIGH' ? 'border-green-300 text-green-700'
                               : q.relevancyLabel === 'MEDIUM' ? 'border-yellow-300 text-yellow-700'
-                              : 'border-gray-300 text-gray-500'
+                              : 'border-zinc-300 text-zinc-500'
                             }`}>{q.relevancyLabel}</Badge>
                           </div>
                         </div>
@@ -1261,14 +1261,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               >
                 {useManualQuestions
                   ? <CheckSquare className="h-5 w-5 text-blue-600" />
-                  : <Square className="h-5 w-5 text-gray-400" />}
+                  : <Square className="h-5 w-5 text-zinc-400" />}
                 Add your own custom questions
               </button>
             </div>
 
             {useManualQuestions && (
               <div className="space-y-4">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-zinc-500">
                   Add custom questions that will be asked during the interview. The AI will use these questions in order before generating additional ones if time permits.
                 </p>
 
@@ -1310,10 +1310,10 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-200" />
+                    <span className="w-full border-t border-zinc-200" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-gray-500">Or add individually</span>
+                    <span className="bg-white px-2 text-zinc-500">Or add individually</span>
                   </div>
                 </div>
 
@@ -1377,9 +1377,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                       </Button>
                     </div>
                     
-                    <div className="border border-gray-200 rounded-md divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                    <div className="max-h-80 overflow-y-auto rounded-md border border-zinc-200 divide-y divide-zinc-100 dark:divide-zinc-800">
                       {manualQuestions.map((question, index) => (
-                        <div key={index} className="p-3 hover:bg-gray-50 group">
+                        <div key={index} className="p-3 hover:bg-zinc-50 group">
                           {editingIndex === index ? (
                             <div className="flex gap-2">
                               <Input
@@ -1435,8 +1435,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                             </div>
                           ) : (
                             <div className="flex items-start gap-3">
-                              <span className="text-xs font-medium text-gray-400 mt-1 shrink-0">Q{index + 1}</span>
-                              <p className="flex-1 text-sm text-gray-900">{question}</p>
+                              <span className="text-xs font-medium text-zinc-400 mt-1 shrink-0">Q{index + 1}</span>
+                              <p className="flex-1 text-sm text-zinc-900">{question}</p>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Button
                                   type="button"
@@ -1478,9 +1478,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 )}
 
                 {manualQuestions.length === 0 && (
-                  <div className="p-4 border-2 border-dashed border-gray-200 rounded-md text-center">
-                    <p className="text-sm text-gray-500">No custom questions added yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Use quick paste or add questions individually above</p>
+                  <div className="p-4 border-2 border-dashed border-zinc-200 rounded-md text-center">
+                    <p className="text-sm text-zinc-500">No custom questions added yet</p>
+                    <p className="text-xs text-zinc-400 mt-1">Use quick paste or add questions individually above</p>
                   </div>
                 )}
               </div>

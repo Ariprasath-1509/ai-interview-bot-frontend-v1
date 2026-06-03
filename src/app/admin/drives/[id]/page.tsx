@@ -93,17 +93,17 @@ export default function DriveDetailsPage() {
 
   const getStatusBadge = (status: string) => {
     const colors = {
-      DRAFT: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300',
+      DRAFT: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
       ACTIVE: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
       CLOSED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-      NOT_STARTED: 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300',
+      NOT_STARTED: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300',
       IN_PROGRESS: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
       PASSED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
       FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
       SELECTED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
       REJECTED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
       PENDING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-      WITHDRAWN: 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'
+      WITHDRAWN: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300'
     };
     return colors[status as keyof typeof colors] || colors.PENDING;
   };
@@ -384,8 +384,8 @@ export default function DriveDetailsPage() {
                 <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{analytics.finalStatus.pending}</div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Pending</div>
               </div>
-              <div className="text-center p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
-                <div className="text-3xl font-bold text-gray-600 dark:text-gray-400">{analytics.finalStatus.withdrawn}</div>
+              <div className="text-center p-4 bg-zinc-50 dark:bg-zinc-900/20 rounded-lg">
+                <div className="text-3xl font-bold text-zinc-600 dark:text-zinc-400">{analytics.finalStatus.withdrawn}</div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Withdrawn</div>
               </div>
             </div>

@@ -3,11 +3,18 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
+import { AssessmentBanners } from "@/app/interview/AssessmentBanners";
+import {
+  buildAssessmentBanners,
+  mergeAssessmentScores,
+  parseAiAssessment,
+  type ScoreRow,
+} from "@/app/interview/assessmentUtils";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type Score = { dimension: string; value: number; rationale?: string; evidence?: string; gap?: string; confidence?: "high" | "medium" | "low" };
+type Score = ScoreRow;
 type Review = { signedOff: boolean; finalVerdict?: string; note?: string; signedOffAt?: string };
 type Interview = {
   jdId: string;
@@ -27,12 +34,15 @@ type Interview = {
   categoryScores?: Score[];
 };
 
-function parseAiAssessment(transcriptJson: string | null | undefined) {
-  if (!transcriptJson) return null;
+function parseCodeSubmissions(transcriptJson: string | null | undefined): boolean {
+  if (!transcriptJson) return false;
   try {
-    const doc = JSON.parse(transcriptJson) as { meta?: { aiAssessment?: { categoryScores?: Score[]; candidateFeedback?: Interview["candidateFeedback"] } } };
-    return doc.meta?.aiAssessment ?? null;
-  } catch { return null; }
+    const doc = JSON.parse(transcriptJson) as { meta?: { codeSubmissions?: unknown; codeSubmission?: unknown } };
+    if (Array.isArray(doc.meta?.codeSubmissions)) return doc.meta.codeSubmissions.length > 0;
+    return !!doc.meta?.codeSubmission;
+  } catch {
+    return false;
+  }
 }
 
 const VERDICT_LABEL: Record<string, string> = {
@@ -124,15 +134,17 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
 
   // Fallback to reading from transcriptJson if API didn't provide it
   const ai = parseAiAssessment(interview.transcriptJson);
-  if (scores.length === 0 && storedAssessment?.categoryScores) {
-    scores = storedAssessment.categoryScores;
-  }
-  if (scores.length === 0 && ai?.categoryScores) {
-    scores = ai.categoryScores;
-  }
   if (scores.length === 0 && interview.categoryScores) {
     scores = interview.categoryScores;
   }
+  scores = mergeAssessmentScores(scores, ai, storedAssessment);
+  const assessFailed = Boolean((ai as { assessFailed?: boolean } | null)?.assessFailed);
+  const banners = buildAssessmentBanners({
+    ai,
+    transcriptJson: interview.transcriptJson,
+    hasCodeSubmissions: parseCodeSubmissions(interview.transcriptJson),
+    assessFailed,
+  });
 
   const candidateFeedback = normalizeCandidateFeedback(
     (storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback) as Interview["candidateFeedback"]
@@ -164,8 +176,10 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
           </Link>
         </div>
 
+        <AssessmentBanners banners={banners} />
+
         {/* Scores */}
-        <section>
+        <section className="mt-6">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Scores</h2>
           {scores.length ? (
             <div className="grid gap-3">
@@ -308,9 +322,9 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
                       <div key={i} className="flex items-start gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/30">
                         <div className="mt-0.5">
                           {claim.consistent ? (
-                            <span className="text-emerald-500">✅</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Done</span>
                           ) : (
-                            <span className="text-red-500">❌</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Gap</span>
                           )}
                         </div>
                         <div className="flex-1">
@@ -382,7 +396,7 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
               {candidateFeedback.estimatedReadiness && (
                 <div className="rounded-lg bg-indigo-50 p-4 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/30">
                   <h3 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
-                    ⏱ Estimated Readiness Timeline
+                    Estimated readiness timeline
                   </h3>
                   <p className="mt-1 text-sm text-indigo-800 dark:text-indigo-300">
                     {candidateFeedback.estimatedReadiness}
