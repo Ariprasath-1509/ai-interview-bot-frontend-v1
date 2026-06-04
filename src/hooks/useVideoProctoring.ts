@@ -123,18 +123,23 @@ export function useVideoProctoring({
     interviewIdRef.current = interviewId;
   }, [interviewId]);
 
+  const snapshotRef = useRef(snapshot);
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
   const flushSync = useCallback(async () => {
     const id = interviewIdRef.current;
     if (!id || eventsRef.current.length === 0) return;
     const snap = {
-      ...snapshot,
+      ...snapshotRef.current,
       strikes: { ...strikesRef.current },
       lastReasons: [...lastReasonsRef.current],
       totalEvents: eventsRef.current.length,
       integrityScore: computeIntegrityScore(eventsRef.current),
     };
     await syncProctoringEvents(id, buildSyncPayload(snap, eventsRef.current));
-  }, [snapshot]);
+  }, []);
 
   const scheduleSync = useCallback(() => {
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
@@ -511,17 +516,17 @@ export function useVideoProctoring({
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load proctoring models";
+      console.error("[proctor] model load failed:", err);
       setCameraError(msg);
       updateSnapshot({
-        status: "NOT_AVAILABLE",
+        status: "PENDING",
         ready: false,
         enrolled: false,
-        cameraActive: false,
+        cameraActive: true,
         modelsLoaded: false,
-        note: msg,
+        note: `${msg} Camera stays on — fix network/CSP or click Cancel and retry.`,
       });
       setLoadingMessage(null);
-      releaseCamera();
       requestInFlightRef.current = false;
       return false;
     }
@@ -576,14 +581,19 @@ export function useVideoProctoring({
     };
   }, [active, enabled, runDetectionLoop, snapshot.enrolled, snapshot.ready, updateSnapshot]);
 
-  useEffect(
-    () => () => {
-      releaseCamera();
+  // Cleanup only on unmount — do NOT depend on flushSync/releaseCamera/snapshot or camera stops after every state update.
+  const releaseCameraRef = useRef(releaseCamera);
+  releaseCameraRef.current = releaseCamera;
+  const flushSyncRef = useRef(flushSync);
+  flushSyncRef.current = flushSync;
+
+  useEffect(() => {
+    return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-      void flushSync();
-    },
-    [flushSync, releaseCamera],
-  );
+      void flushSyncRef.current();
+      releaseCameraRef.current();
+    };
+  }, []);
 
   useEffect(() => {
     if (!active || !interviewId || !snapshot.ready) return;

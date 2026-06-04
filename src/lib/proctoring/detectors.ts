@@ -534,18 +534,23 @@ export async function loadProctoringModels(): Promise<{
   faceModel: BlazeFaceModel | null;
   backend: string;
 }> {
+  console.info("[proctor] initializing TensorFlow.js…");
   const tf = await import("@tensorflow/tfjs");
   const backend = await initTensorFlowBackend(tf);
+  console.info("[proctor] TF backend:", backend);
 
+  console.info("[proctor] loading model packages (webpack chunks)…");
   const [cocoSsd, blazeface] = await Promise.all([
     import("@tensorflow-models/coco-ssd"),
     import("@tensorflow-models/blazeface"),
   ]);
 
+  console.info("[proctor] downloading model weights (storage.googleapis.com)…");
   const [cocoModel, faceModel] = await Promise.all([
     withTimeout(cocoSsd.load({ base: "lite_mobilenet_v2" }), MODEL_LOAD_TIMEOUT_MS, "COCO-SSD model"),
     withTimeout(blazeface.load(), MODEL_LOAD_TIMEOUT_MS, "BlazeFace model"),
   ]);
+  console.info("[proctor] models ready");
 
   return {
     cocoModel,
