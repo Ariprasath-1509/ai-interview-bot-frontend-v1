@@ -99,9 +99,15 @@ export function VideoProctorPanel({ proctoring, canStart, sessionActive, onReque
           </div>
         )}
 
-        {!canStart && !sessionActive && !snapshot.ready && (
+        {!canStart && !sessionActive && (
           <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-            Enable camera and wait for models to load before starting the interview.
+            {!snapshot.cameraActive
+              ? "Enable camera and allow browser permission."
+              : !snapshot.modelsLoaded
+                ? "Wait for AI models to finish loading (first visit may take 1–2 minutes)."
+                : !snapshot.enrolled
+                  ? "Complete face enrollment before starting the interview."
+                  : "Finish proctoring setup before starting the interview."}
           </p>
         )}
 
@@ -111,7 +117,7 @@ export function VideoProctorPanel({ proctoring, canStart, sessionActive, onReque
           </p>
         )}
 
-        {snapshot.ready && !snapshot.enrolled && !snapshot.enrolling && (
+        {snapshot.cameraActive && snapshot.modelsLoaded && !snapshot.enrolled && !snapshot.enrolling && (
           <button
             type="button"
             onClick={onRetryEnrollment ?? onRequestCamera}
@@ -158,7 +164,7 @@ export function VideoProctorPanel({ proctoring, canStart, sessionActive, onReque
               className="h-full w-full object-cover"
               style={{ transform: "scaleX(-1)" }}
             />
-            {!snapshot.ready && (
+            {!snapshot.cameraActive && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900/90 text-zinc-300">
                 {loadingMessage ? (
                   <>
@@ -167,6 +173,25 @@ export function VideoProctorPanel({ proctoring, canStart, sessionActive, onReque
                   </>
                 ) : (
                   <span className="text-[10px]">Camera off</span>
+                )}
+              </div>
+            )}
+            {snapshot.cameraActive && !snapshot.ready && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900/70 text-zinc-200">
+                {loadingMessage || snapshot.enrolling ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="px-2 text-center text-[10px]">
+                      {loadingMessage ?? "Enrolling face…"}
+                    </span>
+                  </>
+                ) : snapshot.modelsLoaded ? (
+                  <span className="px-2 text-center text-[10px] text-amber-200">Enrollment needed</span>
+                ) : (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="px-2 text-center text-[10px]">Loading models…</span>
+                  </>
                 )}
               </div>
             )}

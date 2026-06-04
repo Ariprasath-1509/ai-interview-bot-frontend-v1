@@ -53,6 +53,8 @@ const EMPTY_STRIKES = (): Record<ProctorEventType, number> => ({
 const INITIAL_SNAPSHOT: VideoProctoringSnapshot = {
   status: "PENDING",
   ready: false,
+  cameraActive: false,
+  modelsLoaded: false,
   enrolled: false,
   enrolling: false,
   monitoring: false,
@@ -261,7 +263,14 @@ export function useVideoProctoring({
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-  }, []);
+    updateSnapshot({
+      cameraActive: false,
+      modelsLoaded: false,
+      ready: false,
+      enrolled: false,
+      enrolling: false,
+    });
+  }, [updateSnapshot]);
 
   const performEnrollment = useCallback(async (): Promise<boolean> => {
     const video = videoRef.current;
@@ -281,7 +290,9 @@ export function useVideoProctoring({
         enrolling: false,
         enrolled: false,
         ready: false,
-        note: "Face enrollment failed — ensure your face is centered and well lit, then retry.",
+        cameraActive: true,
+        modelsLoaded: true,
+        note: "Face enrollment failed — center your face, improve lighting, remove hat/mask, then click Retry face enrollment.",
       });
       return false;
     }
@@ -290,6 +301,8 @@ export function useVideoProctoring({
       enrolling: false,
       enrolled: true,
       ready: true,
+      cameraActive: true,
+      modelsLoaded: true,
       note: "Face enrolled — start the interview when you are ready",
     });
     return true;
@@ -354,7 +367,15 @@ export function useVideoProctoring({
 
     setCameraError(null);
     setLoadingMessage("Requesting camera access…");
-    updateSnapshot({ status: "PENDING", note: "Requesting camera access…", enrolled: false, enrolling: false });
+    updateSnapshot({
+      status: "PENDING",
+      note: "Requesting camera access…",
+      enrolled: false,
+      enrolling: false,
+      ready: false,
+      cameraActive: false,
+      modelsLoaded: false,
+    });
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -380,29 +401,48 @@ export function useVideoProctoring({
             ? "No camera found. Connect a webcam to continue."
             : "Could not access camera. Check browser permissions and try again.";
       setCameraError(msg);
-      updateSnapshot({ status: "NOT_AVAILABLE", ready: false, enrolled: false, note: msg });
+      updateSnapshot({
+        status: "NOT_AVAILABLE",
+        ready: false,
+        enrolled: false,
+        cameraActive: false,
+        modelsLoaded: false,
+        note: msg,
+      });
       setLoadingMessage(null);
       return false;
     }
 
+    updateSnapshot({ cameraActive: true, note: "Camera on — loading detection models…" });
     setLoadingMessage("Loading AI models…");
-    updateSnapshot({ note: "Loading detection models…" });
     try {
-      const { cocoModel, faceModel } = await loadProctoringModels();
+      const { cocoModel, faceModel, backend } = await loadProctoringModels();
       cocoModelRef.current = cocoModel;
       faceModelRef.current = faceModel;
 
       if (videoRef.current && tileCanvasRef.current) {
         const tileCtx = tileCanvasRef.current.getContext("2d");
         if (tileCtx) {
-          setLoadingMessage("Warming up models…");
+          setLoadingMessage(`Warming up models (${backend})…`);
           await warmUpModels(videoRef.current, cocoModel, faceModel, tileCanvasRef.current, tileCtx);
         }
       }
+
+      updateSnapshot({
+        modelsLoaded: true,
+        note: `Models loaded (${backend}) — enrolling your face…`,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load proctoring models";
       setCameraError(msg);
-      updateSnapshot({ status: "NOT_AVAILABLE", ready: false, enrolled: false, note: msg });
+      updateSnapshot({
+        status: "NOT_AVAILABLE",
+        ready: false,
+        enrolled: false,
+        cameraActive: false,
+        modelsLoaded: false,
+        note: msg,
+      });
       setLoadingMessage(null);
       releaseCamera();
       return false;

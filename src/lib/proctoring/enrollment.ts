@@ -69,10 +69,12 @@ export function compareIdentity(baseline: IdentityBaseline, current: Float32Arra
 export async function runFaceEnrollment(
   video: HTMLVideoElement,
   faceModel: BlazeFaceModel,
-  frameCount = 12,
-  intervalMs = 250,
+  frameCount = 20,
+  intervalMs = 300,
 ): Promise<IdentityBaseline | null> {
   const samples: Float32Array[] = [];
+  const minSamples = 4;
+
   for (let i = 0; i < frameCount; i++) {
     if (video.readyState >= 2) {
       try {
@@ -87,6 +89,7 @@ export async function runFaceEnrollment(
     }
     if (i < frameCount - 1) await sleep(intervalMs);
   }
-  if (samples.length < Math.ceil(frameCount / 2)) return null;
+
+  if (samples.length < minSamples) return null;
   return averageVectors(samples);
 }

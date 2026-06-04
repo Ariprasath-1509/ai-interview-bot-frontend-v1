@@ -482,14 +482,60 @@ export async function detectFrame(
   return null;
 }
 
+const MODEL_LOAD_TIMEOUT_MS = 120_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${label} timed out after ${ms / 1000}s. The browser must reach storage.googleapis.com to download AI weights. Check firewall, proxy, or Content-Security-Policy on this site.`,
+          ),
+        ),
+      ms,
+    );
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+/** Prefer WebGL; fall back to CPU when GPU/WebGL is unavailable (common on VMs, RDP, some servers). */
+async function initTensorFlowBackend(tf: typeof import("@tensorflow/tfjs")): Promise<string> {
+  await import("@tensorflow/tfjs-backend-webgl");
+  await import("@tensorflow/tfjs-backend-cpu");
+
+  for (const backend of ["webgl", "cpu"] as const) {
+    try {
+      await tf.setBackend(backend);
+      await tf.ready();
+      const probe = tf.tensor([1, 2, 3]);
+      probe.dispose();
+      return backend;
+    } catch {
+      /* try next backend */
+    }
+  }
+  throw new Error(
+    "Could not initialize TensorFlow (WebGL or CPU). Try Chrome/Edge, enable hardware acceleration, or use a machine with GPU support.",
+  );
+}
+
 export async function loadProctoringModels(): Promise<{
   cocoModel: CocoModel | null;
   faceModel: BlazeFaceModel | null;
+  backend: string;
 }> {
   const tf = await import("@tensorflow/tfjs");
-  await import("@tensorflow/tfjs-backend-webgl");
-  await tf.setBackend("webgl");
-  await tf.ready();
+  const backend = await initTensorFlowBackend(tf);
 
   const [cocoSsd, blazeface] = await Promise.all([
     import("@tensorflow-models/coco-ssd"),
@@ -497,13 +543,14 @@ export async function loadProctoringModels(): Promise<{
   ]);
 
   const [cocoModel, faceModel] = await Promise.all([
-    cocoSsd.load({ base: "lite_mobilenet_v2" }),
-    blazeface.load(),
+    withTimeout(cocoSsd.load({ base: "lite_mobilenet_v2" }), MODEL_LOAD_TIMEOUT_MS, "COCO-SSD model"),
+    withTimeout(blazeface.load(), MODEL_LOAD_TIMEOUT_MS, "BlazeFace model"),
   ]);
 
   return {
     cocoModel,
     faceModel: faceModel as BlazeFaceModel,
+    backend,
   };
 }
 

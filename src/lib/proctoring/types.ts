@@ -34,6 +34,10 @@ export type ProctorEvent = {
 export type VideoProctoringSnapshot = {
   status: ProctorStatus;
   ready: boolean;
+  /** Camera stream is active (distinct from enrollment success). */
+  cameraActive: boolean;
+  /** TensorFlow models finished loading (may still need enrollment). */
+  modelsLoaded: boolean;
   enrolled: boolean;
   enrolling: boolean;
   monitoring: boolean;
