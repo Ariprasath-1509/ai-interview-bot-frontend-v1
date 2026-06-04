@@ -90,7 +90,12 @@ export function VideoProctorPanel({ proctoring, canStart, sessionActive, onReque
           )}
         </div>
 
-        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{snapshot.note}</p>
+        {!loadingMessage && (
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{snapshot.note}</p>
+        )}
+        {loadingMessage && (
+          <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">{loadingMessage}</p>
+        )}
 
         {cameraError && (
           <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
@@ -172,7 +177,7 @@ export function VideoProctorPanel({ proctoring, canStart, sessionActive, onReque
                     <span className="px-2 text-center text-[10px]">{loadingMessage}</span>
                   </>
                 ) : (
-                  <span className="text-[10px]">Camera off</span>
+                  <span className="px-2 text-center text-[10px]">Click Enable camera above</span>
                 )}
               </div>
             )}

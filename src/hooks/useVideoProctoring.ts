@@ -62,7 +62,7 @@ const INITIAL_SNAPSHOT: VideoProctoringSnapshot = {
   strikes: EMPTY_STRIKES(),
   totalEvents: 0,
   lastReasons: [],
-  note: "Camera permission required for proctored interview",
+  note: "Click Enable camera, then allow permission when the browser prompts you.",
 };
 
 function nowIso() {
@@ -115,6 +115,9 @@ export function useVideoProctoring({
   const interviewIdRef = useRef(interviewId);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSnapshotAtRef = useRef<Record<string, number>>({});
+  const requestInFlightRef = useRef(false);
+
+  const CAMERA_REQUEST_TIMEOUT_MS = 45_000;
 
   useEffect(() => {
     interviewIdRef.current = interviewId;
@@ -361,15 +364,51 @@ export function useVideoProctoring({
     loopTimerRef.current = setTimeout(() => void runDetectionLoop(), DEFAULT_DETECTION_CONFIG.detectIntervalMs);
   }, [handleClear, recordEvent]);
 
+  const attachStreamToVideo = useCallback(async (): Promise<boolean> => {
+    const stream = streamRef.current;
+    const video = videoRef.current;
+    if (!stream?.active || !video) return false;
+
+    video.srcObject = stream;
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Video preview timed out")), 15_000);
+      const done = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+      if (video.readyState >= 2) return done();
+      video.onloadeddata = () => done();
+    });
+    await video.play().catch(() => undefined);
+    return true;
+  }, []);
+
   const requestCamera = useCallback(async (): Promise<boolean> => {
     if (!enabled || typeof window === "undefined") return false;
+    if (requestInFlightRef.current) return false;
     if (streamRef.current?.active && snapshot.enrolled) return true;
 
+    if (!window.isSecureContext) {
+      const msg =
+        "Camera requires HTTPS (or localhost). Open the interview over https://, not plain http://.";
+      setCameraError(msg);
+      updateSnapshot({ status: "NOT_AVAILABLE", note: msg, cameraActive: false, modelsLoaded: false });
+      return false;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const msg = "Camera API is not available in this browser. Use Chrome, Edge, or Firefox.";
+      setCameraError(msg);
+      updateSnapshot({ status: "NOT_AVAILABLE", note: msg });
+      return false;
+    }
+
+    requestInFlightRef.current = true;
     setCameraError(null);
     setLoadingMessage("Requesting camera access…");
     updateSnapshot({
       status: "PENDING",
-      note: "Requesting camera access…",
+      note: "Allow camera in the browser prompt (address bar or popup).",
       enrolled: false,
       enrolling: false,
       ready: false,
@@ -378,19 +417,34 @@ export function useVideoProctoring({
     });
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-        audio: false,
-      });
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+          audio: false,
+        }),
+        new Promise<MediaStream>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "Camera permission timed out. Click the camera icon in the address bar, choose Allow, then click Enable camera again.",
+                ),
+              ),
+            CAMERA_REQUEST_TIMEOUT_MS,
+          ),
+        ),
+      ]);
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await new Promise<void>((resolve) => {
-          const v = videoRef.current!;
-          if (v.readyState >= 2) return resolve();
-          v.onloadeddata = () => resolve();
-        });
-        await videoRef.current.play().catch(() => undefined);
+
+      let attached = await attachStreamToVideo();
+      if (!attached) {
+        for (let i = 0; i < 40 && !attached; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          attached = await attachStreamToVideo();
+        }
+      }
+      if (!attached) {
+        throw new Error("Could not attach camera preview. Refresh the page and try again.");
       }
     } catch (err) {
       const name = err instanceof DOMException ? err.name : "Error";
@@ -410,6 +464,7 @@ export function useVideoProctoring({
         note: msg,
       });
       setLoadingMessage(null);
+      requestInFlightRef.current = false;
       return false;
     }
 
@@ -445,12 +500,22 @@ export function useVideoProctoring({
       });
       setLoadingMessage(null);
       releaseCamera();
+      requestInFlightRef.current = false;
       return false;
     }
 
     const enrolled = await performEnrollment();
+    setLoadingMessage(null);
+    requestInFlightRef.current = false;
     return enrolled;
-  }, [enabled, releaseCamera, performEnrollment, snapshot.enrolled, updateSnapshot]);
+  }, [
+    enabled,
+    releaseCamera,
+    performEnrollment,
+    snapshot.enrolled,
+    updateSnapshot,
+    attachStreamToVideo,
+  ]);
 
   useEffect(() => {
     if (!enabled || !active || !snapshot.ready || !snapshot.enrolled || terminatedRef.current) {

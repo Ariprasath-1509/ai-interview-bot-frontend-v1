@@ -324,10 +324,7 @@ export function VoiceInterviewClient({
     },
   });
 
-  useEffect(() => {
-    void proctoring.requestCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Camera must be started via user click (Enable camera) — auto getUserMedia on mount is blocked or hangs in many browsers.
 
   useEffect(() => {
     if (!isCodingSlotActive || !proctorSessionActive) return;
