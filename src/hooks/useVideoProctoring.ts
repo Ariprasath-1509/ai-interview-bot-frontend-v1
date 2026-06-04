@@ -383,9 +383,29 @@ export function useVideoProctoring({
     return true;
   }, []);
 
+  const resetCameraSetup = useCallback(() => {
+    requestInFlightRef.current = false;
+    setLoadingMessage(null);
+    setCameraError(null);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    updateSnapshot({
+      status: "PENDING",
+      ready: false,
+      enrolled: false,
+      enrolling: false,
+      cameraActive: false,
+      modelsLoaded: false,
+      note: "Click Enable camera, then allow permission when the browser prompts you.",
+    });
+  }, [updateSnapshot]);
+
   const requestCamera = useCallback(async (): Promise<boolean> => {
     if (!enabled || typeof window === "undefined") return false;
-    if (requestInFlightRef.current) return false;
+    // User clicked again — always allow a new attempt (fixes stuck inFlight / disabled button).
+    requestInFlightRef.current = false;
+
     if (streamRef.current?.active && snapshot.enrolled) return true;
 
     if (!window.isSecureContext) {
@@ -449,11 +469,13 @@ export function useVideoProctoring({
     } catch (err) {
       const name = err instanceof DOMException ? err.name : "Error";
       const msg =
-        name === "NotAllowedError"
-          ? "Camera access was denied. Allow camera permission to start the proctored interview."
-          : name === "NotFoundError"
-            ? "No camera found. Connect a webcam to continue."
-            : "Could not access camera. Check browser permissions and try again.";
+        err instanceof Error && err.message && name === "Error"
+          ? err.message
+          : name === "NotAllowedError"
+            ? "Camera access was denied. Allow camera permission to start the proctored interview."
+            : name === "NotFoundError"
+              ? "No camera found. Connect a webcam to continue."
+              : "Could not access camera. Check browser permissions and try again.";
       setCameraError(msg);
       updateSnapshot({
         status: "NOT_AVAILABLE",
@@ -504,10 +526,13 @@ export function useVideoProctoring({
       return false;
     }
 
-    const enrolled = await performEnrollment();
-    setLoadingMessage(null);
-    requestInFlightRef.current = false;
-    return enrolled;
+    try {
+      const enrolled = await performEnrollment();
+      return enrolled;
+    } finally {
+      setLoadingMessage(null);
+      requestInFlightRef.current = false;
+    }
   }, [
     enabled,
     releaseCamera,
@@ -595,6 +620,7 @@ export function useVideoProctoring({
     loadingMessage,
     showViolationModal,
     requestCamera,
+    resetCameraSetup,
     releaseCamera,
     dismissWarning,
     getSnapshotForTranscript,

@@ -22,7 +22,10 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/interview/:path*",
-        headers: [{ key: "Content-Security-Policy", value: proctoringCsp }],
+        headers: [
+          { key: "Content-Security-Policy", value: proctoringCsp },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self)" },
+        ],
       },
     ];
   },

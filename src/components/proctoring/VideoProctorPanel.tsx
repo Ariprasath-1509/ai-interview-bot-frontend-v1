@@ -10,6 +10,7 @@ type Props = {
   sessionActive: boolean;
   onRequestCamera: () => void;
   onRetryEnrollment?: () => void;
+  onCancelStuck?: () => void;
 };
 
 function statusColor(status: string): string {
@@ -46,7 +47,14 @@ function levelLabel(level: ProctorViolationLevel): string {
   return "Monitoring";
 }
 
-export function VideoProctorPanel({ proctoring, canStart, sessionActive, onRequestCamera, onRetryEnrollment }: Props) {
+export function VideoProctorPanel({
+  proctoring,
+  canStart,
+  sessionActive,
+  onRequestCamera,
+  onRetryEnrollment,
+  onCancelStuck,
+}: Props) {
   const {
     videoRef,
     snapshot,
@@ -69,24 +77,42 @@ export function VideoProctorPanel({ proctoring, canStart, sessionActive, onReque
             </span>
           </div>
           {!snapshot.ready && (
-            <button
-              type="button"
-              onClick={onRequestCamera}
-              disabled={!!loadingMessage}
-              className="inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background disabled:opacity-60"
-            >
-              {loadingMessage ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {loadingMessage}
-                </>
-              ) : (
-                <>
-                  <Video className="h-3.5 w-3.5" />
-                  Enable camera
-                </>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRequestCamera();
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:opacity-90"
+              >
+                {loadingMessage ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {loadingMessage.length > 28 ? "Working…" : loadingMessage}
+                  </>
+                ) : (
+                  <>
+                    <Video className="h-3.5 w-3.5" />
+                    Enable camera
+                  </>
+                )}
+              </button>
+              {loadingMessage && onCancelStuck && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onCancelStuck();
+                  }}
+                  className="text-xs font-medium text-zinc-600 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  Cancel
+                </button>
               )}
-            </button>
+            </div>
           )}
         </div>
 
