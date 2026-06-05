@@ -25,5 +25,13 @@ export async function POST(req: Request) {
   if (!upstream) return Response.json({ error: "STT service unreachable" }, { status: 502 });
 
   const data = await upstream.json().catch(() => ({}));
+  if (!upstream.ok) {
+    const detail =
+      (data as { detail?: string; message?: string; error?: string }).detail ??
+      (data as { message?: string }).message ??
+      (data as { error?: string }).error ??
+      "Transcription failed";
+    return Response.json({ error: "transcribe_failed", detail }, { status: upstream.status });
+  }
   return Response.json(data, { status: upstream.status });
 }
