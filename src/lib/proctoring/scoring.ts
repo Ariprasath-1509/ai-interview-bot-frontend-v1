@@ -6,7 +6,7 @@ const PENALTIES: Partial<Record<ProctorEventType, number>> = {
   multiple_faces: 30,
   no_face: 10,
   looking_away: 8,
-  gaze_away: 8,
+  gaze_away: 5,
   identity_mismatch: 35,
   liveness_failed: 20,
   fullscreen_exit: 15,

@@ -446,7 +446,7 @@ export function VoiceInterviewClient({
       terminationMessage = "[INTERVIEW ENDED] Time limit expired.";
     } else if (reason === "proctoring_violation") {
       terminationMessage =
-        "[INTERVIEW TERMINATED] Video proctoring detected repeated integrity violations (phone/recording device, camera obstruction, or suspicious movement).";
+        "[INTERVIEW TERMINATED] Video proctoring detected repeated serious integrity violations (phone/recording device, camera obstruction, multiple people, or identity mismatch).";
     }
 
     const finalUtterances = terminationMessage

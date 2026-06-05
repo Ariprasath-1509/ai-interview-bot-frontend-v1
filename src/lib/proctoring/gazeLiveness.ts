@@ -80,11 +80,12 @@ export function isGazeAwayFromLandmarks(landmarks: number[][]): boolean {
   const roll = Math.abs(leftEye[1] - rightEye[1]) / interEye;
   const mouthOffset = Math.abs(mouth[0] - eyeMidX) / interEye;
 
+  // Lenient thresholds — natural interview movement (notes, thinking) should not flag.
   return (
-    Math.abs(yaw) > 0.38 ||
-    Math.abs(pitch) > 0.42 ||
-    roll > 0.28 ||
-    mouthOffset > 0.35
+    Math.abs(yaw) > 0.52 ||
+    Math.abs(pitch) > 0.58 ||
+    roll > 0.38 ||
+    mouthOffset > 0.45
   );
 }
 
@@ -98,6 +99,6 @@ export function checkLivenessTimeout(state: LivenessState, faceVisible: boolean,
 
   const visibleMs = now - state.faceVisibleSince;
   const sinceBlink = now - state.lastBlinkAt;
-  if (visibleMs < 45_000) return false;
-  return sinceBlink >= 75_000;
+  if (visibleMs < 30_000) return false;
+  return sinceBlink >= 60_000;
 }

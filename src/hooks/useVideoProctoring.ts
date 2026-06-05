@@ -17,7 +17,7 @@ import {
   syncProctoringEvents,
   uploadProctoringSnapshot,
 } from "@/lib/proctoring/sync";
-import { DEFAULT_DETECTION_CONFIG, STRIKE_LIMITS } from "@/lib/proctoring/thresholds";
+import { DEFAULT_DETECTION_CONFIG, MONITORING_GRACE_PERIOD_MS, SOFT_STRIKE_COOLDOWN_MS, STRIKE_LIMITS, TERMINATABLE_VIOLATIONS } from "@/lib/proctoring/thresholds";
 import type {
   BlazeFaceModel,
   CocoModel,
@@ -69,14 +69,17 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+const SOFT_VIOLATION_TYPES = new Set<ProctorEventType>(["gaze_away", "looking_away", "no_face"]);
+
 function strikeLevel(
   eventType: ProctorEventType,
   strikes: number,
 ): ProctorViolationLevel {
   const limits = STRIKE_LIMITS[eventType];
   if (!limits) return strikes > 0 ? "warning" : "none";
-  if (strikes >= limits.terminate) return "paused";
-  if (strikes >= limits.pause) return "paused";
+  const terminatable = TERMINATABLE_VIOLATIONS.has(eventType);
+  if (terminatable && strikes >= limits.terminate) return "paused";
+  if (strikes >= limits.pause) return "warning";
   if (strikes >= 1) return "warning";
   return "none";
 }
@@ -115,6 +118,8 @@ export function useVideoProctoring({
   const interviewIdRef = useRef(interviewId);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSnapshotAtRef = useRef<Record<string, number>>({});
+  const lastSoftStrikeAtRef = useRef<Partial<Record<ProctorEventType, number>>>({});
+  const monitoringStartedAtRef = useRef<number | null>(null);
   const requestInFlightRef = useRef(false);
 
   const CAMERA_REQUEST_TIMEOUT_MS = 45_000;
@@ -197,20 +202,34 @@ export function useVideoProctoring({
       lastReasonsRef.current = reasons;
 
       const isNewEpisode = !activeViolationsRef.current.has(type);
+      let countStrike = false;
       if (isNewEpisode) {
         activeViolationsRef.current.add(type);
-        const event: ProctorEvent = {
-          at: nowIso(),
-          type,
-          severity,
-          reasons,
-          confidence,
-        };
-        eventsRef.current = [...eventsRef.current.slice(-49), event];
-        strikesRef.current = {
-          ...strikesRef.current,
-          [type]: (strikesRef.current[type] || 0) + 1,
-        };
+
+        countStrike = true;
+        if (SOFT_VIOLATION_TYPES.has(type)) {
+          const lastStrikeAt = lastSoftStrikeAtRef.current[type] ?? 0;
+          if (Date.now() - lastStrikeAt < SOFT_STRIKE_COOLDOWN_MS) {
+            countStrike = false;
+          } else {
+            lastSoftStrikeAtRef.current[type] = Date.now();
+          }
+        }
+
+        if (countStrike) {
+          const event: ProctorEvent = {
+            at: nowIso(),
+            type,
+            severity,
+            reasons,
+            confidence,
+          };
+          eventsRef.current = [...eventsRef.current.slice(-49), event];
+          strikesRef.current = {
+            ...strikesRef.current,
+            [type]: (strikesRef.current[type] || 0) + 1,
+          };
+        }
       }
 
       const strikes = strikesRef.current[type] || 0;
@@ -228,12 +247,22 @@ export function useVideoProctoring({
         integrityScore,
       });
 
-      if (isNewEpisode) {
+      if (isNewEpisode && countStrike) {
         scheduleSync();
         void maybeCaptureSnapshot(type, severity);
       }
 
-      if (limits && strikes >= limits.terminate && !terminatedRef.current) {
+      const monitoringAgeMs =
+        monitoringStartedAtRef.current != null ? Date.now() - monitoringStartedAtRef.current : 0;
+      const pastGracePeriod = monitoringAgeMs >= MONITORING_GRACE_PERIOD_MS;
+      const mayTerminate =
+        TERMINATABLE_VIOLATIONS.has(type) &&
+        limits &&
+        strikes >= limits.terminate &&
+        !terminatedRef.current &&
+        pastGracePeriod;
+
+      if (mayTerminate) {
         terminatedRef.current = true;
         updateSnapshot({ status: "FAILED", violationLevel: "paused", integrityScore });
         void flushSync();
@@ -555,6 +584,7 @@ export function useVideoProctoring({
         loopTimerRef.current = null;
       }
       if (!active && snapshot.ready) {
+        monitoringStartedAtRef.current = null;
         updateSnapshot({
           monitoring: false,
           status: "PENDING",
@@ -564,6 +594,9 @@ export function useVideoProctoring({
       return;
     }
 
+    if (monitoringStartedAtRef.current == null) {
+      monitoringStartedAtRef.current = Date.now();
+    }
     runningRef.current = true;
     updateSnapshot({
       monitoring: true,

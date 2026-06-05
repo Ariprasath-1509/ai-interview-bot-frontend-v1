@@ -257,8 +257,8 @@ export function VideoProctorPanel({
                 </p>
               ) : (
                 <p className="text-zinc-600 dark:text-zinc-400">
-                  Remove any phones or recording devices, stay in frame, and face the screen. Further violations will
-                  pause or end the interview.
+                  Brief glances are OK. Remove any phones or recording devices, stay in frame, and keep one person on
+                  camera. Only serious violations (phone, blocked camera, another person) will end the interview.
                 </p>
               )}
             </div>
