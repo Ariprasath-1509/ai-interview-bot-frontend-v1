@@ -11,7 +11,16 @@ import DashboardPerformanceTab, { type CandidatePerformanceData } from '@/app/ad
 
 // Interfaces
 interface AnalyticsData {
-  statusCounts: { scheduled: number; inProgress: number; completed: number; signedOff: number; reviewPending: number; total: number; };
+  statusCounts: {
+    draft: number;
+    scheduled: number;
+    inProgress: number;
+    completed: number;
+    signedOff: number;
+    withdrawn: number;
+    reviewPending: number;
+    total: number;
+  };
   timePeriods: { today: number; thisWeek: number; total: number; };
   successMetrics: { readyCount: number; totalAssessed: number; successRate: number; };
   lastUpdated: string;
@@ -188,8 +197,20 @@ export default function DashboardClient() {
                 description="Current status of all interviews in the system"
               />
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <StatCard title="Draft" description="Created but not yet scheduled" value={analytics?.statusCounts.scheduled || 0} accent="indigo" linkTo="/admin/review?status=DRAFT" />
-                <StatCard title="Scheduled" description="Booked but not yet started" value={analytics?.statusCounts.scheduled || 0} accent="blue" linkTo="/admin/review?status=SCHEDULED" />
+                <StatCard
+                  title="Scheduled"
+                  description="Booked but not yet started"
+                  value={analytics?.statusCounts.scheduled ?? 0}
+                  accent="teal"
+                  linkTo="/admin/review?status=SCHEDULED"
+                />
+                <StatCard
+                  title="In Progress"
+                  description="Interview currently underway"
+                  value={analytics?.statusCounts.inProgress || 0}
+                  accent="blue"
+                  linkTo="/admin/review?status=IN_PROGRESS"
+                />
                 <StatCard title="Review Pending" description="Awaiting manager sign-off" value={reviewPendingCount} accent="yellow" linkTo="/admin/review?status=REVIEW_PENDING" />
                 <StatCard title="Completed" description="Fully assessed by AI" value={analytics?.statusCounts.completed || 0} accent="green" linkTo="/admin/review?status=COMPLETED" />
                 <StatCard title="Signed Off" description="Final verdict submitted" value={analytics?.statusCounts.signedOff || 0} accent="purple" linkTo="/admin/review?status=SIGNED_OFF" />
