@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { LayoutDashboard } from 'lucide-react';
 import { SkeletonDashboard } from '@/components/common/Skeleton';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { PageHero, SectionHeader, StatCard } from '@/components/common/AppUi';
 
 // Interfaces
 interface AnalyticsData {
@@ -134,8 +136,14 @@ export default function DashboardClient() {
   ];
 
   return (
-    <div className="space-y-6 max-w-6xl">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 max-w-6xl animate-in">
+      <PageHero
+        icon={LayoutDashboard}
+        title="Admin Dashboard"
+        description="Monitor interview pipeline, candidate readiness, client positions, and token usage in real time."
+      />
+
+      <div className="flex justify-between items-center flex-wrap gap-3">
         {/* Token Usage Alert Summary */}
         <div>
           {tokenData && (tokenData.nearLimit || tokenData.overLimit) && (
@@ -172,44 +180,44 @@ export default function DashboardClient() {
 
             {/* Interview Pipeline */}
             <div>
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Interview Pipeline</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Current status of all interviews in the system</p>
-              </div>
+              <SectionHeader
+                title="Interview Pipeline"
+                description="Current status of all interviews in the system"
+              />
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <StatusCard title="Draft" description="Created but not yet scheduled" count={analytics?.statusCounts.scheduled || 0} color="indigo" linkTo="/admin/review?status=DRAFT" />
-                <StatusCard title="Scheduled" description="Booked but not yet started" count={analytics?.statusCounts.scheduled || 0} color="blue" linkTo="/admin/review?status=SCHEDULED" />
-                <StatusCard title="Review Pending" description="Awaiting manager sign-off" count={reviewPendingCount} color="yellow" linkTo="/admin/review?status=REVIEW_PENDING" />
-                <StatusCard title="Completed" description="Fully assessed by AI" count={analytics?.statusCounts.completed || 0} color="green" linkTo="/admin/review?status=COMPLETED" />
-                <StatusCard title="Signed Off" description="Final verdict submitted" count={analytics?.statusCounts.signedOff || 0} color="purple" linkTo="/admin/review?status=SIGNED_OFF" />
+                <StatCard title="Draft" description="Created but not yet scheduled" value={analytics?.statusCounts.scheduled || 0} accent="indigo" linkTo="/admin/review?status=DRAFT" />
+                <StatCard title="Scheduled" description="Booked but not yet started" value={analytics?.statusCounts.scheduled || 0} accent="blue" linkTo="/admin/review?status=SCHEDULED" />
+                <StatCard title="Review Pending" description="Awaiting manager sign-off" value={reviewPendingCount} accent="yellow" linkTo="/admin/review?status=REVIEW_PENDING" />
+                <StatCard title="Completed" description="Fully assessed by AI" value={analytics?.statusCounts.completed || 0} accent="green" linkTo="/admin/review?status=COMPLETED" />
+                <StatCard title="Signed Off" description="Final verdict submitted" value={analytics?.statusCounts.signedOff || 0} accent="purple" linkTo="/admin/review?status=SIGNED_OFF" />
               </div>
             </div>
 
             {/* Activity & Outcomes */}
             <div>
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Activity & Outcomes</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Interview volume, client positions, and readiness results</p>
-              </div>
+              <SectionHeader
+                title="Activity & Outcomes"
+                description="Interview volume, client positions, and readiness results"
+              />
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatusCard title="Interviews Today" description="Created or updated today" count={analytics?.timePeriods.today || 0} color="indigo" />
-                <StatusCard title="Interviews This Week" description="Created or updated this week" count={analytics?.timePeriods.thisWeek || 0} color="teal" />
-                <StatusCard title="Total Clients" description="Active client positions" count={clientAnalytics?.totalClients || 0} color="blue" linkTo="/admin/clients" />
-                <StatusCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" count={`${analytics?.successMetrics.successRate || 0}%`} color="emerald" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
+                <StatCard title="Interviews Today" description="Created or updated today" value={analytics?.timePeriods.today || 0} accent="indigo" />
+                <StatCard title="Interviews This Week" description="Created or updated this week" value={analytics?.timePeriods.thisWeek || 0} accent="teal" />
+                <StatCard title="Total Clients" description="Active client positions" value={clientAnalytics?.totalClients || 0} accent="blue" linkTo="/admin/clients" />
+                <StatCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" value={`${analytics?.successMetrics.successRate || 0}%`} accent="emerald" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
               </div>
             </div>
 
             {/* Active Clients */}
             <div>
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Active Clients</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Current client positions requiring candidates</p>
-              </div>
+              <SectionHeader
+                title="Active Clients"
+                description="Current client positions requiring candidates"
+              />
               {clientAnalytics?.clients && clientAnalytics.clients.length > 0 ? (
                 <div className="card p-6">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
+                    <table className="app-table w-full text-sm text-left">
+                      <thead>
                         <tr>
                           <th className="px-4 py-3 font-medium rounded-l-lg">Client</th>
                           <th className="px-4 py-3 font-medium">Role</th>
@@ -217,9 +225,9 @@ export default function DashboardClient() {
                           <th className="px-4 py-3 font-medium rounded-r-lg">Created</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      <tbody>
                         {clientAnalytics.clients.map((client, idx) => (
-                          <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                          <tr key={idx}>
                             <td className="px-4 py-3">
                               <div className="font-medium text-zinc-900 dark:text-zinc-100">{client.clientName}</div>
                             </td>
@@ -547,50 +555,4 @@ export default function DashboardClient() {
       </div>
     </div>
   );
-}
-
-function StatusCard({ title, description, count, color, subtitle, linkTo }: {
-  title: string;
-  description?: string;
-  count: number | string;
-  color: string;
-  subtitle?: string;
-  linkTo?: string;
-}) {
-  const accentClasses = {
-    blue: 'border-l-blue-500 bg-blue-50/80 dark:bg-blue-950/20',
-    yellow: 'border-l-amber-500 bg-amber-50/80 dark:bg-amber-950/20',
-    green: 'border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20',
-    purple: 'border-l-purple-500 bg-purple-50/80 dark:bg-purple-950/20',
-    indigo: 'border-l-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/20',
-    teal: 'border-l-teal-500 bg-teal-50/80 dark:bg-teal-950/20',
-    emerald: 'border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20',
-  };
-
-  const content = (
-    <div
-      className={`card h-full border-l-4 p-5 transition-shadow duration-200 ${
-        accentClasses[color as keyof typeof accentClasses] ?? 'border-l-zinc-400'
-      } ${linkTo ? 'cursor-pointer hover:shadow-md' : ''}`}
-    >
-      <div className="flex h-full flex-col justify-between">
-        <div>
-          <p className="text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">{title}</p>
-          {description && (
-            <p className="mt-1 text-xs leading-snug text-zinc-500 dark:text-zinc-400">{description}</p>
-          )}
-        </div>
-        <div className="mt-4">
-          <p className="text-3xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{count}</p>
-          {subtitle && <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
-          {linkTo && <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">View details</p>}
-        </div>
-      </div>
-    </div>
-  );
-
-  if (linkTo) {
-    return <Link href={linkTo} className="block h-full">{content}</Link>;
-  }
-  return content;
 }

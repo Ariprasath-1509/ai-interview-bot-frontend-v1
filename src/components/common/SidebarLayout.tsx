@@ -12,6 +12,7 @@ import * as LucideIcons from "lucide-react";
 const NAV_GROUP_LABEL: Record<string, string> = {
   candidates: "Candidates",
   clients: "Clients",
+  masterData: "Master Data",
 };
 
 type NavChunk =
@@ -92,6 +93,7 @@ export function SidebarLayout({
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     candidates: true,
     clients: true,
+    masterData: true,
   });
 
   useEffect(() => {
@@ -166,8 +168,8 @@ export function SidebarLayout({
         title={collapsed ? item.label : undefined}
         className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 ${
           active
-            ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-            : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white"
+            : "text-zinc-600 hover:bg-blue-50 hover:text-blue-900 dark:text-zinc-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-200"
         } ${collapsed ? "justify-center px-2" : ""}`}
       >
         <Icon size={18} className="shrink-0" />
@@ -281,17 +283,17 @@ export function SidebarLayout({
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-200 bg-white/80 px-4 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/80 sm:px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/30 to-white px-4 backdrop-blur-sm dark:border-blue-950/40 dark:from-zinc-950 dark:via-blue-950/20 dark:to-zinc-950 sm:px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
-              className="rounded-md p-1.5 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 lg:hidden"
+              className="rounded-md p-1.5 text-zinc-600 hover:bg-blue-50 hover:text-blue-700 dark:text-zinc-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-300 lg:hidden"
             >
               <Menu size={20} />
             </button>
             <div>
-              <h1 className="text-base font-semibold leading-tight sm:text-lg">{title}</h1>
-              {subtitle && <p className="hidden text-xs text-zinc-500 sm:block">{subtitle}</p>}
+              <h1 className="text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-50 sm:text-lg">{title}</h1>
+              {subtitle && <p className="hidden text-xs text-blue-700/70 dark:text-blue-300/70 sm:block">{subtitle}</p>}
             </div>
           </div>
           <div className="flex items-center gap-3">

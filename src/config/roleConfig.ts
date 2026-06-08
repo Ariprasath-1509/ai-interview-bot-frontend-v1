@@ -5,7 +5,7 @@ export type SidebarItem = {
   label: string;
   icon: string; // Changed to string icon name
   /** Consecutive items with the same key render in one collapsible group */
-  navGroup?: "candidates" | "clients";
+  navGroup?: "candidates" | "clients" | "masterData";
 };
 
 export type Permission =
@@ -25,6 +25,8 @@ export type Permission =
   | "staff.manage"
   | "tokens.manage"
   | "compliance.view"
+  | "masterdata.view"
+  | "masterdata.manage"
   | "analytics.view"
   | "profile.view"
   | "profile.edit"
@@ -54,13 +56,18 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
       { href: "/admin/settings/tokens", label: "Token Settings", icon: "Settings" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
+      { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
+      { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
+      { href: "/admin/master-data/categories", label: "QB Categories", icon: "Layers", navGroup: "masterData" },
+      { href: "/admin/master-data/tags", label: "QB Tags", icon: "Tag", navGroup: "masterData" },
+      { href: "/admin/master-data/companies", label: "QB Companies", icon: "Building2", navGroup: "masterData" },
       { href: "/admin/questionbank", label: "QuestionBank", icon: "Database" },
     ],
     permissions: [
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
       "interviews.signoff", "interviews.observe", "interviews.inject", "interviews.flag",
       "candidates.view", "candidates.update", "candidates.bulk_import", "clients.manage", "matching.view",
-      "staff.manage", "tokens.manage", "compliance.view", "analytics.view", "calendar.view",
+      "staff.manage", "tokens.manage", "compliance.view", "masterdata.view", "masterdata.manage", "analytics.view", "calendar.view",
     ],
   },
   ADMIN: {
@@ -76,13 +83,18 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/admin/settings/tokens", label: "Token Settings", icon: "Settings" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
+      { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
+      { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
+      { href: "/admin/master-data/categories", label: "QB Categories", icon: "Layers", navGroup: "masterData" },
+      { href: "/admin/master-data/tags", label: "QB Tags", icon: "Tag", navGroup: "masterData" },
+      { href: "/admin/master-data/companies", label: "QB Companies", icon: "Building2", navGroup: "masterData" },
       { href: "/admin/questionbank", label: "QuestionBank", icon: "Database" },
     ],
     permissions: [
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
       "interviews.signoff", "interviews.observe", "interviews.inject", "interviews.flag",
       "candidates.view", "candidates.update", "candidates.bulk_import", "clients.manage", "matching.view",
-      "tokens.manage", "compliance.view", "analytics.view", "calendar.view",
+      "tokens.manage", "compliance.view", "masterdata.view", "analytics.view", "calendar.view",
     ],
   },
   RECRUITER: {

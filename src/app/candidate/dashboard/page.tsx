@@ -4,6 +4,8 @@ import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { AppShell } from "@/app/components/AppShell";
 import { ProfileCompletionCard } from "@/components/common/ProfileCompletionCard";
+import { PageHero, StatCard } from "@/components/common/AppUi";
+import { Calendar, CheckCircle2 } from "lucide-react";
 import { InterviewTimelineCard } from "./InterviewTimelineCard";
 
 export const dynamic = "force-dynamic";
@@ -98,32 +100,27 @@ export default async function CandidateDashboard() {
 
   return (
     <AppShell title="My Interviews" subtitle={`Welcome back, ${session.username}`}>
-      <div className="max-w-4xl space-y-6">
+      <div className="max-w-4xl space-y-6 animate-in">
+        <PageHero
+          title={`Welcome back, ${session.username}`}
+          description="Track upcoming interviews, review feedback, and see client matches."
+          variant="teal"
+        />
+
         {/* Top cards row */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Profile completion */}
           {profile && <ProfileCompletionCard profile={profile} />}
 
-          {/* Quick stats */}
-          <div className="card p-5">
-            <h3 className="section-label mb-3">Quick Stats</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{upcoming.length}</p>
-                <p className="text-xs text-zinc-500">Upcoming</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{past.length}</p>
-                <p className="text-xs text-zinc-500">Completed</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Latest interview timeline */}
-          {latestInterview && (
-            <InterviewTimelineCard interview={latestInterview} />
-          )}
+          <StatCard title="Upcoming" value={upcoming.length} accent="blue" icon={Calendar} />
+          <StatCard title="Completed" value={past.length} accent="emerald" icon={CheckCircle2} />
         </div>
+
+        {/* Latest interview timeline */}
+        {latestInterview && (
+          <div className="grid gap-4 sm:grid-cols-1">
+            <InterviewTimelineCard interview={latestInterview} />
+          </div>
+        )}
 
         {/* Client Matches */}
         {clientMatches.length > 0 && (
@@ -145,7 +142,7 @@ export default async function CandidateDashboard() {
                 </div>
                 <Link
                   href={`/candidate/matches`}
-                  className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white transition-colors duration-200 hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  className="btn-primary text-xs"
                 >
                   View All Matches
                 </Link>
@@ -159,18 +156,18 @@ export default async function CandidateDashboard() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Upcoming</h2>
           {upcoming.length ? (
             <div className="card overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="app-table w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 text-left">
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Role</th>
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Scheduled</th>
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Status</th>
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400"></th>
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Role</th>
+                    <th className="px-4 py-3 font-medium">Scheduled</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {upcoming.map((i) => (
-                    <tr key={i.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-800">
+                    <tr key={i.id}>
                       <td className="px-4 py-3 font-medium">{jdMap[i.jdId]}</td>
                       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{formatDate(i.scheduledAt)}</td>
                       <td className="px-4 py-3">
@@ -187,7 +184,7 @@ export default async function CandidateDashboard() {
                       <td className="px-4 py-3 text-right">
                         <Link
                           href={`/interview/${i.id}`}
-                          className="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white transition-colors duration-200 hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                          className="btn-primary px-4 py-1.5 text-xs"
                         >
                           Attend
                         </Link>
@@ -209,18 +206,18 @@ export default async function CandidateDashboard() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Past Interviews</h2>
           {past.length ? (
             <div className="card overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="app-table w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 text-left">
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Role</th>
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Completed</th>
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Verdict</th>
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400"></th>
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Role</th>
+                    <th className="px-4 py-3 font-medium">Completed</th>
+                    <th className="px-4 py-3 font-medium">Verdict</th>
+                    <th className="px-4 py-3 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {past.map((i) => (
-                    <tr key={i.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-800">
+                    <tr key={i.id}>
                       <td className="px-4 py-3 font-medium">{jdMap[i.jdId]}</td>
                       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{formatDate(i.endedAt ?? i.scheduledAt)}</td>
                       <td className="px-4 py-3">

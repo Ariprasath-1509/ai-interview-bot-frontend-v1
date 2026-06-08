@@ -1,10 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import { Layers, Tag, Building2, Package, FileText, Settings, Mail, Users, Database } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Layers,
+  Tag,
+  Building2,
+  Package,
+  FileText,
+  Settings,
+  Mail,
+  Users,
+  Database,
+} from "lucide-react";
 import { SkeletonCard } from "@/components/common/Skeleton";
+import { PageHero, QuickLinkCard, SectionHeader, StatCard } from "@/components/common/AppUi";
 
 interface AdminStats {
   totalQuestions: number;
@@ -21,15 +30,22 @@ interface AdminStats {
 }
 
 const modules = [
-  { href: "/admin/questionbank/categories", label: "Categories", icon: Layers, desc: "Manage classification categories for AI digest constraint." },
-  { href: "/admin/questionbank/tags", label: "Tags", icon: Tag, desc: "Review and delete unused auto-generated tags." },
-  { href: "/admin/questionbank/companies", label: "Companies", icon: Building2, desc: "Manage company directory manually." },
-  { href: "/admin/questionbank/sessions", label: "Sessions", icon: Package, desc: "View and clean up interview session data." },
-  { href: "/admin/questionbank/questions", label: "Digest Ingestion", icon: FileText, desc: "Feed raw interview strings into the AI engine." },
-  { href: "/admin/questionbank/manage", label: "Manage Questions", icon: Settings, desc: "Search, edit, and curate individual questions." },
-  { href: "/admin/questionbank/emails", label: "Email Notifications", icon: Mail, desc: "Send hand-picked questions to candidates via email." },
-  { href: "/admin/questionbank/users", label: "Users", icon: Users, desc: "View registered candidate details." },
+  { href: "/admin/questionbank/categories", label: "Categories", icon: Layers, desc: "Manage classification categories for AI digest.", accent: "purple" as const },
+  { href: "/admin/questionbank/tags", label: "Tags", icon: Tag, desc: "Review and delete unused auto-generated tags.", accent: "teal" as const },
+  { href: "/admin/questionbank/companies", label: "Companies", icon: Building2, desc: "Manage company directory manually.", accent: "amber" as const },
+  { href: "/admin/questionbank/sessions", label: "Sessions", icon: Package, desc: "View and clean up interview session data.", accent: "indigo" as const },
+  { href: "/admin/questionbank/questions", label: "Digest Ingestion", icon: FileText, desc: "Feed raw interview strings into the AI engine.", accent: "blue" as const },
+  { href: "/admin/questionbank/manage", label: "Manage Questions", icon: Settings, desc: "Search, edit, and curate individual questions.", accent: "emerald" as const },
+  { href: "/admin/questionbank/emails", label: "Email Notifications", icon: Mail, desc: "Send hand-picked questions to candidates.", accent: "rose" as const },
+  { href: "/admin/questionbank/users", label: "Users", icon: Users, desc: "View registered candidate details.", accent: "indigo" as const },
 ];
+
+const IMPORTANCE_STYLES = {
+  CRITICAL: "border-red-300 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300",
+  HIGH: "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300",
+  MODERATE: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300",
+  LOW: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300",
+};
 
 export default function QuestionBankDashboardClient() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -39,112 +55,94 @@ export default function QuestionBankDashboardClient() {
     fetch("/api/questionbank/admin/dashboard/stats")
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) {
-          setStats(data.data);
-        }
+        if (data.success) setStats(data.data);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="empty-state">
+        <Database className="mx-auto mb-3 h-10 w-10 text-zinc-300" />
+        <p className="font-medium text-zinc-700 dark:text-zinc-300">Unable to load statistics</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      {loading ? (
+    <div className="space-y-8 animate-in">
+      <PageHero
+        icon={Database}
+        title="Question Bank"
+        description="Ingest interviews, curate questions, and manage categories, tags, and companies."
+        variant="purple"
+      />
+
+      <div>
+        <SectionHeader title="At a glance" description="Question bank inventory summary" />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <SkeletonCard key={i} />
+          <StatCard title="Total Questions" value={stats.totalQuestions} accent="blue" icon={FileText} />
+          <StatCard title="Companies" value={stats.totalCompanies} accent="amber" icon={Building2} />
+          <StatCard title="Sessions" value={stats.totalSessions} accent="indigo" icon={Package} />
+          <StatCard title="Candidates" value={stats.totalCandidates} accent="teal" icon={Users} />
+        </div>
+      </div>
+
+      <div className="panel-card border-l-4 border-l-purple-500">
+        <div className="panel-header">
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            Questions by importance
+          </h3>
+        </div>
+        <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
+          {(Object.keys(stats.questionsByImportance) as Array<keyof typeof stats.questionsByImportance>).map(
+            (key) => (
+              <div key={key} className="text-center">
+                <span
+                  className={`inline-block rounded-lg border px-3 py-1 text-xs font-semibold uppercase ${IMPORTANCE_STYLES[key]}`}
+                >
+                  {key}
+                </span>
+                <p className="mt-2 text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
+                  {stats.questionsByImportance[key]}
+                </p>
+              </div>
+            )
+          )}
+        </div>
+      </div>
+
+      <div>
+        <SectionHeader title="Control modules" description="Manage question bank data and workflows" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {modules.map((module) => (
+            <QuickLinkCard
+              key={module.href}
+              href={module.href}
+              label={module.label}
+              description={module.desc}
+              icon={module.icon}
+              accent={module.accent}
+            />
           ))}
         </div>
-      ) : stats ? (
-        <>
-          {/* Stats Widget */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-muted-foreground">TOTAL QUESTIONS</div>
-                <div className="text-3xl font-bold text-primary">{stats.totalQuestions}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-muted-foreground">COMPANIES</div>
-                <div className="text-3xl font-bold text-primary">{stats.totalCompanies}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-muted-foreground">SESSIONS</div>
-                <div className="text-3xl font-bold text-primary">{stats.totalSessions}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-muted-foreground">CANDIDATES</div>
-                <div className="text-3xl font-bold text-primary">{stats.totalCandidates}</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Questions by Importance */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-sm text-muted-foreground mb-4">QUESTIONS BY IMPORTANCE</div>
-              <div className="flex justify-around">
-                <div className="text-center">
-                  <span className="inline-block rounded border border-red-500 px-3 py-1 text-sm text-red-500">CRITICAL</span>
-                  <p className="mt-2 text-2xl font-bold">{stats.questionsByImportance.CRITICAL}</p>
-                </div>
-                <div className="text-center">
-                  <span className="inline-block rounded border border-orange-500 px-3 py-1 text-sm text-orange-500">HIGH</span>
-                  <p className="mt-2 text-2xl font-bold">{stats.questionsByImportance.HIGH}</p>
-                </div>
-                <div className="text-center">
-                  <span className="inline-block rounded border border-yellow-500 px-3 py-1 text-sm text-yellow-500">MODERATE</span>
-                  <p className="mt-2 text-2xl font-bold">{stats.questionsByImportance.MODERATE}</p>
-                </div>
-                <div className="text-center">
-                  <span className="inline-block rounded border border-green-500 px-3 py-1 text-sm text-green-500">LOW</span>
-                  <p className="mt-2 text-2xl font-bold">{stats.questionsByImportance.LOW}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Control Modules */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Control Modules</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {modules.map((module) => {
-                const Icon = module.icon;
-                return (
-                  <Link key={module.href} href={module.href}>
-                    <Card className="hover:border-primary hover:bg-muted/50 transition-colors cursor-pointer">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center gap-3 mb-2">
-                          <Icon className="h-5 w-5 text-muted-foreground" />
-                          <span className="font-medium">{module.label}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{module.desc}</p>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                );
-              })}
-            </div>
-            {stats.lastDigestDate && (
-              <p className="mt-4 text-sm text-muted-foreground">
-                LAST DIGEST RUN: {new Date(stats.lastDigestDate).toLocaleString()}
-              </p>
-            )}
-          </div>
-        </>
-      ) : (
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-muted-foreground">Unable to load statistics</p>
-          </CardContent>
-        </Card>
-      )}
+        {stats.lastDigestDate && (
+          <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+            Last digest run: {new Date(stats.lastDigestDate).toLocaleString()}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

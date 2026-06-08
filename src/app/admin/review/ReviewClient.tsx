@@ -6,8 +6,10 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EnhancedDataTable } from '@/components/common/EnhancedDataTable';
+import { PageHero, PanelCard, StatCard } from '@/components/common/AppUi';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
+import { ClipboardList, RefreshCw } from 'lucide-react';
 
 interface InterviewSummary {
   id: string;
@@ -249,20 +251,38 @@ export default function InterviewReviewClient() {
   if (loading) return <LoadingSpinner message="Loading interviews..." />;
 
   const inputCls = "input-base";
+  const reviewPending = interviews.filter((i) => i.status === "REVIEW_PENDING").length;
+  const completed = interviews.filter((i) => i.status === "COMPLETED").length;
+  const signedOff = interviews.filter((i) => i.status === "SIGNED_OFF").length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 animate-in">
+      <PageHero
+        icon={ClipboardList}
+        title="Interview Review"
+        description="Filter, review, and manage interviews across all pipeline stages."
+        variant="indigo"
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Total" value={interviews.length} accent="blue" />
+        <StatCard title="Review Pending" value={reviewPending} accent="amber" />
+        <StatCard title="Completed" value={completed} accent="emerald" />
+        <StatCard title="Signed Off" value={signedOff} accent="purple" />
+      </div>
+
+      <div className="flex justify-end">
         <button
           onClick={fetchInterviews}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="btn-primary inline-flex items-center gap-2"
         >
+          <RefreshCw className="h-4 w-4" />
           Refresh Data
         </button>
       </div>
 
       {/* Filters */}
-      <div className="card p-4">
+      <PanelCard title="Filters" accent="blue">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1.5 text-zinc-700 dark:text-zinc-300">Status</label>
@@ -313,9 +333,9 @@ export default function InterviewReviewClient() {
             </select>
           </div>
         </div>
-      </div>
+      </PanelCard>
 
-      <div className="card p-4">
+      <PanelCard title={`Interviews (${filteredInterviews.length})`} accent="indigo">
         <EnhancedDataTable<InterviewSummary>
           tableId="admin-review-interviews"
           data={filteredInterviews}
@@ -324,7 +344,7 @@ export default function InterviewReviewClient() {
           emptyMessage="No interviews found matching the current filters."
           pageSize={12}
         />
-      </div>
+      </PanelCard>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload, Download, ChevronRight, ChevronLeft, Minus, Loader2, CheckCircle, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { PageHero, StatCard } from '@/components/common/AppUi';
 import { Badge } from '@/components/ui/badge';
 
 interface Client {
@@ -443,7 +444,13 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
   if (loading) return <LoadingSpinner message="Loading clients..." />;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full">
+    <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full animate-in">
+      <PageHero
+        icon={Building2}
+        title="Client Positions"
+        description="Manage client requirements, JD uploads, and AI-powered candidate matching."
+      />
+
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
@@ -487,21 +494,9 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
 
       {/* Stats */}
       <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          { label: 'Total Clients', value: clients.length, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950/20' },
-          { label: 'Bench / B2B Needed', value: totalBench, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
-          { label: 'Market Needed', value: totalMarket, icon: Target, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-950/20' },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="card p-4 flex items-center gap-4">
-            <div className={`rounded-lg p-2.5 ${bg}`}>
-              <Icon className={`h-5 w-5 ${color}`} />
-            </div>
-            <div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
-              <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</p>
-            </div>
-          </div>
-        ))}
+        <StatCard title="Total Clients" value={clients.length} accent="blue" icon={Building2} />
+        <StatCard title="Bench / B2B Needed" value={totalBench} accent="emerald" icon={Users} />
+        <StatCard title="Market Needed" value={totalMarket} accent="purple" icon={Target} />
       </div>
 
       {/* Two-column: Tree + Detail */}

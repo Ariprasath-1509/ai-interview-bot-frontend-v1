@@ -257,8 +257,8 @@ export function EnhancedDataTable<TData extends object>({
       )}
 
       <div className="overflow-x-auto w-full min-w-0 max-w-full rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <table className={tableClassName}>
-          <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
+        <table className={`app-table ${tableClassName}`}>
+          <thead className="border-b border-zinc-200 dark:border-zinc-800">
             {table.getHeaderGroups().map((headerGroup) => (
               <React.Fragment key={headerGroup.id}>
                 <tr>

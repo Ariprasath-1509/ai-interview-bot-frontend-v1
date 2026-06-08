@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
-import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown } from 'lucide-react';
+import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown, UserCheck } from 'lucide-react';
 import { downloadCandidateReview } from '@/lib/downloadPdf';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { PageHero, StatCard } from '@/components/common/AppUi';
 import {
   CandidatesMainTable,
   DeployedCandidatesTable,
@@ -471,7 +472,20 @@ export default function CandidatesClient({ role }: Props) {
   if (loading) return <LoadingSpinner message="Loading candidates..." />;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full">
+    <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full animate-in">
+      <PageHero
+        icon={Users}
+        title="Candidate Directory"
+        description="Browse, filter, and manage candidates across pipeline, matched, and deployed groups."
+        variant="teal"
+      />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard title="All Candidates" value={allCandidates.length} accent="blue" icon={Users} />
+        <StatCard title="Matched" value={matchedCandidates.length} accent="emerald" icon={UserCheck} />
+        <StatCard title="Deployed" value={deployedCandidates.length} accent="purple" icon={Briefcase} />
+      </div>
+
       {/* Tree View */}
       <div className="card flex min-h-0 flex-1 flex-col overflow-hidden w-full min-w-0 max-w-full">
         <div
