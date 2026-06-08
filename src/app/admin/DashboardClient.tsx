@@ -6,6 +6,8 @@ import { LayoutDashboard } from 'lucide-react';
 import { SkeletonDashboard } from '@/components/common/Skeleton';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageHero, SectionHeader, StatCard } from '@/components/common/AppUi';
+import DashboardTrendsTab, { type TrendsResponse } from '@/app/admin/DashboardTrendsTab';
+import DashboardPerformanceTab, { type CandidatePerformanceData } from '@/app/admin/DashboardPerformanceTab';
 
 // Interfaces
 interface AnalyticsData {
@@ -28,16 +30,15 @@ interface VerdictAnalytics {
   READY: number; NEEDS_1_WEEK_PREP: number; NEEDS_RESKILLING: number; MISMATCH_WITH_JD: number; WITHDRAWN: number;
 }
 
-interface CandidateAnalytics {
-  performanceByVerdict: Record<string, number>;
-  performanceByMode: Record<string, { totalCandidates: number; readyCandidates: number; successRate: number; }>;
-  topCandidates: Array<{ candidateName: string; candidateEmail: string; averageScore: number; verdict: string; interviewMode: string; jdTitle: string; }>;
-  commonWeaknesses: Array<{ skill: string; candidateCount: number; percentage: number; }>;
-  averageScoresBySkill: Record<string, number>;
-  totalAssessedCandidates: number;
-  overallSuccessRate: number;
-  hasData: boolean;
-}
+const VERDICT_FLOW_ORDER = [
+  'WITHDRAWN',
+  'MISMATCH_WITH_JD',
+  'NEEDS_RESKILLING',
+  'NEEDS_1_WEEK_PREP',
+  'READY',
+] as const;
+
+interface CandidateAnalytics extends CandidatePerformanceData {}
 
 interface ClientAnalytics {
   totalClients: number;
@@ -56,10 +57,7 @@ interface Interviewer {
   name: string; interviewCount: number; successRate: number;
 }
 
-interface TrendData {
-  labels: string[];
-  datasets: { label: string; data: number[] }[];
-}
+interface TrendData extends TrendsResponse {}
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -96,7 +94,12 @@ export default function DashboardClient() {
         if (vData && typeof vData === 'object' && !vData.READY && Object.values(vData).some(v => typeof v === 'object' && v !== null && 'READY' in v)) {
           extracted = Object.values(vData).find(v => typeof v === 'object' && v !== null && 'READY' in v);
         }
-        setVerdicts(extracted.verdicts || extracted.data || extracted);
+        setVerdicts(
+          extracted.verdictDistribution
+          || extracted.verdicts
+          || extracted.data
+          || extracted
+        );
       }
       if (candidatesRes?.ok) setCandidateAnalytics(await candidatesRes.json());
       if (clientRes?.ok) setClientAnalytics(await clientRes.json());
@@ -282,13 +285,14 @@ export default function DashboardClient() {
             <div className="card p-6">
               <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Assessment Verdict Distribution</h3>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {verdicts && Object.keys(verdicts).length > 0 ? (
-                  Object.entries(verdicts).map(([key, count]) => {
-                    if (typeof count === 'object' && count !== null) return null; // Prevent React object render error
+                {verdicts ? (
+                  VERDICT_FLOW_ORDER.map((key) => {
+                    const count = verdicts[key];
+                    if (typeof count !== 'number') return null;
                     const formatKey = key.replace(/_/g, ' ');
                     return (
                       <div key={key} className="text-center p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800">
-                        <div className="text-3xl font-bold text-zinc-800 dark:text-zinc-200">{String(count)}</div>
+                        <div className="text-3xl font-bold text-zinc-800 dark:text-zinc-200">{count}</div>
                         <div className="text-xs font-medium text-zinc-500 mt-2 uppercase">{formatKey}</div>
                       </div>
                     );
@@ -305,146 +309,7 @@ export default function DashboardClient() {
 
         {/* CANDIDATE PERFORMANCE TAB */}
         {activeTab === 'performance' && (
-          <div className="space-y-6">
-            {candidateAnalytics?.hasData ? (
-              <>
-                {/* Top Candidates */}
-                <div className="card p-6">
-                  <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Top Performing Candidates</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">
-                        <tr>
-                          <th className="px-4 py-3 font-medium rounded-l-lg">Candidate</th>
-                          <th className="px-4 py-3 font-medium">Mode</th>
-                          <th className="px-4 py-3 font-medium">Avg Score</th>
-                          <th className="px-4 py-3 font-medium">Verdict</th>
-                          <th className="px-4 py-3 font-medium rounded-r-lg">Role</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                        {candidateAnalytics.topCandidates.map((candidate, idx) => (
-                          <tr key={idx}>
-                            <td className="px-4 py-3">
-                              <div>
-                                <div className="font-medium text-zinc-900 dark:text-zinc-100">{candidate.candidateName}</div>
-                                <div className="text-xs text-zinc-500">{candidate.candidateEmail}</div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded">
-                                {candidate.interviewMode}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div className="w-12 bg-zinc-200 dark:bg-zinc-800 rounded-full h-2">
-                                  <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${(candidate.averageScore / 5) * 100}%` }}></div>
-                                </div>
-                                <span className="font-mono text-sm">{candidate.averageScore}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 text-xs font-medium rounded ${
-                                candidate.verdict === 'READY' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                                candidate.verdict === 'NEEDS_1_WEEK_PREP' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                                'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                              }`}>
-                                {candidate.verdict.replace(/_/g, ' ')}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 text-xs">{candidate.jdTitle}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Performance by Mode */}
-                <div className="card p-6">
-                  <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Success Rate by Interview Mode</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {Object.entries(candidateAnalytics.performanceByMode).map(([mode, stats]) => (
-                      <div key={mode} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                        <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">{mode}</div>
-                        <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">{stats.successRate}%</div>
-                        <div className="text-xs text-zinc-500">{stats.readyCandidates}/{stats.totalCandidates} ready</div>
-                        <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5 mt-2">
-                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${stats.successRate}%` }}></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Skill Gaps */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="card p-6">
-                    <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Common Skill Gaps</h3>
-                    <div className="space-y-3">
-                      {candidateAnalytics.commonWeaknesses.map((weakness, idx) => (
-                        <div key={idx} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                            <span className="font-medium text-zinc-900 dark:text-zinc-100 capitalize">{weakness.skill}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{weakness.candidateCount} candidates</div>
-                            <div className="text-xs text-zinc-500">{weakness.percentage}%</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="card p-6">
-                    <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Average Scores by Skill</h3>
-                    <div className="space-y-3">
-                      {Object.entries(candidateAnalytics.averageScoresBySkill).map(([skill, score]) => (
-                        <div key={skill} className="flex items-center justify-between">
-                          <span className="font-medium text-zinc-900 dark:text-zinc-100 capitalize">{skill}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 bg-zinc-200 dark:bg-zinc-800 rounded-full h-2">
-                              <div className={`h-2 rounded-full ${
-                                score >= 4 ? 'bg-green-500' : score >= 3 ? 'bg-yellow-500' : 'bg-red-500'
-                              }`} style={{ width: `${(score / 5) * 100}%` }}></div>
-                            </div>
-                            <span className="font-mono text-sm w-8">{score}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Summary Stats */}
-                <div className="card p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">{candidateAnalytics.totalAssessedCandidates}</div>
-                      <div className="text-sm text-zinc-500 mt-1">Total Assessed</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{candidateAnalytics.overallSuccessRate}%</div>
-                      <div className="text-sm text-zinc-500 mt-1">Overall Success Rate</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{candidateAnalytics.performanceByVerdict.READY || 0}</div>
-                      <div className="text-sm text-zinc-500 mt-1">Ready Candidates</div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="empty-state">
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">No candidate data yet</h3>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  Complete interviews to see performance analytics here.
-                </p>
-              </div>
-            )}
-          </div>
+          <DashboardPerformanceTab data={candidateAnalytics} />
         )}
 
         {/* MODES TAB */}
@@ -467,51 +332,7 @@ export default function DashboardClient() {
 
         {/* TRENDS TAB */}
         {activeTab === 'trends' && (
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Weekly Trends</h3>
-            {trends?.labels && trends.labels.length > 0 ? (
-              <div className="h-64 flex items-end gap-2 justify-between">
-                {/* Simple CSS Bar Chart Visualization */}
-                {trends.labels.map((label, idx) => {
-                  const scheduled = trends.datasets[0].data[idx] || 0;
-                  const completed = trends.datasets[1].data[idx] || 0;
-                  const max = Math.max(...trends.datasets[0].data, ...trends.datasets[1].data) || 1;
-                  
-                  return (
-                    <div key={idx} className="flex flex-col items-center flex-1">
-                      <div className="flex gap-1 items-end w-full justify-center h-48 mb-2">
-                        <div 
-                          className="w-1/3 bg-blue-300 dark:bg-blue-600 rounded-t-sm" 
-                          style={{ height: `${(scheduled / max) * 100}%` }}
-                          title={`Scheduled: ${scheduled}`}
-                        ></div>
-                        <div 
-                          className="w-1/3 bg-emerald-400 dark:bg-emerald-600 rounded-t-sm" 
-                          style={{ height: `${(completed / max) * 100}%` }}
-                          title={`Completed: ${completed}`}
-                        ></div>
-                      </div>
-                      <div className="text-xs text-zinc-500 font-medium">{label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
-                No trend data available
-              </div>
-            )}
-            <div className="flex justify-center gap-6 mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-300 dark:bg-blue-600 rounded-sm"></div>
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">Scheduled</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-emerald-400 dark:bg-emerald-600 rounded-sm"></div>
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">Completed</span>
-              </div>
-            </div>
-          </div>
+          <DashboardTrendsTab trends={trends} />
         )}
 
         {/* TOKENS TAB */}
