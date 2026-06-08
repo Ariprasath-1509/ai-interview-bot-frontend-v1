@@ -139,13 +139,13 @@ export default function DashboardClient() {
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'status', label: 'Status & Flow' },
-    { id: 'performance', label: 'Candidate Performance' },
-    { id: 'modes', label: 'Interview Modes' },
-    { id: 'trends', label: 'Trends' },
-    { id: 'tokens', label: 'Token Usage' }
-  ];
+    { id: 'overview', label: 'Overview', accent: 'blue' },
+    { id: 'status', label: 'Status & Flow', accent: 'purple' },
+    { id: 'performance', label: 'Candidate Performance', accent: 'emerald' },
+    { id: 'modes', label: 'Interview Modes', accent: 'amber' },
+    { id: 'trends', label: 'Trends', accent: 'rose' },
+    { id: 'tokens', label: 'Token Usage', accent: 'teal' },
+  ] as const;
 
   return (
     <div className="space-y-6 max-w-6xl animate-in">
@@ -153,6 +153,7 @@ export default function DashboardClient() {
         icon={LayoutDashboard}
         title="Admin Dashboard"
         description="Monitor interview pipeline, candidate readiness, client positions, and token usage in real time."
+        variant="sunset"
       />
 
       <div className="flex justify-between items-center flex-wrap gap-3">
@@ -176,6 +177,7 @@ export default function DashboardClient() {
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
+            data-accent={tab.accent}
             className={activeTab === tab.id ? 'tab-bar-item tab-bar-item-active' : 'tab-bar-item'}
           >
             {tab.label}

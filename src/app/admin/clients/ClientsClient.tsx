@@ -449,6 +449,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
         icon={Building2}
         title="Client Positions"
         description="Manage client requirements, JD uploads, and AI-powered candidate matching."
+        variant="ocean"
       />
 
       {/* Toast */}

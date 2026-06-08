@@ -168,8 +168,8 @@ export function SidebarLayout({
         title={collapsed ? item.label : undefined}
         className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 ${
           active
-            ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white"
-            : "text-zinc-600 hover:bg-blue-50 hover:text-blue-900 dark:text-zinc-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-200"
+            ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-500/25"
+            : "text-zinc-600 hover:bg-gradient-to-r hover:from-violet-50 hover:to-fuchsia-50 hover:text-violet-900 dark:text-zinc-400 dark:hover:from-violet-950/40 dark:hover:to-fuchsia-950/30 dark:hover:text-violet-200"
         } ${collapsed ? "justify-center px-2" : ""}`}
       >
         <Icon size={18} className="shrink-0" />
@@ -193,9 +193,9 @@ export function SidebarLayout({
   const sidebarContent = (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-14 items-center justify-between border-b border-zinc-200 px-4 dark:border-zinc-800">
+      <div className="flex h-14 items-center justify-between border-b border-violet-200/50 bg-gradient-to-r from-indigo-50/80 via-violet-50/60 to-fuchsia-50/40 px-4 dark:border-violet-900/30 dark:from-indigo-950/40 dark:via-violet-950/30 dark:to-fuchsia-950/20">
         {!collapsed && (
-          <Link href="/" className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <Link href="/" className="text-sm font-bold tracking-tight bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-violet-400 dark:to-fuchsia-400">
             Bench Readiness
           </Link>
         )}
@@ -254,10 +254,10 @@ export function SidebarLayout({
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-50 dark:bg-[#050505]">
+    <div className="app-shell flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-all duration-200 ${
+        className={`hidden lg:flex flex-col border-r border-violet-200/40 bg-white/80 shadow-lg shadow-violet-500/5 backdrop-blur-md dark:border-violet-900/30 dark:bg-zinc-950/85 transition-all duration-200 ${
           collapsed ? "w-16" : "w-56"
         }`}
       >
@@ -268,7 +268,7 @@ export function SidebarLayout({
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
-          <aside className="relative z-50 flex h-full w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <aside className="relative z-50 flex h-full w-64 flex-col border-r border-violet-200/40 bg-white/95 shadow-xl dark:border-violet-900/30 dark:bg-zinc-950/95 backdrop-blur-md">
             <button
               onClick={() => setMobileOpen(false)}
               className="absolute right-3 top-4 rounded-md p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -283,17 +283,17 @@ export function SidebarLayout({
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/30 to-white px-4 backdrop-blur-sm dark:border-blue-950/40 dark:from-zinc-950 dark:via-blue-950/20 dark:to-zinc-950 sm:px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-violet-200/40 bg-gradient-to-r from-white/90 via-violet-50/50 to-fuchsia-50/40 px-4 backdrop-blur-md dark:border-violet-900/30 dark:from-zinc-950/90 dark:via-violet-950/25 dark:to-fuchsia-950/15 sm:px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
-              className="rounded-md p-1.5 text-zinc-600 hover:bg-blue-50 hover:text-blue-700 dark:text-zinc-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-300 lg:hidden"
+              className="rounded-md p-1.5 text-violet-700 hover:bg-violet-100 hover:text-violet-900 dark:text-violet-300 dark:hover:bg-violet-950/40 dark:hover:text-violet-200 lg:hidden"
             >
               <Menu size={20} />
             </button>
             <div>
-              <h1 className="text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-50 sm:text-lg">{title}</h1>
-              {subtitle && <p className="hidden text-xs text-blue-700/70 dark:text-blue-300/70 sm:block">{subtitle}</p>}
+              <h1 className="text-base font-semibold leading-tight bg-gradient-to-r from-indigo-700 via-violet-700 to-fuchsia-700 bg-clip-text text-transparent dark:from-indigo-300 dark:via-violet-300 dark:to-fuchsia-300 sm:text-lg">{title}</h1>
+              {subtitle && <p className="hidden text-xs text-violet-600/80 dark:text-violet-300/70 sm:block">{subtitle}</p>}
             </div>
           </div>
           <div className="flex items-center gap-3">
