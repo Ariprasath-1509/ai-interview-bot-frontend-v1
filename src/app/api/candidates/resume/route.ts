@@ -19,9 +19,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Validate file type
     const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowedTypes.includes(file.type)) {
+    const lowerName = file.name.toLowerCase();
+    const allowedExt = lowerName.endsWith(".pdf") || lowerName.endsWith(".doc") || lowerName.endsWith(".docx");
+    if (!allowedTypes.includes(file.type) && !allowedExt) {
       return NextResponse.json({ error: "Invalid file type. Only PDF, DOC, and DOCX are allowed." }, { status: 400 });
     }
 
@@ -47,8 +48,6 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.token}`,
-        'X-User-Id': session.userId || '',
-        'X-User-Role': session.role,
       },
       body: backendFormData,
     });

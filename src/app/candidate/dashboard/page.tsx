@@ -4,9 +4,9 @@ import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { AppShell } from "@/app/components/AppShell";
 import { ProfileCompletionCard } from "@/components/common/ProfileCompletionCard";
-import { PageHero, StatCard } from "@/components/common/AppUi";
-import { Calendar, CheckCircle2 } from "lucide-react";
+import { PageHero } from "@/components/common/AppUi";
 import { InterviewTimelineCard } from "./InterviewTimelineCard";
+import { CandidateDashboardStats } from "./CandidateDashboardStats";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,6 +19,24 @@ type Interview = {
   jdId: string;
   proposedVerdict: string | null;
   finalVerdict: string | null;
+};
+
+type ClientMatch = {
+  clientId: string;
+  clientName: string;
+};
+
+type CandidateProfile = {
+  name?: string | null;
+  contactNumber?: string | null;
+  officialEmail?: string | null;
+  personalEmail?: string | null;
+  batch?: string | null;
+  source?: string | null;
+  skillSet?: string | null;
+  yoeActual?: number | null;
+  yoePortrayed?: number | null;
+  yop?: number | null;
 };
 
 function isPast(i: Interview): boolean {
@@ -37,10 +55,20 @@ function isUpcoming(i: Interview): boolean {
   );
 }
 
+async function parseJsonSafe<T>(res: Response | null | undefined, fallback: T): Promise<T> {
+  if (!res?.ok) return fallback;
+  try {
+    const text = await res.text();
+    if (!text.trim()) return fallback;
+    return JSON.parse(text) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 async function getJdTitle(jdId: string, token: string | undefined): Promise<string> {
   const res = await apiServer(`/interviews/jd/${jdId}`, token).catch(() => null);
-  if (!res?.ok) return "Unknown role";
-  const jd = (await res.json()) as { title?: string };
+  const jd = await parseJsonSafe(res, { title: undefined } as { title?: string });
   return jd.title ?? "Unknown role";
 }
 
@@ -79,10 +107,12 @@ export default async function CandidateDashboard() {
     apiServer("/candidate/matches", session.token).catch(() => null),
   ]);
 
-  const interviews: Interview[] = interviewsRes?.ok ? await interviewsRes.json() : [];
-  const profile = profileRes?.ok ? await profileRes.json() : null;
-  const matchesData = matchesRes?.ok ? await matchesRes.json() : { matches: [] };
-  const clientMatches = matchesData.matches || [];
+  const [interviews, profile, matchesData] = await Promise.all([
+    parseJsonSafe<Interview[]>(interviewsRes, []),
+    parseJsonSafe<CandidateProfile | null>(profileRes, null),
+    parseJsonSafe<{ matches?: ClientMatch[] }>(matchesRes, { matches: [] }),
+  ]);
+  const clientMatches = matchesData.matches ?? [];
 
   const upcoming = interviews.filter(isUpcoming);
   const past = interviews.filter(isPast);
@@ -111,8 +141,7 @@ export default async function CandidateDashboard() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {profile && <ProfileCompletionCard profile={profile} />}
 
-          <StatCard title="Upcoming" value={upcoming.length} accent="blue" icon={Calendar} />
-          <StatCard title="Completed" value={past.length} accent="emerald" icon={CheckCircle2} />
+          <CandidateDashboardStats upcoming={upcoming.length} completed={past.length} />
         </div>
 
         {/* Latest interview timeline */}

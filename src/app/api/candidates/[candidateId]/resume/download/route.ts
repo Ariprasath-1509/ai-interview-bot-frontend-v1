@@ -1,53 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
 
-const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
+const GATEWAY = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('br_jwt')?.value;
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await getSession();
+    if (!session?.token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Await the params Promise
     const { candidateId } = await params;
 
-    // Download resume from backend
-    const response = await fetch(`${GATEWAY}/resumes/${candidateId}/download`, {
+    const response = await fetch(`${GATEWAY}/resumes/${candidateId}`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${session.token}`,
       },
     });
 
     if (!response.ok) {
       if (response.status === 404) {
-        return NextResponse.json({ error: 'Resume not found' }, { status: 404 });
+        return NextResponse.json({ error: "Resume not found" }, { status: 404 });
       }
       const error = await response.text();
-      return NextResponse.json({ error: error || 'Download failed' }, { status: response.status });
+      return NextResponse.json({ error: error || "Download failed" }, { status: response.status });
     }
 
-    // Get the file blob and headers
     const blob = await response.blob();
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    const contentDisposition = response.headers.get('content-disposition') || 'attachment; filename="resume.pdf"';
+    const contentType = response.headers.get("content-type") || "application/octet-stream";
+    const contentDisposition =
+      response.headers.get("content-disposition") || 'attachment; filename="resume.pdf"';
 
-    // Return the file
     return new NextResponse(blob, {
       headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': contentDisposition,
+        "Content-Type": contentType,
+        "Content-Disposition": contentDisposition,
       },
     });
-
   } catch (error) {
-    console.error('Resume download error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Resume download error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

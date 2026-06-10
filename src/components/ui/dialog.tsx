@@ -64,12 +64,15 @@ const DialogContent: React.FC<{ children: React.ReactNode; className?: string }>
   if (!open) return null
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50" 
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="fixed inset-0 bg-zinc-900/25 backdrop-blur-[2px] dark:bg-black/40"
         onClick={() => onOpenChange(false)}
+        aria-hidden="true"
       />
-      <div className={`relative bg-white rounded-lg shadow-lg max-w-md w-full mx-4 ${className}`}>
+      <div
+        className={`relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95 ${className}`}
+      >
         {children}
       </div>
     </div>

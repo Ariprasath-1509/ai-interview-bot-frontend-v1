@@ -430,31 +430,32 @@ export function CandidatesMainTable({
           return (
             <div className="flex items-center gap-1">
               {c.resumeFilename ? (
-                <>
-                  <Badge variant="outline" className="border-green-200 bg-green-50 text-xs text-green-700">
-                    <FileText className="mr-1 h-3 w-3" />
-                    Resume
-                  </Badge>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handlersRef.current.onDownloadResume(c.id, c.resumeFilename!)}
-                    className="h-6 w-6 p-0"
-                  >
-                    <Download className="h-3 w-3" />
-                  </Button>
-                </>
-              ) : (
+                <Badge variant="outline" className="border-green-200 bg-green-50 text-xs text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300">
+                  <FileText className="mr-1 h-3 w-3" />
+                  Resume
+                </Badge>
+              ) : null}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handlersRef.current.onResumeUpload(c.id)}
+                className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700"
+                title={c.resumeFilename ? "Replace resume" : "Upload resume"}
+              >
+                <Upload className="mr-1 h-3 w-3" />
+                {c.resumeFilename ? "Replace" : "Upload"}
+              </Button>
+              {c.resumeFilename ? (
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => handlersRef.current.onResumeUpload(c.id)}
-                  className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700"
+                  onClick={() => handlersRef.current.onDownloadResume(c.id, c.resumeFilename!)}
+                  className="h-6 w-6 p-0"
+                  title="Download resume"
                 >
-                  <Upload className="mr-1 h-3 w-3" />
-                  Upload
+                  <Download className="h-3 w-3" />
                 </Button>
-              )}
+              ) : null}
             </div>
           );
         },

@@ -146,9 +146,7 @@ export default function CandidatesClient({ role }: Props) {
   useEffect(() => {
     const t = setTimeout(() => {
       fetchCandidates();
-      if (selectedParent === 'deployed') {
-        fetchDeployedCandidates();
-      }
+      fetchDeployedCandidates();
     }, 0);
     return () => clearTimeout(t);
   }, [selectedParent]);
@@ -756,21 +754,46 @@ export default function CandidatesClient({ role }: Props) {
 
       {/* Resume Upload Dialog */}
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              Upload Resume - {selectedCandidate?.name}
-            </DialogTitle>
+        <DialogContent className="max-w-2xl dark:bg-zinc-950">
+          <DialogHeader className="border-b border-zinc-200 pb-4 dark:border-zinc-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <DialogTitle className="text-left text-xl">
+                  {selectedCandidate?.resumeFilename ? "Replace Resume" : "Upload Resume"}
+                </DialogTitle>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Upload on behalf of the candidate. The file is parsed and an AI summary is generated automatically.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResumeDialog(false)}
+                className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </DialogHeader>
-          {selectedCandidate && (
-            <ResumeUploadWidget
-              candidateId={selectedCandidate.id}
-              onSummaryGenerated={() => {
-                fetchCandidates();
-                toast('Resume processed successfully', 'success');
-              }}
-            />
-          )}
+          <div className="px-6 pb-6 pt-2">
+            {selectedCandidate && (
+              <ResumeUploadWidget
+                candidateId={selectedCandidate.id}
+                candidateName={selectedCandidate.name}
+                candidateEmail={selectedCandidate.officialEmail || selectedCandidate.personalEmail || selectedCandidate.email}
+                initialResume={{
+                  filename: selectedCandidate.resumeFilename ?? null,
+                  summary: selectedCandidate.resumeSummary ?? null,
+                  uploadedAt: selectedCandidate.resumeUploadedAt ?? null,
+                }}
+                onDownload={() => handleDownloadResume(selectedCandidate.id, selectedCandidate.resumeFilename || "resume.pdf")}
+                onUploadComplete={() => {
+                  fetchCandidates();
+                  setShowResumeDialog(false);
+                }}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
