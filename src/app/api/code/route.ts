@@ -234,22 +234,40 @@ async function executeViaPiston(language: string, code: string, stdin: string, t
   }
 }
 
+function localRunnerMissing(proc: ProcResult): boolean {
+  const err = proc.stderr.toLowerCase();
+  return err.includes("enoent") || err.includes("spawn ") || err.includes("not found");
+}
+
 async function executeCode(language: string, code: string, stdin: string, timeoutMs: number): Promise<ProcResult> {
-  // Prefer Piston when configured (production-safe sandbox)
-  if (process.env.USE_PISTON !== "false") {
+  const usePiston = process.env.USE_PISTON !== "false";
+
+  if (usePiston) {
     const pistonResult = await executeViaPiston(language, code, stdin, timeoutMs);
     if (pistonResult) return pistonResult;
   }
 
   const runner = RUNNERS[language];
   if (!runner) {
+    if (usePiston) {
+      const pistonFallback = await executeViaPiston(language, code, stdin, timeoutMs);
+      if (pistonFallback) return pistonFallback;
+    }
     return { code: 1, signal: null, stdout: "", stderr: `Unsupported language: ${language}` };
   }
 
   const local = await runner(code, stdin, timeoutMs);
   if (!local) {
+    const pistonFallback = usePiston ? await executeViaPiston(language, code, stdin, timeoutMs) : null;
+    if (pistonFallback) return pistonFallback;
     return { code: 1, signal: null, stdout: "", stderr: `No local runner for ${language}` };
   }
+
+  if (usePiston && localRunnerMissing(local)) {
+    const pistonFallback = await executeViaPiston(language, code, stdin, timeoutMs);
+    if (pistonFallback) return pistonFallback;
+  }
+
   return local;
 }
 

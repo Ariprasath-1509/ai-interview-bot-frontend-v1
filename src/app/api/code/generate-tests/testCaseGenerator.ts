@@ -137,6 +137,19 @@ export function buildHeuristicTestCases(question: string): GeneratedTestCase[] |
     ];
   }
 
+  if (
+    /\breverse\b.*\bwords?\b/i.test(q) ||
+    /\bwords?\b.*\breverse\b/i.test(q) ||
+    (/\breverse\b/i.test(q) && /\bsentence\b/i.test(q))
+  ) {
+    return [
+      { id: "1", name: "Simple sentence", input: "hi am niranjan from ty\n", expected: "ih ma niranjan morf yt" },
+      { id: "2", name: "Single word", input: "hello\n", expected: "olleh" },
+      { id: "3", name: "Two words", input: "hello world\n", expected: "olleh dlrow" },
+      { id: "4", name: "Palindrome word", input: "racecar\n", expected: "racecar" },
+    ];
+  }
+
   if (/\breverse\b.*\bstring\b/i.test(q) || /\bstring\b.*\breverse\b/i.test(q)) {
     return [
       { id: "1", name: "Basic word", input: "hello\n", expected: "olleh" },
@@ -193,6 +206,14 @@ export function buildHeuristicTestCases(question: string): GeneratedTestCase[] |
     ];
   }
 
+  if (/\bstream\b/i.test(q) && (/\bjava\b/i.test(q) || /\bcollect\b/i.test(q))) {
+    return [
+      { id: "1", name: "Simple sentence", input: "hi am niranjan from ty\n", expected: "ih ma niranjan morf yt" },
+      { id: "2", name: "Single word", input: "hello\n", expected: "olleh" },
+      { id: "3", name: "Numbers as words", input: "one two three\n", expected: "eno owt eerht" },
+    ];
+  }
+
   return null;
 }
 
@@ -224,15 +245,16 @@ Return the JSON array now.`;
 }
 
 export async function fetchLlmTestCases(
-  aiServiceUrl: string,
+  aiChatUrl: string,
   question: string,
   language: string,
+  headers: Record<string, string> = { "Content-Type": "application/json" },
 ): Promise<GeneratedTestCase[] | null> {
   const { system, user } = buildLlmPrompt(question, language);
 
-  const aiRes = await fetch(`${aiServiceUrl}/ai/chat`, {
+  const aiRes = await fetch(aiChatUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ system, user }),
   });
 

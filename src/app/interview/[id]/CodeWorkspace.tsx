@@ -21,11 +21,25 @@ interface Props {
   questionMeta: QuestionMeta;
   onSubmissionChange?: (sub: CodeSubmissionRecord) => void;
   onSubmitAsAnswer?: (answer: string) => void;
+  codingSecondsLeft?: number | null;
+  codingTimerActive?: boolean;
 }
 
 export type { CodeSubmission, CodeSubmissionRecord, QuestionMeta };
 
-export function CodeWorkspace({ questionMeta, onSubmissionChange, onSubmitAsAnswer }: Props) {
+function formatCodingTime(seconds: number) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+export function CodeWorkspace({
+  questionMeta,
+  onSubmissionChange,
+  onSubmitAsAnswer,
+  codingSecondsLeft = null,
+  codingTimerActive = false,
+}: Props) {
   const { question, slot, isCoding, preferredLanguage, starterCode } = questionMeta;
   const showWorkspace = isCoding || isCodingKeywords(question);
 
@@ -76,21 +90,6 @@ export function CodeWorkspace({ questionMeta, onSubmissionChange, onSubmitAsAnsw
     }
   }, [slot, preferredLanguage, starterCode, question, showWorkspace]);
 
-  useEffect(() => {
-    if (!showWorkspace) return;
-    const record: CodeSubmissionRecord = {
-      slot,
-      question,
-      submittedAt: new Date().toISOString(),
-      language: lang,
-      code,
-      results,
-      aiReview,
-      complexity,
-    };
-    onSubmissionChange?.(record);
-  }, [slot, question, lang, code, results, aiReview, complexity, showWorkspace, onSubmissionChange]);
-
   const generateTestCases = async (languageOverride?: string) => {
     if (!question || generatingTests) return;
     setGeneratingTests(true);
@@ -102,9 +101,10 @@ export function CodeWorkspace({ questionMeta, onSubmissionChange, onSubmitAsAnsw
       });
       const data = await res.json() as { testCases?: TestCase[]; source?: string };
       const cases = data.testCases ?? [];
-      if (cases.length > 0) {
-        setTestCases(cases);
-        setTestCaseSource(data.source ?? null);
+      setTestCases(cases);
+      setTestCaseSource(data.source ?? null);
+      if (cases.length === 0) {
+        setStatusMsg("No test cases could be generated — add stdin manually or click Regenerate.");
       }
     } catch (err) {
       console.error("Failed to generate test cases:", err);
@@ -224,6 +224,16 @@ export function CodeWorkspace({ questionMeta, onSubmissionChange, onSubmitAsAnsw
       setStatusMsg("Running AI review…");
       const review = await runAiReview(runResults);
       const answer = buildAnswerText(runResults, review);
+      onSubmissionChange?.({
+        slot,
+        question,
+        submittedAt: new Date().toISOString(),
+        language: lang,
+        code,
+        results: runResults,
+        aiReview: review,
+        complexity,
+      });
       setStatusMsg("Submitting answer…");
       onSubmitAsAnswer(answer);
       setStatusMsg("Submitted — moving to next question");
@@ -233,7 +243,7 @@ export function CodeWorkspace({ questionMeta, onSubmissionChange, onSubmitAsAnsw
     } finally {
       setSubmitting(false);
     }
-  }, [onSubmitAsAnswer, code, executeCode, runAiReview, buildAnswerText]);
+  }, [onSubmitAsAnswer, onSubmissionChange, slot, question, lang, complexity, code, executeCode, runAiReview, buildAnswerText]);
 
   const handleAiReview = useCallback(async () => {
     await runAiReview(results);
@@ -267,6 +277,15 @@ export function CodeWorkspace({ questionMeta, onSubmissionChange, onSubmitAsAnsw
           <Code2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span className="text-sm font-semibold text-blue-900 dark:text-blue-200">Coding Question</span>
           <span className="text-xs text-blue-600/70 dark:text-blue-400/70">Slot {slot}</span>
+          {codingTimerActive && codingSecondsLeft != null && (
+            <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${
+              codingSecondsLeft < 120
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
+            }`}>
+              Coding {formatCodingTime(codingSecondsLeft)}
+            </span>
+          )}
           {results !== null && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
               allPassed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"

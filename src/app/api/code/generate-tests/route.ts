@@ -1,11 +1,16 @@
+import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  buildHeuristicTestCases,
   fetchLlmTestCases,
   resolveTestCases,
   type GeneratedTestCase,
 } from "./testCaseGenerator";
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:6003";
+const GATEWAY = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
+const AI_CHAT_URL = process.env.AI_SERVICE_URL
+  ? `${process.env.AI_SERVICE_URL.replace(/\/$/, "")}/ai/chat`
+  : `${GATEWAY}/ai/chat`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,9 +23,18 @@ export async function POST(req: NextRequest) {
     const q = String(question).trim();
     const lang = String(language).trim() || "python";
 
+    const heuristicFirst = buildHeuristicTestCases(q);
+    if (heuristicFirst?.length) {
+      return NextResponse.json({ testCases: heuristicFirst, source: "heuristic" });
+    }
+
     let llmCases: GeneratedTestCase[] | null = null;
     try {
-      llmCases = await fetchLlmTestCases(AI_SERVICE_URL, q, lang);
+      const jar = await cookies();
+      const token = jar.get("br_jwt")?.value;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      llmCases = await fetchLlmTestCases(AI_CHAT_URL, q, lang, headers);
     } catch (err) {
       console.warn("LLM test case generation failed:", err);
     }

@@ -94,7 +94,7 @@ export interface QuestionMeta {
 export interface CodeSubmissionRecord extends CodeSubmission {
   slot: number;
   question: string;
-  submittedAt: string;
+  submittedAt?: string;
 }
 
 export function resolveStarterCode(lang: string, starterCode?: string | null): string {

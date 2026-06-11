@@ -67,6 +67,9 @@ export const STATUS_COLORS = {
   SIGNED_OFF: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
 };
 
+/** Dedicated time budget for each coding question (main interview timer pauses during this). */
+export const CODING_SLOT_MINUTES = 15;
+
 export const VERDICT_COLORS = {
   READY: 'bg-green-100 text-green-800 dark:bg-emerald-900/30 dark:text-emerald-300',
   NEEDS_1_WEEK_PREP: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',

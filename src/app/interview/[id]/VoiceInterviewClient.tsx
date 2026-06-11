@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
 import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
 import { useVideoProctoring } from "@/hooks/useVideoProctoring";
+import { CODING_SLOT_MINUTES } from "@/lib/constants";
 import type { QuestionMeta } from "./codingTypes";
 
 const SPEECH_TIMEOUT_MS = 10000; // 10 seconds of silence before considering speech done
@@ -40,6 +41,8 @@ type Props = {
   onSessionRecordingChange?: (state: { recording: boolean; uploaded: boolean; uploading: boolean }) => void;
   isCodingSlotActive?: boolean;
   codingSlotSatisfied?: boolean;
+  codeSubmissionJson?: string;
+  onCodingTimerChange?: (state: { active: boolean; secondsLeft: number; expired: boolean }) => void;
   onQuestionChange?: (question: string) => void;
   onQuestionMetaChange?: (meta: QuestionMeta) => void;
 };
@@ -238,6 +241,8 @@ export function VoiceInterviewClient({
   onSessionRecordingChange,
   isCodingSlotActive = false,
   codingSlotSatisfied = true,
+  codeSubmissionJson = "",
+  onCodingTimerChange,
   onQuestionChange,
   onQuestionMetaChange,
 }: Props) {
@@ -266,6 +271,10 @@ export function VoiceInterviewClient({
 
   const [timerStarted, setTimerStarted] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
+  const [codingSecondsLeft, setCodingSecondsLeft] = useState(CODING_SLOT_MINUTES * 60);
+  const [codingTimerActive, setCodingTimerActive] = useState(false);
+  const [mainTimerPaused, setMainTimerPaused] = useState(false);
+  const [codingTimeExpired, setCodingTimeExpired] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
@@ -355,7 +364,9 @@ export function VoiceInterviewClient({
   });
   const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSpeechTimeRef = useRef<number>(0);
-  const timerIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wasCodingPendingRef = useRef(false);
+  const mainTimerPausedRef = useRef(false);
 
   useEffect(() => {
     if (!proctorSessionActive || crossSignalReportedRef.current) return;
@@ -381,24 +392,75 @@ export function VoiceInterviewClient({
   useEffect(() => { micPhaseRef.current = micPhase; }, [micPhase]);
   useEffect(() => { manipulationCountRef.current = manipulationCount; }, [manipulationCount]);
 
+  const codingPending = isCodingSlotActive && !codingSlotSatisfied;
+
   useEffect(() => {
-    const hasBotQuestion = utterances.some(u => u.speaker === "BOT");
-    if (hasBotQuestion && !timerStarted) {
-      setTimerStarted(true);
-      timerIntervalRef.current = setInterval(() => {
-        setSecondsLeft(prev => {
+    const hasBotQuestion = utterances.some((u) => u.speaker === "BOT");
+    if (hasBotQuestion && !timerStarted) setTimerStarted(true);
+  }, [utterances, timerStarted]);
+
+  useEffect(() => {
+    if (codingPending && !wasCodingPendingRef.current) {
+      setCodingSecondsLeft(CODING_SLOT_MINUTES * 60);
+      setCodingTimerActive(true);
+      setCodingTimeExpired(false);
+      mainTimerPausedRef.current = true;
+      setMainTimerPaused(true);
+    } else if (!codingPending && wasCodingPendingRef.current) {
+      setCodingTimerActive(false);
+      setCodingTimeExpired(false);
+      mainTimerPausedRef.current = false;
+      setMainTimerPaused(false);
+    }
+    wasCodingPendingRef.current = codingPending;
+  }, [codingPending]);
+
+  useEffect(() => {
+    onCodingTimerChange?.({
+      active: codingTimerActive,
+      secondsLeft: codingSecondsLeft,
+      expired: codingTimeExpired,
+    });
+  }, [codingTimerActive, codingSecondsLeft, codingTimeExpired, onCodingTimerChange]);
+
+  useEffect(() => {
+    if (!timerStarted) return;
+
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      if (codingPending) {
+        setCodingSecondsLeft((prev) => {
           if (prev <= 1) {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-            setTimeExpired(true);
+            setCodingTimerActive(false);
+            setCodingTimeExpired(true);
+            mainTimerPausedRef.current = false;
+            setMainTimerPaused(false);
             return 0;
           }
           return prev - 1;
         });
-      }, 1000);
-    }
-  }, [utterances, timerStarted]);
+        return;
+      }
 
-  useEffect(() => () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); }, []);
+      if (mainTimerPausedRef.current) return;
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setTimeExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    };
+  }, [timerStarted, codingPending]);
+
+  useEffect(() => () => {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+  }, []);
 
   useEffect(() => {
     if (!showConfirm) return;
@@ -454,12 +516,26 @@ export function VoiceInterviewClient({
       : currentUtterances;
 
     const transcriptJson = JSON.stringify({ utterances: finalUtterances });
+    const hasSubstantiveContent =
+      finalUtterances.filter((u) => u.speaker === "CANDIDATE").length > 0 ||
+      finalUtterances.some((u) => u.text.includes("[Code submission"));
     try {
       await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/abandon`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcriptJson, reason }),
       });
+      if (hasSubstantiveContent) {
+        void fetch(`/api/interviews/${encodeURIComponent(interviewId)}/assess-partial`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({
+            transcriptJson,
+            codeSubmissionJson: codeSubmissionJson || undefined,
+          }),
+        });
+      }
     } catch {
       // best effort
     }
@@ -1954,11 +2030,22 @@ export function VoiceInterviewClient({
             <div className="font-medium">Voice interview ({interviewMode})</div>
             {timerStarted && (
               <div className={`text-sm font-mono font-semibold px-3 py-0.5 rounded-full ${
-                secondsLeft < 300
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                  : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                mainTimerPaused
+                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                  : secondsLeft < 300
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
               }`}>
-                {formatTime(secondsLeft)}
+                {mainTimerPaused ? `Interview ${formatTime(secondsLeft)} (paused)` : formatTime(secondsLeft)}
+              </div>
+            )}
+            {codingTimerActive && (
+              <div className={`text-sm font-mono font-semibold px-3 py-0.5 rounded-full ${
+                codingSecondsLeft < 120
+                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
+                  : "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
+              }`}>
+                Coding {formatTime(codingSecondsLeft)}
               </div>
             )}
             {timeExpired && (

@@ -86,6 +86,7 @@ export function VoiceInterviewForm({
   });
   const [codeSubmissions, setCodeSubmissions] = useState<CodeSubmissionRecord[]>([]);
   const latestSubmissionRef = useRef<CodeSubmissionRecord | null>(null);
+  const [codingTimer, setCodingTimer] = useState({ active: false, secondsLeft: 0, expired: false });
   const [recordingState, setRecordingState] = useState({ recording: false, uploaded: false, uploading: false });
   const [waitingRecording, setWaitingRecording] = useState(false);
   const [mediaHealth, setMediaHealth] = useState<{
@@ -208,12 +209,23 @@ export function VoiceInterviewForm({
         onSessionRecordingChange={setRecordingState}
         isCodingSlotActive={isCodingSlotActive}
         codingSlotSatisfied={codingSlotSatisfied}
+        codeSubmissionJson={codeSubmissions.length > 0 ? JSON.stringify(codeSubmissions) : ""}
+        onCodingTimerChange={setCodingTimer}
         onQuestionMetaChange={onQuestionMetaChange}
       />
 
       {isCodingSlotActive && !codingSlotSatisfied && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-          <span className="font-semibold">Coding slot active.</span> Use <strong>Run &amp; Submit</strong> in the editor below before advancing with voice or typed answers.
+          <span className="font-semibold">Coding slot active.</span>{" "}
+          The main interview timer is paused. A separate{" "}
+          <strong>{codingTimer.active ? `${Math.ceil(codingTimer.secondsLeft / 60)} min` : "15 min"}</strong> coding timer is running.
+          Use <strong>Run &amp; Submit</strong> in the editor below before advancing with voice or typed answers.
+        </div>
+      )}
+
+      {isCodingSlotActive && !codingSlotSatisfied && codingTimer.expired && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <span className="font-semibold">Coding time ended.</span> The main interview timer has resumed. Submit your code with <strong>Run &amp; Submit</strong> when ready.
         </div>
       )}
 
@@ -221,6 +233,8 @@ export function VoiceInterviewForm({
         questionMeta={questionMeta}
         onSubmissionChange={onSubmissionChange}
         onSubmitAsAnswer={onSubmitAsAnswer}
+        codingSecondsLeft={codingTimer.active ? codingTimer.secondsLeft : null}
+        codingTimerActive={codingTimer.active}
       />
 
       {voiceValidation && (
