@@ -189,9 +189,12 @@ export function CodeWorkspace({
 
   const buildAnswerText = useCallback((runResults: RunResult[] | null, review: AiReview | null) => {
     const resultSummary = runResults && runResults.length > 0
-      ? `\n\nTest results: ${runResults.map((r) =>
-          `${r.name}: ${r.passed ? "PASSED" : "FAILED"}${r.stdout ? ` (output: ${r.stdout.slice(0, 100)})` : ""}${r.stderr ? ` (error: ${r.stderr.slice(0, 80)})` : ""}`,
-        ).join(", ")}`
+      ? `\n\nTest results: ${runResults.map((r) => {
+          if (r.passed) return `${r.name}: PASSED`;
+          const expected = r.expected ?? "(not specified)";
+          const actual = r.actual ?? r.stdout ?? r.stderr ?? "(no output)";
+          return `${r.name}: FAILED — expected: ${expected.slice(0, 120)}; actual: ${actual.slice(0, 120)}`;
+        }).join("; ")}`
       : "";
     const complexityNote = complexity ? `\n\nTime/Space complexity: ${complexity}` : "";
     const reviewNote = review
@@ -268,7 +271,19 @@ export function CodeWorkspace({
 
   const allPassed = results !== null && results.length > 0 && results.every((r) => r.passed);
   const anyFailed = results !== null && results.some((r) => !r.passed);
+  const passedCount = results?.filter((r) => r.passed).length ?? 0;
+  const failedCount = results?.filter((r) => !r.passed).length ?? 0;
   const busy = running || submitting || aiLoading;
+
+  const resultByName = new Map(results?.map((r) => [r.name, r]) ?? []);
+
+  function displayActual(r: RunResult): string {
+    if (r.actual?.trim()) return r.actual;
+    if (r.stdout?.trim()) return r.stdout;
+    if (r.stderr?.trim()) return r.stderr;
+    if (r.timed_out) return "(timed out — no output)";
+    return "(no output)";
+  }
 
   return (
     <div className="flex flex-col gap-0 rounded-xl border border-blue-200 bg-white dark:border-blue-900/50 dark:bg-zinc-950 overflow-hidden ring-1 ring-blue-100 dark:ring-blue-950">
@@ -286,13 +301,17 @@ export function CodeWorkspace({
               Coding {formatCodingTime(codingSecondsLeft)}
             </span>
           )}
-          {results !== null && (
+          {results !== null && results.length > 0 && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
               allPassed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
               : anyFailed ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
               : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
             }`}>
-              {allPassed ? "✓ All passed" : anyFailed ? "✗ Some failed" : "Ran"}
+              {allPassed
+                ? `✓ All ${passedCount} passed`
+                : anyFailed
+                  ? `✗ ${failedCount} failed · ${passedCount} passed`
+                  : "Ran"}
             </span>
           )}
         </div>
@@ -375,21 +394,52 @@ export function CodeWorkspace({
                 Using problem-specific default cases (AI output did not match this question).
               </div>
             )}
-            {testCases.map((tc) => (
-              <div key={tc.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
-                <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">{tc.name}</div>
+            {testCases.map((tc) => {
+              const run = resultByName.get(tc.name);
+              return (
+              <div
+                key={tc.id}
+                className={`rounded-lg border p-3 ${
+                  run
+                    ? run.passed
+                      ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20"
+                      : "border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
+                    : "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{tc.name}</div>
+                  {run && (
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                      run.passed
+                        ? "bg-emerald-200 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        : "bg-red-200 text-red-800 dark:bg-red-900/50 dark:text-red-200"
+                    }`}>
+                      {run.passed ? "Passed" : "Failed"}
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] text-zinc-400 uppercase">Input</label>
                     <pre className="mt-1 text-xs font-mono whitespace-pre-wrap bg-white dark:bg-zinc-950 border rounded px-2 py-1.5">{tc.input || "(empty)"}</pre>
                   </div>
                   <div>
-                    <label className="text-[10px] text-zinc-400 uppercase">Expected</label>
+                    <label className="text-[10px] text-zinc-400 uppercase">Expected output</label>
                     <pre className="mt-1 text-xs font-mono whitespace-pre-wrap bg-white dark:bg-zinc-950 border rounded px-2 py-1.5">{tc.expected || "(empty)"}</pre>
                   </div>
                 </div>
+                {run && !run.passed && (
+                  <div className="mt-3">
+                    <label className="text-[10px] font-semibold uppercase text-red-600 dark:text-red-400">Actual output</label>
+                    <pre className="mt-1 text-xs font-mono whitespace-pre-wrap bg-white dark:bg-zinc-950 border border-red-200 dark:border-red-900 rounded px-2 py-1.5 text-red-800 dark:text-red-200">
+                      {displayActual(run)}
+                    </pre>
+                  </div>
+                )}
               </div>
-            ))}
+            );
+            })}
             <button
               type="button"
               onClick={() => void generateTestCases()}
@@ -448,7 +498,17 @@ export function CodeWorkspace({
             onClick={() => setShowOutput((v) => !v)}
             className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-semibold uppercase text-zinc-500"
           >
-            <span>Output</span>
+            <span>
+              Test results
+              {results && results.length > 0 && (
+                <span className="ml-2 normal-case font-medium">
+                  · <span className="text-emerald-600 dark:text-emerald-400">{passedCount} passed</span>
+                  {failedCount > 0 && (
+                    <>, <span className="text-red-600 dark:text-red-400">{failedCount} failed</span></>
+                  )}
+                </span>
+              )}
+            </span>
             {showOutput ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
           {showOutput && (
@@ -458,14 +518,73 @@ export function CodeWorkspace({
                   {runError}
                 </div>
               )}
+              {results && results.length > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                    {passedCount} passed
+                  </span>
+                  {failedCount > 0 && (
+                    <span className="rounded-full bg-red-100 px-2.5 py-1 font-semibold text-red-800 dark:bg-red-900/40 dark:text-red-200">
+                      {failedCount} failed
+                    </span>
+                  )}
+                </div>
+              )}
               {results?.map((r, i) => (
-                <div key={i} className={`rounded-lg border p-3 text-xs ${r.passed ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20" : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20"}`}>
-                  <div className="flex justify-between mb-2">
-                    <span className="font-semibold">{r.passed ? "✓" : "✗"} {r.name}</span>
-                    <span className="text-zinc-400 text-[10px]">exit {r.exit_code}{r.timed_out ? " · timeout" : ""}</span>
+                <div
+                  key={i}
+                  className={`rounded-lg border p-3 text-xs ${
+                    r.passed
+                      ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20"
+                      : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <span className={`font-semibold ${r.passed ? "text-emerald-800 dark:text-emerald-200" : "text-red-800 dark:text-red-200"}`}>
+                      {r.passed ? "✓ PASSED" : "✗ FAILED"} — {r.name}
+                    </span>
+                    <span className="text-zinc-400 text-[10px]">
+                      exit {r.exit_code}{r.timed_out ? " · timeout" : ""}
+                    </span>
                   </div>
-                  {r.stdout && <pre className="whitespace-pre-wrap font-mono max-h-40 overflow-auto">{r.stdout}</pre>}
-                  {r.stderr && <pre className="mt-2 whitespace-pre-wrap font-mono text-red-700 dark:text-red-300 max-h-32 overflow-auto">{r.stderr}</pre>}
+
+                  {r.passed ? (
+                    <div className="space-y-2">
+                      {(r.expected ?? testCases.find((tc) => tc.name === r.name)?.expected) && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase text-emerald-700 dark:text-emerald-400">Expected output</div>
+                          <pre className="mt-1 whitespace-pre-wrap font-mono rounded border border-emerald-200 bg-white px-2 py-1.5 dark:border-emerald-900 dark:bg-zinc-950 max-h-32 overflow-auto">
+                            {r.expected ?? testCases.find((tc) => tc.name === r.name)?.expected}
+                          </pre>
+                        </div>
+                      )}
+                      <p className="text-emerald-700 dark:text-emerald-300">Output matches expected.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase text-zinc-500">Expected output</div>
+                        <pre className="mt-1 whitespace-pre-wrap font-mono rounded border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-950 max-h-40 overflow-auto">
+                          {r.expected ?? testCases.find((tc) => tc.name === r.name)?.expected ?? "(not specified)"}
+                        </pre>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase text-red-600 dark:text-red-400">Actual output</div>
+                        <pre className="mt-1 whitespace-pre-wrap font-mono rounded border border-red-300 bg-white px-2 py-1.5 text-red-800 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 max-h-40 overflow-auto">
+                          {displayActual(r)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+
+                  {r.stderr && !r.passed && (
+                    <div className="mt-3">
+                      <div className="text-[10px] font-semibold uppercase text-red-600 dark:text-red-400">Error output</div>
+                      <pre className="mt-1 whitespace-pre-wrap font-mono text-red-700 dark:text-red-300 max-h-32 overflow-auto rounded border border-red-200 bg-white px-2 py-1.5 dark:border-red-900 dark:bg-zinc-950">
+                        {r.stderr}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

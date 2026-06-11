@@ -2,9 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { VoiceInterviewForm } from "./VoiceInterviewForm";
-import { InterviewPlanPanel } from "./InterviewPlanPanel";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
+import { resolveProctoringMode, type ProctoringMode } from "@/lib/proctoring/mode";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +24,8 @@ type Interview = {
   planId: string | null;
   interviewMode: string;
   customDurationMinutes: number | null;
+  candidateSource?: string | null;
+  proctoringMode?: ProctoringMode | string | null;
 };
 
 export default async function InterviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -77,15 +79,13 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
 
   const durationMinutes = getInterviewDurationMinutes(interview.interviewMode, interview.customDurationMinutes);
 
-  // Fetch plan for slot panel + rubric
-  let slotsJson: string | null = null;
+  // Fetch plan rubric + candidate profile for the voice interview
   let rubricJson: string | null = null;
   let candidateProfileJson: string | null = null;
   if (interview.planId) {
     const planRes = await apiServer(`/interviews/plans/${interview.planId}`, session?.token).catch(() => null);
     if (planRes?.ok) {
-      const plan = (await planRes.json()) as { slotsJson?: string; rubricJson?: string; candidateProfileJson?: string };
-      slotsJson = plan.slotsJson ?? null;
+      const plan = (await planRes.json()) as { rubricJson?: string; candidateProfileJson?: string };
       rubricJson = plan.rubricJson ?? null;
       candidateProfileJson = plan.candidateProfileJson ?? null;
     }
@@ -99,41 +99,47 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
     jdTitle = jd.title ?? jdTitle;
   }
 
+  let candidateSource: string | null = interview.candidateSource ?? null;
+  if (candidateSource == null && isCandidate) {
+    const meRes = await apiServer("/auth/me", session?.token).catch(() => null);
+    if (meRes?.ok) {
+      const me = (await meRes.json()) as { source?: string | null };
+      candidateSource = me.source ?? null;
+    }
+  }
+  const proctoringMode: ProctoringMode =
+    interview.proctoringMode === "video" || interview.proctoringMode === "light"
+      ? interview.proctoringMode
+      : resolveProctoringMode(candidateSource);
+
   return (
       <div className="min-h-screen bg-zinc-50 dark:bg-[#050505]">
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="section-label">Live session</p>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{jdTitle}</h1>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                Mode: {interview.interviewMode} · {durationMinutes} min · Status: {interview.status.replace(/_/g, " ")}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {isCandidate ? (
-                  <Link className="btn-secondary" href="/candidate/dashboard">Dashboard</Link>
-              ) : (
-                  <>
-                    <Link className="btn-secondary" href={`/observer/interview/${interview.id}`}>Observer view</Link>
-                    <Link className="btn-secondary" href="/admin">Admin home</Link>
-                  </>
-              )}
-            </div>
+        <div className="mx-auto max-w-4xl px-4 py-4 sm:px-6 sm:py-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            {isCandidate ? (
+                <Link className="btn-secondary text-sm" href="/candidate/dashboard">← Dashboard</Link>
+            ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Link className="btn-secondary text-sm" href={`/observer/interview/${interview.id}`}>Observer view</Link>
+                  <Link className="btn-secondary text-sm" href="/admin">Admin home</Link>
+                </div>
+            )}
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {interview.interviewMode} · {durationMinutes} min
+            </p>
           </div>
 
-          <div className="mt-6 grid gap-5 md:grid-cols-2">
-            <InterviewPlanPanel slotsJson={slotsJson} />
-            <VoiceInterviewForm
-                interviewId={interview.id}
-                jdTitle={jdTitle}
-                rubricJson={rubricJson}
-                candidateProfileJson={candidateProfileJson}
-                durationMinutes={durationMinutes}
-                interviewMode={interview.interviewMode}
-                completeInterview={completeInterview}
-            />
-          </div>
+          <VoiceInterviewForm
+              interviewId={interview.id}
+              jdTitle={jdTitle}
+              rubricJson={rubricJson}
+              candidateProfileJson={candidateProfileJson}
+              durationMinutes={durationMinutes}
+              interviewMode={interview.interviewMode}
+              proctoringMode={proctoringMode}
+              candidateSource={candidateSource}
+              completeInterview={completeInterview}
+          />
         </div>
       </div>
   );

@@ -135,12 +135,42 @@ export default async function InterviewReviewPage({
     }
   } catch { /* ignore */ }
 
-  if (!proctoringTimeline?.events || (Array.isArray(proctoringTimeline.events) && proctoringTimeline.events.length === 0)) {
-    try {
-      const doc = JSON.parse(interview.transcriptJson ?? "{}") as {
-        meta?: { videoProctoring?: Record<string, unknown> };
+  try {
+    const doc = JSON.parse(interview.transcriptJson ?? "{}") as {
+      meta?: {
+        videoProctoring?: Record<string, unknown>;
+        proctoringMode?: string;
+        candidateSource?: string;
+        tabSwitchCount?: number;
+        tabSwitchViolation?: boolean;
+        fullscreenExitCount?: number;
       };
-      const fromTranscript = doc.meta?.videoProctoring;
+    };
+    const meta = doc.meta;
+    const transcriptMode = meta?.proctoringMode;
+    const isLightFromTranscript = transcriptMode === "light";
+
+    if (isLightFromTranscript) {
+      proctoringTimeline = {
+        interviewId: id,
+        proctoringMode: "light",
+        candidateSource: meta?.candidateSource ?? (proctoringTimeline?.candidateSource as string | undefined) ?? null,
+        status: "LIGHT_INTEGRITY",
+        lightIntegrity: {
+          tabSwitchCount: meta?.tabSwitchCount ?? 0,
+          tabSwitchViolation: meta?.tabSwitchViolation ?? false,
+          fullscreenExitCount: meta?.fullscreenExitCount ?? 0,
+          proctoringMode: "light",
+          candidateSource: meta?.candidateSource,
+        },
+        events: [],
+        snapshots: [],
+      };
+    } else if (
+      !proctoringTimeline?.events ||
+      (Array.isArray(proctoringTimeline.events) && proctoringTimeline.events.length === 0)
+    ) {
+      const fromTranscript = meta?.videoProctoring;
       if (fromTranscript) {
         proctoringTimeline = {
           interviewId: id,
@@ -150,10 +180,12 @@ export default async function InterviewReviewPage({
           events: [],
           snapshots: [],
           summary: fromTranscript,
+          proctoringMode: "video",
+          candidateSource: meta?.candidateSource ?? null,
         };
       }
-    } catch { /* ignore */ }
-  }
+    }
+  } catch { /* ignore */ }
 
   scores = mergeAssessmentScores(scores, ai).map((s, i) => ({
     ...s,

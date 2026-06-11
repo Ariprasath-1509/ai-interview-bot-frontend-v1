@@ -334,9 +334,14 @@ export async function POST(req: Request) {
     }
     if (passed && tc.contains?.length) passed = tc.contains.every((c) => out.includes(c));
 
+    const hasExpected = tc.expected != null && String(tc.expected).trim() !== "";
+    const actualOutput = out || (err ? err : "(no output)");
+
     results.push({
       name: tc.name ?? "run",
       passed,
+      expected: hasExpected ? String(tc.expected) : undefined,
+      actual: actualOutput,
       stdout: out,
       stderr: timedOut ? `${err}\n[timeout after ${timeoutMs}ms]`.trim() : err,
       exit_code: proc.code,

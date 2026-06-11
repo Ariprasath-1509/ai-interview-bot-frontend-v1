@@ -7,6 +7,7 @@ import { CodeWorkspace } from "./CodeWorkspace";
 import type { CodeSubmissionRecord, QuestionMeta } from "./codingTypes";
 import { isCodingKeywords } from "./codingTypes";
 import { Loader2 } from "lucide-react";
+import { integrityModeLabel, type ProctoringMode } from "@/lib/proctoring/mode";
 
 type VoiceValidationSnapshot = {
   status: "PENDING_ENROLLMENT" | "VERIFIED" | "RISK" | "FAILED" | "NOT_VERIFIED";
@@ -64,6 +65,8 @@ export function VoiceInterviewForm({
   candidateProfileJson,
   durationMinutes,
   interviewMode,
+  proctoringMode,
+  candidateSource,
   completeInterview,
 }: {
   interviewId: string;
@@ -72,6 +75,8 @@ export function VoiceInterviewForm({
   candidateProfileJson: string | null;
   durationMinutes: number;
   interviewMode: string;
+  proctoringMode: ProctoringMode;
+  candidateSource: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
@@ -172,16 +177,13 @@ export function VoiceInterviewForm({
   return (
     <div className="card flex flex-col gap-5 p-6">
       <div>
-        <div className="flex items-center gap-2">
-          <svg className="h-5 w-5 text-zinc-700 dark:text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
-          <h2 className="text-base font-semibold">Voice Interview</h2>
-        </div>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          AI-scored on <span className="font-medium text-zinc-700 dark:text-zinc-300">Technical Knowledge</span> and{" "}
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Communication</span> vs the JD.
-          Coding questions open an editor automatically — use <strong>Run &amp; Submit</strong> to execute, review, and advance.
+        <h2 className="text-lg font-semibold tracking-tight">{jdTitle}</h2>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          {interviewMode} interview · speak or type your answers, then send when ready
+        </p>
+        <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+          {integrityModeLabel(proctoringMode)}
+          {candidateSource ? ` (${candidateSource})` : ""}
         </p>
       </div>
 
@@ -201,6 +203,8 @@ export function VoiceInterviewForm({
         candidateProfileJson={candidateProfileJson}
         durationMinutes={durationMinutes}
         interviewMode={interviewMode}
+        proctoringMode={proctoringMode}
+        candidateSource={candidateSource}
         onTranscriptChange={onTranscriptChange}
         onVoiceValidationChange={onVoiceValidationChange}
         onTimeExpired={() => setTimeExpired(true)}

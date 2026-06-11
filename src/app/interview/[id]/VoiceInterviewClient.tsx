@@ -5,6 +5,7 @@ import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
 import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
 import { useVideoProctoring } from "@/hooks/useVideoProctoring";
 import { CODING_SLOT_MINUTES } from "@/lib/constants";
+import type { ProctoringMode } from "@/lib/proctoring/mode";
 import type { QuestionMeta } from "./codingTypes";
 
 const SPEECH_TIMEOUT_MS = 10000; // 10 seconds of silence before considering speech done
@@ -33,6 +34,8 @@ type Props = {
   candidateProfileJson: string | null;
   durationMinutes: number;
   interviewMode: string;
+  proctoringMode: ProctoringMode;
+  candidateSource?: string | null;
   onTranscriptChange: (json: string) => void;
   onVoiceValidationChange?: (snapshot: VoiceValidationSnapshot) => void;
   onTimeExpired?: () => void;
@@ -160,6 +163,9 @@ async function speakWhenDone(text: string): Promise<void> {
         });
         return;
       }
+    } else {
+      const errBody = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
+      console.warn("[TTS] Coqui unavailable, using browser speech:", errBody?.error ?? res.status, errBody?.detail ?? "");
     }
   } catch (e) {
     console.warn("[TTS] Server Coqui failed, using browser:", e);
@@ -233,6 +239,8 @@ export function VoiceInterviewClient({
   candidateProfileJson,
   durationMinutes,
   interviewMode,
+  proctoringMode,
+  candidateSource = null,
   onTranscriptChange,
   onVoiceValidationChange,
   onTimeExpired,
@@ -290,9 +298,14 @@ export function VoiceInterviewClient({
   const [answerRecording, setAnswerRecording] = useState(false);
   const [whisperProcessing, setWhisperProcessing] = useState(false);
   const [whisperError, setWhisperError] = useState<string | null>(null);
+  const [livePreviewText, setLivePreviewText] = useState("");
+  const [micLevel, setMicLevel] = useState(0);
   const answerMediaRef = useRef<MediaRecorder | null>(null);
   const answerChunksRef = useRef<Blob[]>([]);
   const serverVoiceModeRef = useRef(true);
+  const previewRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const previewBufferRef = useRef("");
+  const previewActiveRef = useRef(false);
 
   // Session recording state
   const [sessionRecording, setSessionRecording] = useState(false);
@@ -308,8 +321,14 @@ export function VoiceInterviewClient({
   const proctorPausedRef = useRef(false);
   const onProctorTerminateRef = useRef<(reasons: string[]) => void>(() => {});
 
+  const videoProctoringRequired = proctoringMode === "video";
+  const videoProctoringRequiredRef = useRef(videoProctoringRequired);
+  useEffect(() => {
+    videoProctoringRequiredRef.current = videoProctoringRequired;
+  }, [videoProctoringRequired]);
+
   const proctoring = useVideoProctoring({
-    enabled: true,
+    enabled: videoProctoringRequired,
     active: proctorSessionActive && !timeExpired && !abandoning,
     interviewId,
     onTerminate: (reasons) => onProctorTerminateRef.current(reasons),
@@ -317,7 +336,9 @@ export function VoiceInterviewClient({
       proctorPausedRef.current = level === "paused";
     },
   });
-  const proctorCanStart = proctoring.snapshot.ready && proctoring.snapshot.enrolled;
+  const integrityCanStart = videoProctoringRequired
+    ? proctoring.snapshot.ready && proctoring.snapshot.enrolled
+    : true;
   const getProctorVideoTrackRef = useRef(proctoring.getVideoTrack);
   getProctorVideoTrackRef.current = proctoring.getVideoTrack;
   const crossSignalReportedRef = useRef(false);
@@ -325,11 +346,13 @@ export function VoiceInterviewClient({
   const fullscreen = useFullscreenEnforcement({
     active: proctorSessionActive && !timeExpired && !abandoning,
     onExit: (count) => {
-      proctoring.reportExternalEvent(
-        "fullscreen_exit",
-        [`Exited fullscreen mode (${count} time${count === 1 ? "" : "s"})`],
-        count >= 2 ? "hard" : "soft",
-      );
+      if (videoProctoringRequired) {
+        proctoring.reportExternalEvent(
+          "fullscreen_exit",
+          [`Exited fullscreen mode (${count} time${count === 1 ? "" : "s"})`],
+          count >= 2 ? "hard" : "soft",
+        );
+      }
     },
   });
 
@@ -369,7 +392,7 @@ export function VoiceInterviewClient({
   const mainTimerPausedRef = useRef(false);
 
   useEffect(() => {
-    if (!proctorSessionActive || crossSignalReportedRef.current) return;
+    if (!videoProctoringRequired || !proctorSessionActive || crossSignalReportedRef.current) return;
     const noFace =
       proctoring.snapshot.lastReasons.some((r) => r.includes("No face") || r.includes("No authorized")) ||
       (proctoring.snapshot.strikes.no_face ?? 0) > 0;
@@ -382,6 +405,7 @@ export function VoiceInterviewClient({
       );
     }
   }, [
+    videoProctoringRequired,
     proctorSessionActive,
     proctoring,
     voiceValidation.status,
@@ -546,6 +570,7 @@ export function VoiceInterviewClient({
 
   useEffect(() => {
     onProctorTerminateRef.current = () => {
+      if (!videoProctoringRequired) return;
       void abandonInterview(utterancesRef.current, "proctoring_violation");
     };
   });
@@ -774,12 +799,22 @@ export function VoiceInterviewClient({
     freqDataRef.current = new Float32Array(analyser.frequencyBinCount);
 
     monitorIntervalRef.current = setInterval(() => {
-      const feature = buildVoiceFeature();
+      const analyser = analyserRef.current;
+      const tData = timeDataRef.current;
+      if (analyser && tData) {
+        // @ts-expect-error - getFloatTimeDomainData accepts Float32Array
+        analyser.getFloatTimeDomainData(tData);
+        let rms = 0;
+        for (let i = 0; i < tData.length; i++) rms += tData[i] * tData[i];
+        rms = Math.sqrt(rms / tData.length);
+        setMicLevel(Math.min(100, Math.round(rms * 900)));
+      }
 
+      const feature = buildVoiceFeature();
       if (!feature) return;
 
       processVoiceFeature(feature);
-    }, 750);
+    }, 200);
   }
   function stopVoiceMonitor() {
     if (monitorIntervalRef.current) {
@@ -789,9 +824,103 @@ export function VoiceInterviewClient({
     analyserRef.current = null;
     timeDataRef.current = null;
     freqDataRef.current = null;
+    setMicLevel(0);
     if (audioContextRef.current) {
       void audioContextRef.current.close().catch(() => null);
       audioContextRef.current = null;
+    }
+  }
+
+  function speechPreviewLang(): string {
+    const map: Record<string, string> = {
+      en: "en-US",
+      hi: "hi-IN",
+      ta: "ta-IN",
+      te: "te-IN",
+      kn: "kn-IN",
+      ml: "ml-IN",
+      mr: "mr-IN",
+      bn: "bn-IN",
+      gu: "gu-IN",
+      pa: "pa-IN",
+      ur: "ur-PK",
+    };
+    return whisperLang === "auto" ? "en-US" : (map[whisperLang] ?? "en-US");
+  }
+
+  function clearLivePreview() {
+    previewBufferRef.current = "";
+    setLivePreviewText("");
+  }
+
+  function stopLiveSpeechPreview() {
+    previewActiveRef.current = false;
+    const rec = previewRecognitionRef.current;
+    previewRecognitionRef.current = null;
+    if (!rec) return;
+    try {
+      rec.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function startLiveSpeechPreview() {
+    if (typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
+    if (!serverVoiceModeRef.current || !sessionActiveRef.current) return;
+
+    const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
+    const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | undefined;
+    if (!Ctor) return;
+
+    stopLiveSpeechPreview();
+
+    const rec = new Ctor();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = speechPreviewLang();
+
+    rec.onresult = (event) => {
+      if (pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
+      const e = event as {
+        resultIndex: number;
+        results: ArrayLike<{ isFinal: boolean; 0: { transcript?: string } }>;
+      };
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        const text = res?.[0]?.transcript ?? "";
+        if (res?.isFinal) {
+          previewBufferRef.current += text.trim() + " ";
+        } else {
+          interim += text;
+        }
+      }
+      const combined = `${previewBufferRef.current}${interim}`.trim();
+      setLivePreviewText(combined);
+    };
+
+    rec.onerror = (event) => {
+      const err = (event as { error?: string })?.error;
+      if (err === "aborted" || err === "no-speech") return;
+    };
+
+    rec.onend = () => {
+      if (!previewActiveRef.current || !sessionActiveRef.current || micPhaseRef.current !== "listening") return;
+      try {
+        rec.start();
+      } catch {
+        /* ignore */
+      }
+    };
+
+    previewRecognitionRef.current = rec;
+    previewActiveRef.current = true;
+    try {
+      rec.start();
+    } catch {
+      previewActiveRef.current = false;
+      previewRecognitionRef.current = null;
     }
   }
 
@@ -990,6 +1119,8 @@ export function VoiceInterviewClient({
       rec.start(1000);
       setAnswerRecording(true);
       setWhisperError(null);
+      clearLivePreview();
+      startLiveSpeechPreview();
     } catch {
       setWhisperError("Could not start answer recording.");
     }
@@ -1021,6 +1152,7 @@ export function VoiceInterviewClient({
     }
     setWhisperProcessing(true);
     setWhisperError(null);
+    stopLiveSpeechPreview();
     try {
       recognitionRef.current?.stop();
     } catch {
@@ -1039,6 +1171,7 @@ export function VoiceInterviewClient({
         startAnswerRecording();
         return;
       }
+      setLivePreviewText(text);
       advancingRef.current = true;
       if (isEndInterviewIntent(text)) {
         advancingRef.current = false;
@@ -1056,6 +1189,20 @@ export function VoiceInterviewClient({
   }
 
   useEffect(() => {
+    if (micPhase === "listening" && !typedAnswersOnly && serverVoiceModeRef.current && sessionActiveRef.current) {
+      startLiveSpeechPreview();
+    } else {
+      stopLiveSpeechPreview();
+    }
+    return () => stopLiveSpeechPreview();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [micPhase, typedAnswersOnly, whisperLang]);
+
+  useEffect(() => {
+    if (!videoProctoringRequired) {
+      proctorPausedRef.current = false;
+      return;
+    }
     const paused = proctoring.snapshot.violationLevel === "paused";
     proctorPausedRef.current = paused;
     if (!proctorSessionActive || timeExpired || abandoning) return;
@@ -1083,7 +1230,7 @@ export function VoiceInterviewClient({
         }
       }
     }
-  }, [proctoring.snapshot.violationLevel, proctorSessionActive, micPhase, timeExpired, abandoning]);
+  }, [videoProctoringRequired, proctoring.snapshot.violationLevel, proctorSessionActive, micPhase, timeExpired, abandoning]);
 
   async function fetchNextQuestion(args: {
     slot: number;
@@ -1192,8 +1339,12 @@ export function VoiceInterviewClient({
       meta: {
         source: "web-speech",
         at: nowIso(),
+        proctoringMode,
+        candidateSource,
         voiceValidation,
-        videoProctoring: proctoring.getSnapshotForTranscript(),
+        ...(videoProctoringRequired
+          ? { videoProctoring: proctoring.getSnapshotForTranscript() }
+          : {}),
         tabSwitchCount: tabSwitchCountRef.current,
         tabSwitchViolation: tabSwitchCountRef.current >= 2,
         fullscreenExitCount: fullscreen.exitCount,
@@ -1201,7 +1352,16 @@ export function VoiceInterviewClient({
       utterances,
     };
     onTranscriptChange(JSON.stringify(transcript, null, 2));
-  }, [utterances, voiceValidation, proctoring.snapshot, fullscreen.exitCount, onTranscriptChange]);
+  }, [
+    utterances,
+    voiceValidation,
+    proctoringMode,
+    candidateSource,
+    videoProctoringRequired,
+    proctoring,
+    fullscreen.exitCount,
+    onTranscriptChange,
+  ]);
 
   function syncUtterances(next: Utterance[]) {
     utterancesRef.current = next;
@@ -1209,6 +1369,8 @@ export function VoiceInterviewClient({
   }
 
   function releaseMicStream() {
+    stopLiveSpeechPreview();
+    clearLivePreview();
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     stopVoiceMonitor();
@@ -1714,7 +1876,7 @@ export function VoiceInterviewClient({
   }
 
   async function startTypedOnly() {
-    if (!proctorCanStart) {
+    if (!integrityCanStart) {
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
@@ -1773,7 +1935,7 @@ export function VoiceInterviewClient({
 
   async function start() {
     if (!supported) return;
-    if (!proctorCanStart) {
+    if (!integrityCanStart) {
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
@@ -1941,13 +2103,15 @@ export function VoiceInterviewClient({
         tabSwitchCountRef.current = newCount;
         setTabSwitchCount(newCount);
 
-        const phoneVisible = proctoring.snapshot.lastReasons.some((r) => r.includes("Recording device"));
-        if (phoneVisible) {
-          proctoring.reportExternalEvent(
-            "cross_signal",
-            ["Tab switch while recording device was visible in camera"],
-            "hard",
-          );
+        if (videoProctoringRequiredRef.current) {
+          const phoneVisible = proctoring.snapshot.lastReasons.some((r) => r.includes("Recording device"));
+          if (phoneVisible) {
+            proctoring.reportExternalEvent(
+              "cross_signal",
+              ["Tab switch while recording device was visible in camera"],
+              "hard",
+            );
+          }
         }
 
         // Stop audio/mic immediately
@@ -1983,6 +2147,32 @@ export function VoiceInterviewClient({
   const listening = micPhase === "listening";
   const botSpeaking = micPhase === "bot_speaking";
 
+  type MicPreviewStatus = "idle" | "listening" | "hearing" | "quiet" | "transcribing" | "error" | "mic_off";
+
+  const micPreviewStatus: MicPreviewStatus = (() => {
+    if (whisperProcessing) return "transcribing";
+    if (whisperError && listening && !typedAnswersOnly) return "error";
+    if (listening && !typedAnswersOnly && !micStreamRef.current?.active) return "mic_off";
+    if (!listening || typedAnswersOnly) return "idle";
+    if (answerRecording && micLevel >= 10) return "hearing";
+    if (answerRecording) return "quiet";
+    return "listening";
+  })();
+
+  const micStatusMeta: Record<MicPreviewStatus, { label: string; className: string }> = {
+    idle: { label: "Mic idle", className: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" },
+    listening: { label: "Listening — speak now", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200" },
+    hearing: { label: "Hearing you", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" },
+    quiet: { label: "Mic on — speak louder", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" },
+    transcribing: { label: "Transcribing…", className: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200" },
+    error: { label: "Mic issue", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200" },
+    mic_off: { label: "Mic disconnected", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200" },
+  };
+
+  const spokenPreviewText = typedAnswersOnly
+    ? typedDraft
+    : livePreviewText || interimText;
+
   if (!supported) {
     return (
       <div className="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
@@ -1992,15 +2182,24 @@ export function VoiceInterviewClient({
   }
 
   return (
-    <div className="card p-4">
-      <VideoProctorPanel
-        proctoring={proctoring}
-        canStart={proctorCanStart}
-        sessionActive={proctorSessionActive}
-        onRequestCamera={() => void proctoring.requestCamera()}
-        onRetryEnrollment={() => void proctoring.retryEnrollment()}
-        onCancelStuck={() => proctoring.resetCameraSetup()}
-      />
+    <div className={`card p-4 ${videoProctoringRequired && proctorSessionActive ? "sm:pl-[13.5rem]" : ""}`}>
+      {videoProctoringRequired ? (
+        <VideoProctorPanel
+          proctoring={proctoring}
+          canStart={integrityCanStart}
+          sessionActive={proctorSessionActive}
+          onRequestCamera={() => void proctoring.requestCamera()}
+          onRetryEnrollment={() => void proctoring.retryEnrollment()}
+          onCancelStuck={() => proctoring.resetCameraSetup()}
+        />
+      ) : (
+        <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+          <span className="font-medium text-zinc-800 dark:text-zinc-200">Interview integrity</span>
+          <p className="mt-1">
+            Fullscreen mode and tab-switch monitoring are active. Camera proctoring is not required for your candidate type.
+          </p>
+        </div>
+      )}
       {speechError ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="font-medium">Microphone / speech</div>
@@ -2208,7 +2407,7 @@ export function VoiceInterviewClient({
               <button
                 className="rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
-                disabled={!proctorCanStart}
+                disabled={!integrityCanStart}
                 onClick={() => void start()}
               >
                 Start (mic)
@@ -2216,7 +2415,7 @@ export function VoiceInterviewClient({
               <button
                 className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
-                disabled={!proctorCanStart}
+                disabled={!integrityCanStart}
                 onClick={() => void startTypedOnly()}
               >
                 Typed answers only
@@ -2240,6 +2439,85 @@ export function VoiceInterviewClient({
         </div>
       </div>
 
+      {listening && !timeExpired && (
+        <div
+          className={`mt-4 rounded-xl border-2 p-4 transition-colors ${
+            micPreviewStatus === "hearing"
+              ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+              : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
+                ? "border-red-300 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
+                : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              {typedAnswersOnly ? "Your answer (typed)" : "Your answer (live)"}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${micStatusMeta[micPreviewStatus].className}`}
+              role="status"
+              aria-live="polite"
+            >
+              {(micPreviewStatus === "hearing" || micPreviewStatus === "listening") && (
+                <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+              )}
+              {micPreviewStatus === "transcribing" && (
+                <span className="h-2 w-2 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              )}
+              {micStatusMeta[micPreviewStatus].label}
+            </span>
+          </div>
+
+          {!typedAnswersOnly && (
+            <div className="mt-3 flex h-8 items-end gap-1" aria-hidden="true">
+              {Array.from({ length: 12 }).map((_, i) => {
+                const threshold = (i + 1) * (100 / 12);
+                const active = micLevel >= threshold - 4;
+                return (
+                  <div
+                    key={i}
+                    className={`w-2 flex-1 rounded-sm transition-all duration-150 ${
+                      active
+                        ? micPreviewStatus === "hearing"
+                          ? "bg-emerald-500"
+                          : "bg-blue-400"
+                        : "bg-zinc-200 dark:bg-zinc-700"
+                    }`}
+                    style={{ height: active ? `${Math.max(30, Math.min(100, micLevel))}%` : "20%" }}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-3 min-h-[4.5rem] rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-950">
+            {spokenPreviewText ? (
+              <p className="break-words text-zinc-800 dark:text-zinc-100">{spokenPreviewText}</p>
+            ) : (
+              <p className="text-zinc-400 dark:text-zinc-500">
+                {typedAnswersOnly
+                  ? "Type your answer in the box below."
+                  : micPreviewStatus === "transcribing"
+                    ? "Converting your speech to text…"
+                    : micPreviewStatus === "hearing"
+                      ? "Keep speaking — your words appear here as you talk."
+                      : "Start speaking — live preview will show here so you know the mic is working."}
+              </p>
+            )}
+          </div>
+
+          {!typedAnswersOnly && (
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+              Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
+              <span className="font-medium">Send answer</span>.
+            </p>
+          )}
+          {whisperError && (
+            <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
+          )}
+        </div>
+      )}
+
       <div className="mt-4 max-h-[320px] overflow-auto rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
         {utterances.length ? (
           utterances.map((u, idx) => (
@@ -2254,20 +2532,6 @@ export function VoiceInterviewClient({
             : you will hear the first question, then you can speak and/or type your reply.
           </div>
         )}
-        {listening && !typedAnswersOnly ? (
-          <div className="mt-3 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-            {answerRecording ? (
-              <span className="text-red-600 dark:text-red-400 animate-pulse">● Recording your answer (Whisper)…</span>
-            ) : whisperProcessing ? (
-              <span>Transcribing with Whisper…</span>
-            ) : (
-              <span>Speak your answer, then click <span className="font-medium">Send answer</span>.</span>
-            )}
-            {whisperError && (
-              <div className="mt-1 text-red-600 dark:text-red-400">{whisperError}</div>
-            )}
-          </div>
-        ) : null}
         <div ref={transcriptEndRef} />
       </div>
 
@@ -2314,10 +2578,10 @@ export function VoiceInterviewClient({
         </div>
       ) : null}
 
-      <div className="mt-3 flex flex-col gap-2">
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
         {!timeExpired && (
           <>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-zinc-500 sm:mr-auto">
               {typedAnswersOnly
                 ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
                 : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box · <span className="font-medium">Stop session</span> ends</>}
@@ -2325,7 +2589,7 @@ export function VoiceInterviewClient({
             <button
               type="button"
               disabled={!listening || typedAnswersOnly || whisperProcessing}
-              className="w-fit rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               onClick={() => void sendVoiceAnswer()}
             >
               {whisperProcessing ? "Transcribing…" : "Send answer (Whisper)"}

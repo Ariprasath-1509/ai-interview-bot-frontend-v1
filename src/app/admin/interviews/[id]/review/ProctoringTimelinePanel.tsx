@@ -1,6 +1,7 @@
 "use client";
 
 import { formatProctorEventType, integrityLabel } from "@/lib/proctoring/scoring";
+import { integrityModeLabel, type ProctoringMode } from "@/lib/proctoring/mode";
 
 type ProctorEventRow = {
   at?: string;
@@ -17,6 +18,14 @@ type ProctorSnapshot = {
   bytes?: number;
 };
 
+type LightIntegrity = {
+  tabSwitchCount?: number;
+  tabSwitchViolation?: boolean;
+  fullscreenExitCount?: number;
+  proctoringMode?: string;
+  candidateSource?: string;
+};
+
 type ProctoringTimeline = {
   interviewId: string;
   integrityScore?: number | null;
@@ -25,12 +34,53 @@ type ProctoringTimeline = {
   status?: string;
   snapshots?: ProctorSnapshot[];
   updatedAt?: string | null;
+  proctoringMode?: ProctoringMode | string;
+  candidateSource?: string | null;
+  lightIntegrity?: LightIntegrity | null;
 };
 
 function scoreBadgeClass(tone: "good" | "warn" | "bad"): string {
   if (tone === "good") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200";
   if (tone === "warn") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200";
   return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200";
+}
+
+function LightIntegrityPanel({ light, candidateSource }: { light: LightIntegrity; candidateSource?: string | null }) {
+  const tabSwitches = light.tabSwitchCount ?? 0;
+  const fullscreenExits = light.fullscreenExitCount ?? 0;
+  const violated = Boolean(light.tabSwitchViolation);
+
+  return (
+    <div className="mt-4 space-y-4">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        This candidate ({candidateSource ?? light.candidateSource ?? "BENCH/B2B"}) was monitored with{" "}
+        <span className="font-medium">light integrity mode</span> — fullscreen enforcement and tab-switch detection only.
+        No camera proctoring was required or recorded.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <div className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{tabSwitches}</div>
+          <div className="text-xs text-zinc-500">Tab switches</div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <div className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{fullscreenExits}</div>
+          <div className="text-xs text-zinc-500">Fullscreen exits</div>
+        </div>
+        <div
+          className={`rounded-lg border p-3 ${
+            violated
+              ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
+              : "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+          }`}
+        >
+          <div className={`text-sm font-semibold ${violated ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+            {violated ? "Tab switch violation" : "No tab violation"}
+          </div>
+          <div className="text-xs text-zinc-500">Max 2 switches allowed</div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ProctoringTimelinePanel({
@@ -40,11 +90,38 @@ export function ProctoringTimelinePanel({
   interviewId: string;
   timeline: ProctoringTimeline | null;
 }) {
+  const mode: ProctoringMode =
+    timeline?.proctoringMode === "video" || timeline?.proctoringMode === "light"
+      ? timeline.proctoringMode
+      : "video";
+  const isLightMode = mode === "light" || timeline?.status === "LIGHT_INTEGRITY";
+
   if (!timeline) {
     return (
       <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Video proctoring</h3>
-        <p className="mt-2 text-sm text-zinc-500">No proctoring data recorded for this interview.</p>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Interview integrity</h3>
+        <p className="mt-2 text-sm text-zinc-500">No integrity data recorded for this interview.</p>
+      </div>
+    );
+  }
+
+  if (isLightMode) {
+    const light = timeline.lightIntegrity ?? {};
+    return (
+      <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Interview integrity (light mode)</h3>
+            <p className="mt-1 text-xs text-zinc-500">
+              {integrityModeLabel("light")}
+              {timeline.candidateSource ? ` · ${timeline.candidateSource}` : ""}
+            </p>
+          </div>
+          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
+            Light monitoring
+          </span>
+        </div>
+        <LightIntegrityPanel light={light} candidateSource={timeline.candidateSource} />
       </div>
     );
   }
@@ -60,7 +137,9 @@ export function ProctoringTimelinePanel({
         <div>
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Video proctoring</h3>
           <p className="mt-1 text-xs text-zinc-500">
-            Status: {timeline.status?.replace(/_/g, " ") ?? "Unknown"}
+            {integrityModeLabel("video")}
+            {timeline.candidateSource ? ` · ${timeline.candidateSource}` : ""}
+            {" · "}Status: {timeline.status?.replace(/_/g, " ") ?? "Unknown"}
             {timeline.updatedAt ? ` · updated ${new Date(timeline.updatedAt).toLocaleString()}` : ""}
           </p>
         </div>

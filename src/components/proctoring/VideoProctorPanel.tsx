@@ -64,9 +64,12 @@ export function VideoProctorPanel({
     dismissWarning,
   } = proctoring;
 
+  const showSetupBar = !(sessionActive && snapshot.monitoring);
+
   return (
     <>
-      {/* Compact setup bar — stays in the interview card */}
+      {/* Compact setup bar — hidden during live monitoring so the page stays interview-focused */}
+      {showSetupBar && (
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -166,10 +169,11 @@ export function VideoProctorPanel({
           </ul>
         )}
       </div>
+      )}
 
-      {/* Floating PiP — fixed bottom-left, stays visible while scrolling */}
+      {/* Floating PiP — fixed top-left so it does not cover Send answer / Mark complete at the bottom */}
       <div
-        className="fixed bottom-5 left-5 z-[45] w-[11.5rem] overflow-hidden rounded-xl border border-zinc-200/90 bg-zinc-900 shadow-2xl ring-1 ring-black/10 dark:border-zinc-700"
+        className="fixed left-4 top-20 z-[45] w-[10.5rem] overflow-hidden rounded-xl border border-zinc-200/90 bg-zinc-900 shadow-2xl ring-1 ring-black/10 dark:border-zinc-700 sm:left-5 sm:top-24 sm:w-[11.5rem]"
         aria-label="Proctoring camera preview"
       >
           <div className="flex items-center justify-between gap-2 border-b border-zinc-700/80 bg-zinc-950/90 px-2.5 py-1.5">

@@ -59,6 +59,8 @@ export interface TestCase {
 export interface RunResult {
   name: string;
   passed: boolean;
+  expected?: string;
+  actual?: string;
   stdout: string;
   stderr: string;
   exit_code: number;
