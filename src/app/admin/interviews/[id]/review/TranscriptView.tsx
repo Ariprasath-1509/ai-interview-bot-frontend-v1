@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 type Utterance = { speaker: string; text: string; at: string };
 
 function formatTimeStable(value: string): string {
@@ -17,12 +15,6 @@ function formatTimeStable(value: string): string {
 }
 
 export function TranscriptView({ utterances }: { utterances: Utterance[] }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [utterances]);
-
   if (!utterances.length) {
     return <p className="text-sm text-zinc-500">(no transcript yet)</p>;
   }
@@ -53,7 +45,6 @@ export function TranscriptView({ utterances }: { utterances: Utterance[] }) {
           </div>
         );
       })}
-      <div ref={bottomRef} />
     </div>
   );
 }

@@ -123,6 +123,14 @@ body {
   overflow: hidden;
   background: var(--background);
   z-index: 1;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+html:has(.app-shell),
+html:has(.app-shell) body {
+  overflow: hidden;
+  height: 100%;
 }
 
 .app-shell::before {

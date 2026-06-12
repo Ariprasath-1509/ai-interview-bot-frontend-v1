@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { TranscriptView } from "./TranscriptView";
+import { ReviewPageScrollReset } from "./ReviewPageScrollReset";
 import { ProctoringTimelinePanel } from "./ProctoringTimelinePanel";
 import { RerunAssessmentButton } from "./RerunAssessmentButton";
 import { AppShell } from "@/app/components/AppShell";
@@ -202,6 +203,7 @@ export default async function InterviewReviewPage({
 
   return (
     <AppShell title="Review interview" subtitle={summary?.candidateName ?? "Unknown candidate"}>
+    <ReviewPageScrollReset />
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">

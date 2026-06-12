@@ -2182,7 +2182,7 @@ export function VoiceInterviewClient({
   }
 
   return (
-    <div className={`card p-4 ${videoProctoringRequired && proctorSessionActive ? "sm:pl-[13.5rem]" : ""}`}>
+    <div className="card p-4">
       {videoProctoringRequired ? (
         <VideoProctorPanel
           proctoring={proctoring}

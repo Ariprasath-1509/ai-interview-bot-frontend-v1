@@ -1,6 +1,6 @@
 export type ProctoringMode = "video" | "light";
 
-/** MARKET → full video proctoring; BENCH, B2B, and unknown → light integrity only. */
+/** Fallback when interview API does not include proctoringMode. Backend admin settings are the source of truth. */
 export function resolveProctoringMode(source: string | null | undefined): ProctoringMode {
   return source === "MARKET" ? "video" : "light";
 }

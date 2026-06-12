@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, ShieldAlert, Video, VideoOff } from "lucide-react";
 import type { UseVideoProctoringReturn } from "@/hooks/useVideoProctoring";
 import type { ProctorViolationLevel } from "@/lib/proctoring/types";
@@ -65,6 +67,81 @@ export function VideoProctorPanel({
   } = proctoring;
 
   const showSetupBar = !(sessionActive && snapshot.monitoring);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const cameraPreview = (
+    <div
+      className="pointer-events-none fixed right-4 top-[4.75rem] z-[100] w-[9.5rem] sm:right-5 sm:top-20 sm:w-[10.5rem]"
+      aria-label="Proctoring camera preview"
+    >
+      <div className="pointer-events-auto overflow-hidden rounded-xl border border-zinc-200/90 bg-zinc-900 shadow-2xl ring-1 ring-black/10 dark:border-zinc-700">
+        <div className="flex items-center justify-between gap-2 border-b border-zinc-700/80 bg-zinc-950/90 px-2.5 py-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${statusColor(snapshot.status)}`} />
+            <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-zinc-200">
+              {snapshot.monitoring ? "Live" : "Camera"}
+            </span>
+          </div>
+          {snapshot.monitoring && (
+            <span className="rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
+              REC
+            </span>
+          )}
+        </div>
+
+        <div className="relative aspect-[4/3] w-full bg-black">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="h-full w-full object-cover"
+            style={{ transform: "scaleX(-1)" }}
+          />
+          {!snapshot.cameraActive && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900/90 text-zinc-300">
+              {loadingMessage ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="px-2 text-center text-[10px]">{loadingMessage}</span>
+                </>
+              ) : (
+                <span className="px-2 text-center text-[10px]">Enable camera in setup bar</span>
+              )}
+            </div>
+          )}
+          {snapshot.cameraActive && !snapshot.ready && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900/70 text-zinc-200">
+              {loadingMessage || snapshot.enrolling ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="px-2 text-center text-[10px]">
+                    {loadingMessage ?? "Enrolling face…"}
+                  </span>
+                </>
+              ) : snapshot.modelsLoaded ? (
+                <span className="px-2 text-center text-[10px] text-amber-200">Enrollment needed</span>
+              ) : (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="px-2 text-center text-[10px]">Loading models…</span>
+                </>
+              )}
+            </div>
+          )}
+          {snapshot.violationLevel !== "none" && (
+            <div className="absolute inset-x-0 bottom-0 bg-red-600/85 px-2 py-1 text-center text-[9px] font-semibold text-white">
+              {snapshot.violationLevel === "paused" ? "Paused" : "Warning"}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -171,72 +248,7 @@ export function VideoProctorPanel({
       </div>
       )}
 
-      {/* Floating PiP — fixed top-left so it does not cover Send answer / Mark complete at the bottom */}
-      <div
-        className="fixed left-4 top-20 z-[45] w-[10.5rem] overflow-hidden rounded-xl border border-zinc-200/90 bg-zinc-900 shadow-2xl ring-1 ring-black/10 dark:border-zinc-700 sm:left-5 sm:top-24 sm:w-[11.5rem]"
-        aria-label="Proctoring camera preview"
-      >
-          <div className="flex items-center justify-between gap-2 border-b border-zinc-700/80 bg-zinc-950/90 px-2.5 py-1.5">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${statusColor(snapshot.status)}`} />
-              <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-zinc-200">
-                {snapshot.monitoring ? "Live" : "Camera"}
-              </span>
-            </div>
-            {snapshot.monitoring && (
-              <span className="rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
-                REC
-              </span>
-            )}
-          </div>
-
-          <div className="relative aspect-[4/3] w-full bg-black">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="h-full w-full object-cover"
-              style={{ transform: "scaleX(-1)" }}
-            />
-            {!snapshot.cameraActive && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900/90 text-zinc-300">
-                {loadingMessage ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span className="px-2 text-center text-[10px]">{loadingMessage}</span>
-                  </>
-                ) : (
-                  <span className="px-2 text-center text-[10px]">Click Enable camera above</span>
-                )}
-              </div>
-            )}
-            {snapshot.cameraActive && !snapshot.ready && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900/70 text-zinc-200">
-                {loadingMessage || snapshot.enrolling ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span className="px-2 text-center text-[10px]">
-                      {loadingMessage ?? "Enrolling face…"}
-                    </span>
-                  </>
-                ) : snapshot.modelsLoaded ? (
-                  <span className="px-2 text-center text-[10px] text-amber-200">Enrollment needed</span>
-                ) : (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span className="px-2 text-center text-[10px]">Loading models…</span>
-                  </>
-                )}
-              </div>
-            )}
-            {snapshot.violationLevel !== "none" && (
-              <div className="absolute inset-x-0 bottom-0 bg-red-600/85 px-2 py-1 text-center text-[9px] font-semibold text-white">
-                {snapshot.violationLevel === "paused" ? "Paused" : "Warning"}
-              </div>
-            )}
-          </div>
-        </div>
+      {mounted ? createPortal(cameraPreview, document.body) : null}
 
       {showViolationModal && snapshot.violationLevel !== "none" && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
