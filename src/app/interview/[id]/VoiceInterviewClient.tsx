@@ -6,6 +6,14 @@ import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
 import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
 import { useVideoProctoring } from "@/hooks/useVideoProctoring";
 import { CODING_SLOT_MINUTES } from "@/lib/constants";
+import {
+  fetchWithTimeout,
+  isUsingBrowserVoiceFallback,
+  MediaServiceTimeoutError,
+  MEDIA_SERVICE_TIMEOUT_MS,
+  resetVoiceServicePrefs,
+  voiceServicePrefs,
+} from "@/lib/mediaTimeout";
 import type { ProctoringMode } from "@/lib/proctoring/mode";
 import type { QuestionMeta } from "./codingTypes";
 
@@ -42,6 +50,7 @@ type Props = {
   onTimeExpired?: () => void;
   onRegisterSubmitAnswer?: (fn: (answer: string) => void) => void;
   onRegisterEnsureRecording?: (fn: () => Promise<void>) => void;
+  onRegisterFinalizeSession?: (fn: () => void) => void;
   onSessionRecordingChange?: (state: { recording: boolean; uploaded: boolean; uploading: boolean }) => void;
   isCodingSlotActive?: boolean;
   codingSlotSatisfied?: boolean;
@@ -120,7 +129,7 @@ function cancelActiveTts() {
   }
 }
 
-/** Coqui TTS via ai-service (port 6014); falls back to browser speech if unavailable. */
+/** Coqui TTS via ai-service; falls back to browser speech after 10s timeout or error. */
 async function speakWhenDone(text: string, onStart?: () => void): Promise<void> {
   if (typeof window === "undefined") return;
 
@@ -132,52 +141,63 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
     onStart?.();
   };
 
-  try {
-    const res = await fetch("/api/ai/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (res.ok) {
-      const blob = await res.blob();
-      if (blob.size > 0) {
-        const url = URL.createObjectURL(blob);
-        await new Promise<void>((resolve) => {
-          const audio = new Audio(url);
-          activeTtsAudio = audio;
-          let resolved = false;
-          const done = () => {
-            if (!resolved) {
-              resolved = true;
-              URL.revokeObjectURL(url);
-              if (activeTtsAudio === audio) activeTtsAudio = null;
-              resolve();
-            }
-          };
-          const timer = setTimeout(done, Math.max(text.length * 80, 8000) + 5000);
-          audio.onplaying = () => notifyStart();
-          audio.onended = () => {
-            clearTimeout(timer);
-            done();
-          };
-          audio.onerror = () => {
-            clearTimeout(timer);
-            done();
-          };
-          void audio.play().then(() => notifyStart()).catch(() => {
-            clearTimeout(timer);
-            done();
+  if (voiceServicePrefs.preferServerTts) {
+    try {
+      const res = await fetchWithTimeout(
+        "/api/ai/tts",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        },
+        MEDIA_SERVICE_TIMEOUT_MS,
+      );
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 0) {
+          const url = URL.createObjectURL(blob);
+          await new Promise<void>((resolve) => {
+            const audio = new Audio(url);
+            activeTtsAudio = audio;
+            let resolved = false;
+            const done = () => {
+              if (!resolved) {
+                resolved = true;
+                URL.revokeObjectURL(url);
+                if (activeTtsAudio === audio) activeTtsAudio = null;
+                resolve();
+              }
+            };
+            const timer = setTimeout(done, Math.max(text.length * 80, 8000) + 5000);
+            audio.onplaying = () => notifyStart();
+            audio.onended = () => {
+              clearTimeout(timer);
+              done();
+            };
+            audio.onerror = () => {
+              clearTimeout(timer);
+              done();
+            };
+            void audio.play().then(() => notifyStart()).catch(() => {
+              clearTimeout(timer);
+              done();
+            });
           });
-        });
-        notifyStart();
-        return;
+          notifyStart();
+          return;
+        }
+      } else {
+        const errBody = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
+        console.warn("[TTS] Coqui unavailable, using browser speech:", errBody?.error ?? res.status, errBody?.detail ?? "");
       }
-    } else {
-      const errBody = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
-      console.warn("[TTS] Coqui unavailable, using browser speech:", errBody?.error ?? res.status, errBody?.detail ?? "");
+    } catch (e) {
+      const timedOut = e instanceof MediaServiceTimeoutError;
+      console.warn(
+        timedOut ? "[TTS] Coqui timed out (>10s), using browser speech" : "[TTS] Server Coqui failed, using browser:",
+        e,
+      );
     }
-  } catch (e) {
-    console.warn("[TTS] Server Coqui failed, using browser:", e);
+    voiceServicePrefs.preferServerTts = false;
   }
 
   const synth = window.speechSynthesis;
@@ -260,6 +280,7 @@ export function VoiceInterviewClient({
   onTimeExpired,
   onRegisterSubmitAnswer,
   onRegisterEnsureRecording,
+  onRegisterFinalizeSession,
   onSessionRecordingChange,
   isCodingSlotActive = false,
   codingSlotSatisfied = true,
@@ -312,6 +333,7 @@ export function VoiceInterviewClient({
   const [answerRecording, setAnswerRecording] = useState(false);
   const [whisperProcessing, setWhisperProcessing] = useState(false);
   const [fetchingNextQuestion, setFetchingNextQuestion] = useState(false);
+  const [usingBrowserVoice, setUsingBrowserVoice] = useState(false);
   const [whisperError, setWhisperError] = useState<string | null>(null);
   const [livePreviewText, setLivePreviewText] = useState("");
   const [micLevel, setMicLevel] = useState(0);
@@ -356,6 +378,11 @@ export function VoiceInterviewClient({
     : true;
   const getProctorVideoTrackRef = useRef(proctoring.getVideoTrack);
   getProctorVideoTrackRef.current = proctoring.getVideoTrack;
+  const getSnapshotForTranscriptRef = useRef(proctoring.getSnapshotForTranscript);
+  getSnapshotForTranscriptRef.current = proctoring.getSnapshotForTranscript;
+  const onTranscriptChangeRef = useRef(onTranscriptChange);
+  onTranscriptChangeRef.current = onTranscriptChange;
+  const lastEmittedTranscriptRef = useRef("");
   const crossSignalReportedRef = useRef(false);
 
   const fullscreen = useFullscreenEnforcement({
@@ -604,25 +631,8 @@ export function VoiceInterviewClient({
     syncUtterances(finalUtterances);
     
     // Stop the session but don't abandon - let user complete normally
-    sessionActiveRef.current = false;
-    typedOnlyRef.current = false;
-    setTypedAnswersOnly(false);
-    pausedForTtsRef.current = false;
-    commitAfterEndRef.current = false;
-    explicitStopRef.current = false;
-    finalBufferRef.current = "";
-    interimRef.current = "";
-    setInterimText("");
-    if (restartTimerRef.current) {
-      clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-    }
-    try {
-      recognitionRef.current?.stop();
-    } catch { /* ignore */ }
-    releaseMicStream();
-    setMicPhase("idle");
-    
+    finalizeVoiceSession();
+
     // Show time expired message and allow user to mark complete
     void speakWhenDone(timeUpMessage.text);
     // Auto-upload session recording if active
@@ -644,6 +654,7 @@ export function VoiceInterviewClient({
   const commitAfterEndRef = useRef(false);
   /** User clicked "Stop session" — must not flush buffer as an answer on `onend`. */
   const explicitStopRef = useRef(false);
+  const sessionFinalizedRef = useRef(false);
   /** User chose typed answers only (no Web Speech recognition). */
   const typedOnlyRef = useRef(false);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -868,6 +879,14 @@ export function VoiceInterviewClient({
     setLivePreviewText("");
   }
 
+  function resetAnswerCaptureState() {
+    previewBufferRef.current = "";
+    finalBufferRef.current = "";
+    interimRef.current = "";
+    setLivePreviewText("");
+    setInterimText("");
+  }
+
   function stopLiveSpeechPreview() {
     previewActiveRef.current = false;
     const rec = previewRecognitionRef.current;
@@ -881,7 +900,7 @@ export function VoiceInterviewClient({
   }
 
   function startLiveSpeechPreview() {
-    if (typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
+    if (sessionFinalizedRef.current || typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
     if (!serverVoiceModeRef.current || !sessionActiveRef.current) return;
 
     const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
@@ -921,7 +940,7 @@ export function VoiceInterviewClient({
     };
 
     rec.onend = () => {
-      if (!previewActiveRef.current || !sessionActiveRef.current || micPhaseRef.current !== "listening") return;
+      if (!previewActiveRef.current || sessionFinalizedRef.current || !sessionActiveRef.current || micPhaseRef.current !== "listening") return;
       try {
         rec.start();
       } catch {
@@ -1107,11 +1126,22 @@ export function VoiceInterviewClient({
     onRegisterEnsureRecording?.(ensureSessionRecordingUploaded);
   }, [onRegisterEnsureRecording, ensureSessionRecordingUploaded]);
 
+  const finalizeVoiceSessionRef = useRef(finalizeVoiceSession);
+  finalizeVoiceSessionRef.current = finalizeVoiceSession;
+
+  useEffect(() => {
+    onRegisterFinalizeSession?.(() => finalizeVoiceSessionRef.current());
+  }, [onRegisterFinalizeSession]);
+
+  useEffect(() => {
+    return () => finalizeVoiceSessionRef.current();
+  }, []);
+
   async function transcribeAnswerBlob(blob: Blob): Promise<string> {
     const fd = new FormData();
     fd.append("audio", blob, "answer.webm");
     if (whisperLang !== "auto") fd.append("language", whisperLang);
-    const res = await fetch("/api/ai/transcribe", { method: "POST", body: fd });
+    const res = await fetchWithTimeout("/api/ai/transcribe", { method: "POST", body: fd }, MEDIA_SERVICE_TIMEOUT_MS);
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { detail?: string; error?: string };
       throw new Error(err.detail ?? err.error ?? "Transcription failed");
@@ -1120,7 +1150,43 @@ export function VoiceInterviewClient({
     return data.text?.trim() ?? "";
   }
 
+  function getBrowserSttPreviewText(): string {
+    const preview = previewBufferRef.current.trim() || livePreviewText.trim();
+    const recognition = `${finalBufferRef.current}${interimRef.current ? (finalBufferRef.current ? " " : "") + interimRef.current : ""}`.trim();
+    return preview || recognition;
+  }
+
+  function enableBrowserSttFallback(reason: string) {
+    voiceServicePrefs.preferServerStt = false;
+    serverVoiceModeRef.current = false;
+    setUsingBrowserVoice(true);
+    setWhisperError(null);
+    console.warn("[STT] Switching to browser speech:", reason);
+    resetAnswerCaptureState();
+    void stopAnswerRecordingBlob().catch(() => null);
+    attachRecognitionHandlers();
+    if (sessionActiveRef.current && !sessionFinalizedRef.current) {
+      scheduleRecognitionStart("browser stt fallback");
+    }
+  }
+
+  async function submitVoiceAnswerText(text: string) {
+    const clean = text.trim();
+    if (!clean) return false;
+    resetAnswerCaptureState();
+    advancingRef.current = true;
+    if (isEndInterviewIntent(clean)) {
+      advancingRef.current = false;
+      void endInterviewFromVoice(clean);
+      return true;
+    }
+    addCandidate(clean);
+    void advanceAfterAnswer(clean);
+    return true;
+  }
+
   function startAnswerRecording() {
+    if (sessionFinalizedRef.current || !sessionActiveRef.current) return;
     const stream = micStreamRef.current;
     if (!stream || typedOnlyRef.current) return;
     if (answerMediaRef.current?.state === "recording") return;
@@ -1165,6 +1231,23 @@ export function VoiceInterviewClient({
       setWhisperError("This is a coding question — use Run & Submit in the code editor before sending a voice answer.");
       return;
     }
+
+    if (!voiceServicePrefs.preferServerStt) {
+      const answer = interimRef.current.trim() || finalBufferRef.current.trim();
+      if (!answer) {
+        setWhisperError("No speech detected. Speak your answer, then click Send answer again.");
+        if (sessionActiveRef.current) scheduleRecognitionStart("retry browser stt");
+        return;
+      }
+      finalBufferRef.current = answer;
+      interimRef.current = "";
+      setInterimText("");
+      clearLivePreview();
+      flushSpokenAnswer();
+      return;
+    }
+
+    const browserFallbackText = getBrowserSttPreviewText();
     setWhisperProcessing(true);
     setWhisperError(null);
     stopLiveSpeechPreview();
@@ -1175,6 +1258,9 @@ export function VoiceInterviewClient({
     }
     const blob = await stopAnswerRecordingBlob();
     if (!blob || blob.size < 200) {
+      if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+        return;
+      }
       setWhisperError("No speech recorded. Speak your answer, then click Send answer again.");
       startAnswerRecording();
       return;
@@ -1182,22 +1268,28 @@ export function VoiceInterviewClient({
     try {
       const text = await transcribeAnswerBlob(blob);
       if (!text) {
+        if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+          enableBrowserSttFallback("Whisper returned empty text");
+          return;
+        }
         setWhisperError("No speech detected. Try speaking louder or use the typed box.");
         startAnswerRecording();
         return;
       }
-      setLivePreviewText(text);
-      advancingRef.current = true;
-      if (isEndInterviewIntent(text)) {
-        advancingRef.current = false;
-        void endInterviewFromVoice(text);
+      await submitVoiceAnswerText(text);
+    } catch (e) {
+      const timedOut = e instanceof MediaServiceTimeoutError;
+      const reason = timedOut ? "Whisper timed out (>10s)" : (e instanceof Error ? e.message : "Transcription failed");
+      if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+        enableBrowserSttFallback(reason);
         return;
       }
-      addCandidate(text);
-      void advanceAfterAnswer(text);
-    } catch (e) {
-      setWhisperError(e instanceof Error ? e.message : "Transcription failed");
-      startAnswerRecording();
+      enableBrowserSttFallback(reason);
+      setWhisperError(
+        timedOut
+          ? "Whisper timed out. Switched to browser speech — speak and click Send answer again."
+          : "Whisper unavailable. Switched to browser speech — speak and click Send answer again.",
+      );
     } finally {
       setWhisperProcessing(false);
     }
@@ -1359,7 +1451,7 @@ export function VoiceInterviewClient({
         candidateSource,
         voiceValidation,
         ...(videoProctoringRequired
-          ? { videoProctoring: proctoring.getSnapshotForTranscript() }
+          ? { videoProctoring: getSnapshotForTranscriptRef.current() }
           : {}),
         tabSwitchCount: tabSwitchCountRef.current,
         tabSwitchViolation: tabSwitchCountRef.current >= 2,
@@ -1367,21 +1459,85 @@ export function VoiceInterviewClient({
       },
       utterances,
     };
-    onTranscriptChange(JSON.stringify(transcript, null, 2));
+    const json = JSON.stringify(transcript, null, 2);
+    if (json === lastEmittedTranscriptRef.current) return;
+    lastEmittedTranscriptRef.current = json;
+    onTranscriptChangeRef.current(json);
   }, [
     utterances,
     voiceValidation,
     proctoringMode,
     candidateSource,
     videoProctoringRequired,
-    proctoring,
     fullscreen.exitCount,
-    onTranscriptChange,
+    proctoring.snapshot.totalEvents,
+    proctoring.snapshot.violationLevel,
+    proctoring.snapshot.lastReasons,
   ]);
 
   function syncUtterances(next: Utterance[]) {
     utterancesRef.current = next;
     setUtterances(next);
+  }
+
+  function stopSpeechRecognition(rec: SpeechRecognitionLike | null) {
+    if (!rec) return;
+    try {
+      if (rec.abort) rec.abort();
+      else rec.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function finalizeVoiceSession() {
+    if (sessionFinalizedRef.current) return;
+    sessionFinalizedRef.current = true;
+
+    sessionActiveRef.current = false;
+    previewActiveRef.current = false;
+    pausedForTtsRef.current = true;
+    explicitStopRef.current = false;
+    commitAfterEndRef.current = false;
+    advancingRef.current = false;
+
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+
+    cancelActiveTts();
+    stopLiveSpeechPreview();
+    stopSpeechRecognition(previewRecognitionRef.current);
+    previewRecognitionRef.current = null;
+    stopSpeechRecognition(recognitionRef.current);
+    recognitionRef.current = null;
+
+    void stopAnswerRecordingBlob();
+
+    const sessionRec = sessionRecorderRef.current;
+    if (sessionRec && sessionRec.state !== "inactive") {
+      try {
+        sessionRec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    sessionRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
+
+    releaseMicStream();
+    resetAnswerCaptureState();
+
+    setMicPhase("idle");
+    setAnswerRecording(false);
+    setProctorSessionActive(false);
+    setWhisperProcessing(false);
+    setFetchingNextQuestion(false);
+    setSessionRecording(false);
   }
 
   function releaseMicStream() {
@@ -1450,6 +1606,7 @@ export function VoiceInterviewClient({
     syncUtterances([...utterancesRef.current, row]);
     setMicPhase("bot_speaking");
     await speakWhenDone(botText);
+    if (isUsingBrowserVoiceFallback()) setUsingBrowserVoice(true);
     setMicPhase("idle");
     finalizeVoiceValidation();
   }
@@ -1493,19 +1650,27 @@ export function VoiceInterviewClient({
 
     await speakWhenDone(text, revealQuestion);
     revealQuestion();
+    if (isUsingBrowserVoiceFallback()) setUsingBrowserVoice(true);
 
     pausedForTtsRef.current = false;
-    if (sessionActiveRef.current) {
-      setMicPhase("listening");
-      if (typedOnlyRef.current) {
-        return;
-      }
-      scheduleRecognitionStart("after tts");
+    if (sessionFinalizedRef.current || !sessionActiveRef.current) {
+      setMicPhase("idle");
+      return;
     }
+    setMicPhase("listening");
+    if (typedOnlyRef.current) {
+      return;
+    }
+    resetAnswerCaptureState();
+    scheduleRecognitionStart("after tts");
   }
 
   function scheduleRecognitionStart(reason: string) {
     void reason;
+
+    if (sessionFinalizedRef.current || !sessionActiveRef.current) {
+      return;
+    }
 
     if (typedOnlyRef.current) {
       if (sessionActiveRef.current) {
@@ -1517,10 +1682,13 @@ export function VoiceInterviewClient({
     if (serverVoiceModeRef.current) {
       if (sessionActiveRef.current) {
         setMicPhase("listening");
+        resetAnswerCaptureState();
         startAnswerRecording();
       }
       return;
     }
+
+    resetAnswerCaptureState();
 
     if (restartTimerRef.current) {
       clearTimeout(restartTimerRef.current);
@@ -1701,6 +1869,7 @@ export function VoiceInterviewClient({
     finalBufferRef.current = "";
     interimRef.current = "";
     setInterimText("");
+    clearLivePreview();
 
     lastSpeechTimeRef.current = 0;
 
@@ -1742,7 +1911,8 @@ export function VoiceInterviewClient({
       
       const trimmed = interim.trim();
       interimRef.current = trimmed;
-      setInterimText(trimmed);
+      const displayText = `${finalBufferRef.current}${trimmed ? `${finalBufferRef.current && !finalBufferRef.current.endsWith(" ") ? " " : ""}${trimmed}` : ""}`.trim();
+      setInterimText(displayText);
       
       // Update last speech time when we get any speech (final or interim)
       if (trimmed.length > 0 || hasNewFinal) {
@@ -1814,14 +1984,14 @@ export function VoiceInterviewClient({
       }
       
       // For other errors, only restart if we're still in an active session
-      if (sessionActiveRef.current && !pausedForTtsRef.current) {
+      if (sessionActiveRef.current && !pausedForTtsRef.current && !sessionFinalizedRef.current) {
         console.log('[Speech] Restarting after error:', err);
         scheduleRecognitionStart(`recover ${err ?? "error"}`);
       }
     };
 
     rec.onend = () => {
-      if (pausedForTtsRef.current) {
+      if (sessionFinalizedRef.current || pausedForTtsRef.current) {
         return;
       }
       if (explicitStopRef.current) {
@@ -1906,6 +2076,9 @@ export function VoiceInterviewClient({
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
+    resetVoiceServicePrefs();
+    setUsingBrowserVoice(false);
+    sessionFinalizedRef.current = false;
     setSpeechError(null);
     resetVoiceValidationSession();
     releaseMicStream();
@@ -1963,6 +2136,9 @@ export function VoiceInterviewClient({
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
+    resetVoiceServicePrefs();
+    setUsingBrowserVoice(false);
+    sessionFinalizedRef.current = false;
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
     serverVoiceModeRef.current = true;
@@ -2191,9 +2367,12 @@ export function VoiceInterviewClient({
     mic_off: { label: "Mic disconnected", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200" },
   };
 
+  const browserSttActive = usingBrowserVoice || !voiceServicePrefs.preferServerStt;
   const spokenPreviewText = typedAnswersOnly
     ? typedDraft
-    : livePreviewText || interimText;
+    : browserSttActive
+      ? interimText
+      : (livePreviewText || interimText);
 
   if (!supported) {
     return (
@@ -2395,9 +2574,19 @@ export function VoiceInterviewClient({
         )}
 
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Bot voice uses Coqui TTS; your answers use Whisper STT (ports 6014 / 6013). Click{" "}
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
-          Session audio records automatically from Start.
+          {isUsingBrowserVoiceFallback() || usingBrowserVoice ? (
+            <>
+              Using <span className="font-medium text-zinc-700 dark:text-zinc-300">browser speech</span> for
+              voice (Whisper/Coqui timed out or unavailable). Click{" "}
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
+            </>
+          ) : (
+            <>
+              Bot voice uses Coqui TTS; your answers use Whisper STT. Click{" "}
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
+            </>
+          )}
+          {" "}Session audio records automatically from Start.
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -2460,6 +2649,13 @@ export function VoiceInterviewClient({
           )}
         </div>
       </div>
+
+      {(isUsingBrowserVoiceFallback() || usingBrowserVoice) && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <span className="font-semibold">Browser voice mode active.</span>{" "}
+          Server STT/TTS took longer than 10 seconds or failed — the interview continues using your browser&apos;s speech engine.
+        </div>
+      )}
 
       {(fetchingNextQuestion || (botSpeaking && utterances.length === 0)) && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
@@ -2542,8 +2738,10 @@ export function VoiceInterviewClient({
 
             {!typedAnswersOnly && (
               <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
-                <span className="font-medium">Send answer</span>.
+                {isUsingBrowserVoiceFallback() || usingBrowserVoice
+                  ? <>Speak your answer, then click <span className="font-medium">Send answer</span> to continue.</>
+                  : <>Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
+                    <span className="font-medium">Send answer</span>.</>}
               </p>
             )}
             {whisperError && (
@@ -2594,7 +2792,7 @@ export function VoiceInterviewClient({
                     className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                     onClick={() => void sendVoiceAnswer()}
                   >
-                    {whisperProcessing ? "Transcribing…" : "Send answer (Whisper)"}
+                    {whisperProcessing ? "Transcribing…" : (isUsingBrowserVoiceFallback() || usingBrowserVoice ? "Send answer" : "Send answer (Whisper)")}
                   </button>
                 )}
                 <button

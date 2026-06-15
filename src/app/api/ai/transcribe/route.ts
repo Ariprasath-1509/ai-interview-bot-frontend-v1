@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { MEDIA_SERVICE_TIMEOUT_MS } from "@/lib/mediaTimeout";
 
 export const runtime = "nodejs";
 
@@ -9,7 +10,6 @@ export async function POST(req: Request) {
   const token = jar.get("br_jwt")?.value;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Forward the multipart body as-is to the gateway
   const contentType = req.headers.get("content-type") ?? "multipart/form-data";
   const body = await req.arrayBuffer();
 
@@ -20,9 +20,20 @@ export async function POST(req: Request) {
       "Content-Type": contentType,
     },
     body,
-  }).catch(() => null);
+    signal: AbortSignal.timeout(MEDIA_SERVICE_TIMEOUT_MS),
+  }).catch((err: unknown) => {
+    if ((err as { name?: string }).name === "TimeoutError") {
+      return null;
+    }
+    return null;
+  });
 
-  if (!upstream) return Response.json({ error: "STT service unreachable" }, { status: 502 });
+  if (!upstream) {
+    return Response.json(
+      { error: "transcribe_timeout", detail: "Whisper STT timed out — use browser speech instead" },
+      { status: 504 },
+    );
+  }
 
   const data = await upstream.json().catch(() => ({}));
   if (!upstream.ok) {

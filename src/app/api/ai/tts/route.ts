@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { MEDIA_SERVICE_TIMEOUT_MS } from "@/lib/mediaTimeout";
 
 export const runtime = "nodejs";
 
@@ -20,10 +21,19 @@ export async function POST(req: Request) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text }),
-  }).catch(() => null);
+    signal: AbortSignal.timeout(MEDIA_SERVICE_TIMEOUT_MS),
+  }).catch((err: unknown) => {
+    if ((err as { name?: string }).name === "TimeoutError") {
+      return null;
+    }
+    return null;
+  });
 
   if (!upstream) {
-    return Response.json({ error: "TTS service unreachable" }, { status: 502 });
+    return Response.json(
+      { error: "tts_timeout", detail: "Coqui TTS timed out — use browser speech instead" },
+      { status: 504 },
+    );
   }
 
   if (!upstream.ok) {

@@ -117,7 +117,12 @@ export function VoiceInterviewForm({
     return () => { cancelled = true; };
   }, []);
   const ensureRecordingRef = useRef<(() => Promise<void>) | null>(null);
+  const finalizeSessionRef = useRef<(() => void) | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const registerFinalizeSession = useCallback((fn: () => void) => {
+    finalizeSessionRef.current = fn;
+  }, []);
 
   const submitAnswerRef = useRef<((answer: string) => void) | null>(null);
 
@@ -134,6 +139,7 @@ export function VoiceInterviewForm({
 
   const handleMarkComplete = useCallback(async () => {
     if (hardBlockSubmit) return;
+    finalizeSessionRef.current?.();
     setWaitingRecording(true);
     try {
       await ensureRecordingRef.current?.();
@@ -216,6 +222,7 @@ export function VoiceInterviewForm({
         onTimeExpired={() => setTimeExpired(true)}
         onRegisterSubmitAnswer={(fn) => { submitAnswerRef.current = fn; }}
         onRegisterEnsureRecording={(fn) => { ensureRecordingRef.current = fn; }}
+        onRegisterFinalizeSession={registerFinalizeSession}
         onSessionRecordingChange={setRecordingState}
         isCodingSlotActive={isCodingSlotActive}
         codingSlotSatisfied={codingSlotSatisfied}
