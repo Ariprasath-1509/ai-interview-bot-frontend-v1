@@ -104,13 +104,32 @@ export function resolveStarterCode(lang: string, starterCode?: string | null): s
   return STARTERS[lang] ?? "// Write your solution here\n";
 }
 
+/** Explicit coding-task phrasing only — avoids false positives on general technical questions. */
 export function isCodingKeywords(question: string): boolean {
   const lower = question.toLowerCase();
   const keywords = [
-    "write a function", "write code", "implement", "algorithm", "program",
-    "solve", "return", "input", "output", "array", "string", "loop",
-    "class", "method", "variable", "print", "calculate", "sort", "search",
-    "time complexity", "space complexity", "coding",
+    "write a function",
+    "write code",
+    "write a program",
+    "write your solution",
+    "implement a function",
+    "implement the function",
+    "complete the following function",
+    "coding challenge",
+    "solve this problem",
+    "time complexity",
+    "space complexity",
+    "leetcode",
+    "hackerrank",
   ];
   return keywords.some((kw) => lower.includes(kw));
+}
+
+export function isCodingQuestion(
+  question: string,
+  isCodingFlag: boolean,
+  includeProgrammingQuestions: boolean,
+): boolean {
+  if (!includeProgrammingQuestions) return false;
+  return isCodingFlag || isCodingKeywords(question);
 }

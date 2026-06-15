@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
 import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
 import { useVideoProctoring } from "@/hooks/useVideoProctoring";
@@ -120,10 +121,16 @@ function cancelActiveTts() {
 }
 
 /** Coqui TTS via ai-service (port 6014); falls back to browser speech if unavailable. */
-async function speakWhenDone(text: string): Promise<void> {
+async function speakWhenDone(text: string, onStart?: () => void): Promise<void> {
   if (typeof window === "undefined") return;
 
   cancelActiveTts();
+  let started = false;
+  const notifyStart = () => {
+    if (started) return;
+    started = true;
+    onStart?.();
+  };
 
   try {
     const res = await fetch("/api/ai/tts", {
@@ -148,6 +155,7 @@ async function speakWhenDone(text: string): Promise<void> {
             }
           };
           const timer = setTimeout(done, Math.max(text.length * 80, 8000) + 5000);
+          audio.onplaying = () => notifyStart();
           audio.onended = () => {
             clearTimeout(timer);
             done();
@@ -156,11 +164,12 @@ async function speakWhenDone(text: string): Promise<void> {
             clearTimeout(timer);
             done();
           };
-          void audio.play().catch(() => {
+          void audio.play().then(() => notifyStart()).catch(() => {
             clearTimeout(timer);
             done();
           });
         });
+        notifyStart();
         return;
       }
     } else {
@@ -172,7 +181,10 @@ async function speakWhenDone(text: string): Promise<void> {
   }
 
   const synth = window.speechSynthesis;
-  if (!synth) return;
+  if (!synth) {
+    notifyStart();
+    return;
+  }
 
   await new Promise<void>((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
@@ -186,6 +198,7 @@ async function speakWhenDone(text: string): Promise<void> {
       }
     };
     const timer = setTimeout(done, Math.max(text.length * 80, 4000) + 5000);
+    u.onstart = () => notifyStart();
     u.onend = () => {
       clearTimeout(timer);
       done();
@@ -196,6 +209,7 @@ async function speakWhenDone(text: string): Promise<void> {
     };
     try {
       synth.speak(u);
+      notifyStart();
     } catch {
       clearTimeout(timer);
       done();
@@ -297,6 +311,7 @@ export function VoiceInterviewClient({
   const [whisperLang, setWhisperLang] = useState("auto");
   const [answerRecording, setAnswerRecording] = useState(false);
   const [whisperProcessing, setWhisperProcessing] = useState(false);
+  const [fetchingNextQuestion, setFetchingNextQuestion] = useState(false);
   const [whisperError, setWhisperError] = useState<string | null>(null);
   const [livePreviewText, setLivePreviewText] = useState("");
   const [micLevel, setMicLevel] = useState(0);
@@ -1308,13 +1323,14 @@ export function VoiceInterviewClient({
     return null;
   }
 
-  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   const advancingRef = useRef(false);
   const nextQuestionAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [utterances, interimText]);
+    const el = transcriptContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [utterances]);
 
   useEffect(() => {
     utterancesRef.current = utterances;
@@ -1450,10 +1466,6 @@ export function VoiceInterviewClient({
   }
 
   async function addBot(text: string, meta?: { isCoding?: boolean; preferredLanguage?: string; starterCode?: string | null }) {
-    const row: Utterance = { speaker: "BOT", text, at: nowIso() };
-    syncUtterances([...utterancesRef.current, row]);
-    emitQuestionMeta(text, botPromptIdxRef.current, meta);
-
     void stopAnswerRecordingBlob();
     const rec = recognitionRef.current;
     if (rec && sessionActiveRef.current && !serverVoiceModeRef.current) {
@@ -1469,7 +1481,18 @@ export function VoiceInterviewClient({
     }
 
     setMicPhase("bot_speaking");
-    await speakWhenDone(text);
+
+    let revealed = false;
+    const revealQuestion = () => {
+      if (revealed) return;
+      revealed = true;
+      const row: Utterance = { speaker: "BOT", text, at: nowIso() };
+      syncUtterances([...utterancesRef.current, row]);
+      emitQuestionMeta(text, botPromptIdxRef.current, meta);
+    };
+
+    await speakWhenDone(text, revealQuestion);
+    revealQuestion();
 
     pausedForTtsRef.current = false;
     if (sessionActiveRef.current) {
@@ -1559,6 +1582,7 @@ export function VoiceInterviewClient({
     }
 
     try {
+    setFetchingNextQuestion(true);
     const nextSlot = botPromptIdxRef.current + 1;
     const nextQ = await fetchNextQuestion({
       slot: nextSlot,
@@ -1566,6 +1590,7 @@ export function VoiceInterviewClient({
       transcript: utterancesRef.current,
       manipulationCount: manipulationCountRef.current,
     });
+    setFetchingNextQuestion(false);
 
     if (nextQ) {
       if (nextQ.manipulationDetected) {
@@ -1615,6 +1640,7 @@ export function VoiceInterviewClient({
       starterCode: nextQ?.starterCode,
     });
     } finally {
+      setFetchingNextQuestion(false);
       advancingRef.current = false;
     }
   }
@@ -1902,8 +1928,9 @@ export function VoiceInterviewClient({
     attachRecognitionHandlers();
 
     if (utterancesRef.current.length === 0) {
-      setMicPhase("bot_speaking");
+      setFetchingNextQuestion(true);
       const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount: manipulationCountRef.current });
+      setFetchingNextQuestion(false);
       if (nextQ) {
         if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
         if (nextQ.terminateInterview) {
@@ -1914,16 +1941,13 @@ export function VoiceInterviewClient({
       const q =
         nextQ?.question ??
         `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
-      const row: Utterance = { speaker: "BOT", text: q, at: nowIso() };
-      syncUtterances([...utterancesRef.current, row]);
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
-      emitQuestionMeta(q, 1, {
+      await addBot(q, {
         isCoding: nextQ?.isCoding,
         preferredLanguage: nextQ?.preferredLanguage,
         starterCode: nextQ?.starterCode,
       });
-      await speakWhenDone(q);
       if (sessionActiveRef.current) {
         setMicPhase("listening");
       }
@@ -1968,8 +1992,9 @@ export function VoiceInterviewClient({
     const rec = recognitionRef.current;
 
     if (utterancesRef.current.length === 0) {
-      setMicPhase("bot_speaking");
+      setFetchingNextQuestion(true);
       const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount: manipulationCountRef.current });
+      setFetchingNextQuestion(false);
       if (nextQ) {
         if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
         if (nextQ.terminateInterview) {
@@ -1980,16 +2005,13 @@ export function VoiceInterviewClient({
       const q =
         nextQ?.question ??
         `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
-      const row: Utterance = { speaker: "BOT", text: q, at: nowIso() };
-      syncUtterances([...utterancesRef.current, row]);
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
-      emitQuestionMeta(q, 1, {
+      await addBot(q, {
         isCoding: nextQ?.isCoding,
         preferredLanguage: nextQ?.preferredLanguage,
         starterCode: nextQ?.starterCode,
       });
-      await speakWhenDone(q);
       if (sessionActiveRef.current) {
         setMicPhase("listening");
         attachRecognitionHandlers();
@@ -2439,104 +2461,96 @@ export function VoiceInterviewClient({
         </div>
       </div>
 
-      {listening && !timeExpired && (
-        <div
-          className={`mt-4 rounded-xl border-2 p-4 transition-colors ${
-            micPreviewStatus === "hearing"
-              ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
-                ? "border-red-300 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
-                : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              {typedAnswersOnly ? "Your answer (typed)" : "Your answer (live)"}
-            </span>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${micStatusMeta[micPreviewStatus].className}`}
-              role="status"
-              aria-live="polite"
-            >
-              {(micPreviewStatus === "hearing" || micPreviewStatus === "listening") && (
-                <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
-              )}
-              {micPreviewStatus === "transcribing" && (
-                <span className="h-2 w-2 rounded-full border-2 border-current border-t-transparent animate-spin" />
-              )}
-              {micStatusMeta[micPreviewStatus].label}
-            </span>
-          </div>
-
-          {!typedAnswersOnly && (
-            <div className="mt-3 flex h-8 items-end gap-1" aria-hidden="true">
-              {Array.from({ length: 12 }).map((_, i) => {
-                const threshold = (i + 1) * (100 / 12);
-                const active = micLevel >= threshold - 4;
-                return (
-                  <div
-                    key={i}
-                    className={`w-2 flex-1 rounded-sm transition-all duration-150 ${
-                      active
-                        ? micPreviewStatus === "hearing"
-                          ? "bg-emerald-500"
-                          : "bg-blue-400"
-                        : "bg-zinc-200 dark:bg-zinc-700"
-                    }`}
-                    style={{ height: active ? `${Math.max(30, Math.min(100, micLevel))}%` : "20%" }}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          <div className="mt-3 min-h-[4.5rem] rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-950">
-            {spokenPreviewText ? (
-              <p className="break-words text-zinc-800 dark:text-zinc-100">{spokenPreviewText}</p>
-            ) : (
-              <p className="text-zinc-400 dark:text-zinc-500">
-                {typedAnswersOnly
-                  ? "Type your answer in the box below."
-                  : micPreviewStatus === "transcribing"
-                    ? "Converting your speech to text…"
-                    : micPreviewStatus === "hearing"
-                      ? "Keep speaking — your words appear here as you talk."
-                      : "Start speaking — live preview will show here so you know the mic is working."}
-              </p>
-            )}
-          </div>
-
-          {!typedAnswersOnly && (
-            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
-              <span className="font-medium">Send answer</span>.
-            </p>
-          )}
-          {whisperError && (
-            <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
-          )}
+      {(fetchingNextQuestion || (botSpeaking && utterances.length === 0)) && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          <span>
+            {fetchingNextQuestion
+              ? "Preparing the next question — please wait…"
+              : "The interviewer is asking the question — listen carefully…"}
+          </span>
         </div>
       )}
 
-      <div className="mt-4 max-h-[320px] overflow-auto rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
-        {utterances.length ? (
-          utterances.map((u, idx) => (
-            <div key={idx} className="mb-2">
-              <span className="font-medium">{u.speaker === "BOT" ? "Bot" : "You"}:</span>{" "}
-              <span className="break-words">{u.text}</span>
+      {listening && !timeExpired && (
+        <div className="sticky top-0 z-10 mt-4 space-y-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
+          <div
+            className={`rounded-xl border-2 p-4 transition-colors ${
+              micPreviewStatus === "hearing"
+                ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+                : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
+                  ? "border-red-300 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
+                  : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                {typedAnswersOnly ? "Your answer (typed)" : "Your answer (live)"}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${micStatusMeta[micPreviewStatus].className}`}
+                role="status"
+                aria-live="polite"
+              >
+                {(micPreviewStatus === "hearing" || micPreviewStatus === "listening") && (
+                  <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+                )}
+                {micPreviewStatus === "transcribing" && (
+                  <span className="h-2 w-2 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                )}
+                {micStatusMeta[micPreviewStatus].label}
+              </span>
             </div>
-          ))
-        ) : (
-          <div className="text-zinc-600 dark:text-zinc-400">
-            Press <span className="font-medium">Start (mic)</span> or <span className="font-medium">Use typed answers only</span>
-            : you will hear the first question, then you can speak and/or type your reply.
-          </div>
-        )}
-        <div ref={transcriptEndRef} />
-      </div>
 
-      {listening && !timeExpired ? (
-        <div className="mt-4 space-y-3">
+            {!typedAnswersOnly && (
+              <div className="mt-3 flex h-8 items-end gap-1" aria-hidden="true">
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const threshold = (i + 1) * (100 / 12);
+                  const active = micLevel >= threshold - 4;
+                  return (
+                    <div
+                      key={i}
+                      className={`w-2 flex-1 rounded-sm transition-all duration-150 ${
+                        active
+                          ? micPreviewStatus === "hearing"
+                            ? "bg-emerald-500"
+                            : "bg-blue-400"
+                          : "bg-zinc-200 dark:bg-zinc-700"
+                      }`}
+                      style={{ height: active ? `${Math.max(30, Math.min(100, micLevel))}%` : "20%" }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-3 min-h-[4.5rem] max-h-32 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-950">
+              {spokenPreviewText ? (
+                <p className="break-words text-zinc-800 dark:text-zinc-100">{spokenPreviewText}</p>
+              ) : (
+                <p className="text-zinc-400 dark:text-zinc-500">
+                  {typedAnswersOnly
+                    ? "Type your answer in the box below."
+                    : micPreviewStatus === "transcribing"
+                      ? "Converting your speech to text…"
+                      : micPreviewStatus === "hearing"
+                        ? "Keep speaking — your words appear here as you talk."
+                        : "Start speaking — live preview will show here so you know the mic is working."}
+                </p>
+              )}
+            </div>
+
+            {!typedAnswersOnly && (
+              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
+                <span className="font-medium">Send answer</span>.
+              </p>
+            )}
+            {whisperError && (
+              <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
+            )}
+          </div>
+
           {!typedAnswersOnly && (
             <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="whisper-lang">
@@ -2555,7 +2569,6 @@ export function VoiceInterviewClient({
             </div>
           )}
 
-          {/* Typed answer box */}
           <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
             <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="typed-interview-reply">
               {typedAnswersOnly ? "Your answer (typed)" : "Or type your answer if the mic is flaky"}
@@ -2567,43 +2580,66 @@ export function VoiceInterviewClient({
               onChange={(e) => setTypedDraft(e.target.value)}
               placeholder="Write your technical answer here…"
             />
-            <button
-              type="button"
-              className="mt-2 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
-              onClick={() => void submitTypedReply()}
-            >
-              Submit typed reply
-            </button>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <p className="text-xs text-zinc-500 sm:mr-auto">
+                {typedAnswersOnly
+                  ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
+                  : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box</>}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {!typedAnswersOnly && (
+                  <button
+                    type="button"
+                    disabled={whisperProcessing || fetchingNextQuestion}
+                    className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                    onClick={() => void sendVoiceAnswer()}
+                  >
+                    {whisperProcessing ? "Transcribing…" : "Send answer (Whisper)"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={fetchingNextQuestion}
+                  className="shrink-0 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-200"
+                  onClick={() => void submitTypedReply()}
+                >
+                  Submit typed reply
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-        {!timeExpired && (
-          <>
-            <p className="text-xs text-zinc-500 sm:mr-auto">
-              {typedAnswersOnly
-                ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
-                : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box · <span className="font-medium">Stop session</span> ends</>}
-            </p>
-            <button
-              type="button"
-              disabled={!listening || typedAnswersOnly || whisperProcessing}
-              className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-              onClick={() => void sendVoiceAnswer()}
-            >
-              {whisperProcessing ? "Transcribing…" : "Send answer (Whisper)"}
-            </button>
-          </>
-        )}
-        {timeExpired && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              💡 <span className="font-medium">Ready to submit:</span> Your interview responses have been recorded. Click "Mark complete" below to get your AI assessment and feedback.
-            </p>
+      <div
+        ref={transcriptContainerRef}
+        className="mt-4 max-h-[220px] overflow-y-auto overscroll-contain rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900"
+      >
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Conversation history
+        </p>
+        {utterances.length ? (
+          utterances.map((u, idx) => (
+            <div key={idx} className="mb-2">
+              <span className="font-medium">{u.speaker === "BOT" ? "Bot" : "You"}:</span>{" "}
+              <span className="break-words">{u.text}</span>
+            </div>
+          ))
+        ) : (
+          <div className="text-zinc-600 dark:text-zinc-400">
+            Press <span className="font-medium">Start (mic)</span> or <span className="font-medium">Use typed answers only</span>
+            : you will hear the first question, then you can speak and/or type your reply.
           </div>
         )}
       </div>
+
+      {timeExpired && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            💡 <span className="font-medium">Ready to submit:</span> Your interview responses have been recorded. Click &quot;Mark complete&quot; below to get your AI assessment and feedback.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

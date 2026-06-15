@@ -11,7 +11,6 @@ import {
   type QuestionMeta,
   type RunResult,
   type TestCase,
-  isCodingKeywords,
   resolveStarterCode,
 } from "./codingTypes";
 
@@ -19,6 +18,7 @@ interface LangInfo { id: string; label: string; available: boolean; }
 
 interface Props {
   questionMeta: QuestionMeta;
+  codingEnabled?: boolean;
   onSubmissionChange?: (sub: CodeSubmissionRecord) => void;
   onSubmitAsAnswer?: (answer: string) => void;
   codingSecondsLeft?: number | null;
@@ -35,13 +35,14 @@ function formatCodingTime(seconds: number) {
 
 export function CodeWorkspace({
   questionMeta,
+  codingEnabled = false,
   onSubmissionChange,
   onSubmitAsAnswer,
   codingSecondsLeft = null,
   codingTimerActive = false,
 }: Props) {
   const { question, slot, isCoding, preferredLanguage, starterCode } = questionMeta;
-  const showWorkspace = isCoding || isCodingKeywords(question);
+  const showWorkspace = codingEnabled;
 
   const [lang, setLang] = useState(preferredLanguage || "python");
   const [code, setCode] = useState(() => resolveStarterCode(preferredLanguage || "python", starterCode));

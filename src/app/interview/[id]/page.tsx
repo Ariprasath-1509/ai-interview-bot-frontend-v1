@@ -24,6 +24,7 @@ type Interview = {
   planId: string | null;
   interviewMode: string;
   customDurationMinutes: number | null;
+  includeProgrammingQuestions?: boolean;
   candidateSource?: string | null;
   proctoringMode?: ProctoringMode | string | null;
 };
@@ -138,6 +139,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
               interviewMode={interview.interviewMode}
               proctoringMode={proctoringMode}
               candidateSource={candidateSource}
+              includeProgrammingQuestions={interview.includeProgrammingQuestions !== false}
               completeInterview={completeInterview}
           />
         </div>

@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { VoiceInterviewClient } from "./VoiceInterviewClient";
 import { CodeWorkspace } from "./CodeWorkspace";
 import type { CodeSubmissionRecord, QuestionMeta } from "./codingTypes";
-import { isCodingKeywords } from "./codingTypes";
+import { isCodingQuestion } from "./codingTypes";
 import { Loader2 } from "lucide-react";
 import { integrityModeLabel, type ProctoringMode } from "@/lib/proctoring/mode";
 
@@ -67,6 +67,7 @@ export function VoiceInterviewForm({
   interviewMode,
   proctoringMode,
   candidateSource,
+  includeProgrammingQuestions,
   completeInterview,
 }: {
   interviewId: string;
@@ -77,6 +78,7 @@ export function VoiceInterviewForm({
   interviewMode: string;
   proctoringMode: ProctoringMode;
   candidateSource: string | null;
+  includeProgrammingQuestions: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
@@ -121,7 +123,11 @@ export function VoiceInterviewForm({
 
   const hardBlockSubmit = voiceValidation?.status === "FAILED" && !timeExpired;
 
-  const isCodingSlotActive = questionMeta.isCoding || isCodingKeywords(questionMeta.question);
+  const isCodingSlotActive = isCodingQuestion(
+    questionMeta.question,
+    questionMeta.isCoding,
+    includeProgrammingQuestions,
+  );
   const codingSlotSatisfied =
     !isCodingSlotActive ||
     codeSubmissions.some((s) => s.slot === questionMeta.slot && !!s.submittedAt);
@@ -235,6 +241,7 @@ export function VoiceInterviewForm({
 
       <CodeWorkspace
         questionMeta={questionMeta}
+        codingEnabled={isCodingSlotActive}
         onSubmissionChange={onSubmissionChange}
         onSubmitAsAnswer={onSubmitAsAnswer}
         codingSecondsLeft={codingTimer.active ? codingTimer.secondsLeft : null}
