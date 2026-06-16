@@ -33,23 +33,51 @@ export type InterviewQuality = {
 };
 
 export type ProsConsItem = {
-  pros?: string;
-  cons?: string;
+  category?: string;
+  pros?: string | string[];
+  cons?: string | string[];
 };
 
 export type RoadmapItem = {
   day?: number | string;
   focus?: string;
   resource?: string;
+  exercise?: string;
+  estimated?: string;
+  estimatedHours?: number;
+  gap?: string;
   whyItMatters?: string;
   resourceUrl?: string;
   category?: string;
 };
 
+export type QuestionTutorialCoverage = "strong" | "partial" | "weak" | "missing";
+
+export type QuestionTutorial = {
+  slotNumber: number;
+  questionType?: string;
+  tags?: string[];
+  question: string;
+  candidateAnswer?: string;
+  expectedAnswer?: string;
+  tutorNote?: string;
+  coverage?: QuestionTutorialCoverage;
+};
+
+export type TutoringStatus = "COMPLETED" | "FAILED" | "SKIPPED" | "PROCESSING";
+
 export type CandidateFeedback = {
+  summary?: string;
+  overallSummary?: string;
+  strengths?: string[];
+  areasToImprove?: string[];
   prosAndCons?: ProsConsItem[];
   resumeConsistencyForCandidate?: Array<{ claim: string; consistent: boolean; evidence?: string }>;
   roadmap?: RoadmapItem[];
+  estimatedReadiness?: string;
+  estimatedReadinessTimeline?: string;
+  questionTutorials?: QuestionTutorial[];
+  tutoringStatus?: TutoringStatus;
 };
 
 export type AiAssessment = {

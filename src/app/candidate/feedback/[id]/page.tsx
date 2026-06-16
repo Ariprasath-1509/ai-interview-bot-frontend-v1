@@ -8,8 +8,12 @@ import {
   buildAssessmentBanners,
   mergeAssessmentScores,
   parseAiAssessment,
+  type CandidateFeedback,
+  type QuestionTutorial,
   type ScoreRow,
+  type TutoringStatus,
 } from "@/app/interview/assessmentUtils";
+import { QuestionTutorialsSection } from "@/app/interview/QuestionTutorialsSection";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,17 +24,8 @@ type Interview = {
   jdId: string;
   endedAt: string | null;
   transcriptJson?: string | null;
-  candidateFeedback?: {
-    overallSummary?: string;
-    summary?: string;
-    strengths?: string[];
-    areasToImprove?: string[];
-    prosAndCons?: { category?: string; pros: string[] | string; cons: string[] | string }[];
-    resumeConsistencyForCandidate?: { claim: string; consistent?: boolean; demonstrated?: boolean; evidence?: string; note?: string }[];
-    roadmap?: { day: number | string; focus: string; resource: string; exercise?: string; estimated?: string; whyItMatters?: string; resourceUrl?: string; category?: string }[];
-    estimatedReadinessTimeline?: string;
-    estimatedReadiness?: string;
-  };
+  assessmentStatus?: string | null;
+  candidateFeedback?: CandidateFeedback;
   categoryScores?: Score[];
 };
 
@@ -73,7 +68,7 @@ function cleanText(text: string | undefined): string {
     .trim();
 }
 
-function normalizeCandidateFeedback(feedback: Interview["candidateFeedback"] | undefined): Interview["candidateFeedback"] | undefined {
+function normalizeCandidateFeedback(feedback: CandidateFeedback | undefined): CandidateFeedback | undefined {
   if (!feedback) return undefined;
   const summary = feedback.summary || feedback.overallSummary;
   const estimatedReadiness = feedback.estimatedReadiness || feedback.estimatedReadinessTimeline;
@@ -84,15 +79,18 @@ function normalizeCandidateFeedback(feedback: Interview["candidateFeedback"] | u
   }));
   const resumeConsistencyForCandidate = (feedback.resumeConsistencyForCandidate || []).map((c) => ({
     ...c,
-    consistent: c.consistent ?? c.demonstrated ?? false,
-    evidence: c.evidence || c.note,
+    consistent: c.consistent ?? (c as { demonstrated?: boolean }).demonstrated ?? false,
+    evidence: c.evidence || (c as { note?: string }).note,
   }));
+  const questionTutorials = (feedback.questionTutorials || []) as QuestionTutorial[];
   return {
     ...feedback,
     summary,
     estimatedReadiness,
     prosAndCons,
     resumeConsistencyForCandidate,
+    questionTutorials,
+    tutoringStatus: feedback.tutoringStatus,
   };
 }
 
@@ -147,9 +145,11 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
   });
 
   const candidateFeedback = normalizeCandidateFeedback(
-    (storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback) as Interview["candidateFeedback"]
+    (storedAssessment?.candidateFeedback ?? interview.candidateFeedback ?? ai?.candidateFeedback) as CandidateFeedback | undefined
   );
   const roadmap = candidateFeedback?.roadmap ?? [];
+  const questionTutorials = candidateFeedback?.questionTutorials ?? [];
+  const tutoringStatus = candidateFeedback?.tutoringStatus as TutoringStatus | undefined;
 
   const jdRes = await apiServer(`/interviews/jd/${interview.jdId}`, session.token).catch(() => null);
   const jdTitle = jdRes?.ok ? ((await jdRes.json()) as { title?: string }).title ?? "Interview" : "Interview";
@@ -360,9 +360,9 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
                               <span className="font-medium text-zinc-900 dark:text-zinc-200">Resource:</span>{" "}
                               {item.resourceUrl ? (
                                 <a href={item.resourceUrl} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">
-                                  {item.resource}
+                                  {item.resource ?? item.resourceUrl}
                                 </a>
-                              ) : item.resource.startsWith("http") ? (
+                              ) : item.resource?.startsWith("http") ? (
                                 <a href={item.resource} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">
                                   {item.resource}
                                 </a>
@@ -407,6 +407,13 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
             </div>
           </section>
         )}
+
+        <QuestionTutorialsSection
+          interviewId={id}
+          initialTutorials={questionTutorials}
+          initialTutoringStatus={tutoringStatus}
+          assessmentStatus={interview.assessmentStatus}
+        />
 
         {/* Manager Review */}
         <section className="mt-8">
