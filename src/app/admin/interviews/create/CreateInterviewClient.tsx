@@ -23,6 +23,7 @@ interface InterviewFormData {
   resumeSummary: string;
   interviewMode: string;
   customDurationMinutes: number | null;
+  includeProgrammingQuestions: boolean;
   candidateId?: string;
   clientId?: string;
   selectedQuestionIds?: string;
@@ -118,6 +119,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     resumeSummary: '',
     interviewMode: 'SCREENING',
     customDurationMinutes: null,
+    includeProgrammingQuestions: true,
     candidateId,
     clientId
   });
@@ -479,7 +481,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     fetchAllClientsForInterview();
   }, []);
 
-  const handleInputChange = (field: keyof InterviewFormData, value: string | number | null) => {
+  const handleInputChange = (field: keyof InterviewFormData, value: string | number | boolean | null) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -1106,6 +1108,22 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 and {formData.customDurationMinutes || INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.duration || 15} minutes duration
               </span>
             </div>
+
+            <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 cursor-pointer dark:border-zinc-800 dark:bg-zinc-900/50">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-zinc-300"
+                checked={formData.includeProgrammingQuestions}
+                onChange={(e) => handleInputChange('includeProgrammingQuestions', e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">Include programming questions</span>
+                <span className="mt-0.5 block text-xs text-zinc-500">
+                  When enabled, the interview may include a coding slot with a code editor and test cases.
+                  Leave unchecked for theory-only interviews.
+                </span>
+              </span>
+            </label>
           </CardContent>
         </Card>
 

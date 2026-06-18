@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { VoiceInterviewClient } from "./VoiceInterviewClient";
 import { CodeWorkspace } from "./CodeWorkspace";
 import type { CodeSubmissionRecord, QuestionMeta } from "./codingTypes";
-import { isCodingKeywords } from "./codingTypes";
+import { isCodingQuestion } from "./codingTypes";
 import { Loader2 } from "lucide-react";
 import { integrityModeLabel, type ProctoringMode } from "@/lib/proctoring/mode";
 
@@ -67,6 +67,7 @@ export function VoiceInterviewForm({
   interviewMode,
   proctoringMode,
   candidateSource,
+  includeProgrammingQuestions,
   completeInterview,
 }: {
   interviewId: string;
@@ -77,6 +78,7 @@ export function VoiceInterviewForm({
   interviewMode: string;
   proctoringMode: ProctoringMode;
   candidateSource: string | null;
+  includeProgrammingQuestions: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
@@ -115,19 +117,29 @@ export function VoiceInterviewForm({
     return () => { cancelled = true; };
   }, []);
   const ensureRecordingRef = useRef<(() => Promise<void>) | null>(null);
+  const finalizeSessionRef = useRef<(() => void) | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const registerFinalizeSession = useCallback((fn: () => void) => {
+    finalizeSessionRef.current = fn;
+  }, []);
 
   const submitAnswerRef = useRef<((answer: string) => void) | null>(null);
 
   const hardBlockSubmit = voiceValidation?.status === "FAILED" && !timeExpired;
 
-  const isCodingSlotActive = questionMeta.isCoding || isCodingKeywords(questionMeta.question);
+  const isCodingSlotActive = isCodingQuestion(
+    questionMeta.question,
+    questionMeta.isCoding,
+    includeProgrammingQuestions,
+  );
   const codingSlotSatisfied =
     !isCodingSlotActive ||
     codeSubmissions.some((s) => s.slot === questionMeta.slot && !!s.submittedAt);
 
   const handleMarkComplete = useCallback(async () => {
     if (hardBlockSubmit) return;
+    finalizeSessionRef.current?.();
     setWaitingRecording(true);
     try {
       await ensureRecordingRef.current?.();
@@ -210,6 +222,7 @@ export function VoiceInterviewForm({
         onTimeExpired={() => setTimeExpired(true)}
         onRegisterSubmitAnswer={(fn) => { submitAnswerRef.current = fn; }}
         onRegisterEnsureRecording={(fn) => { ensureRecordingRef.current = fn; }}
+        onRegisterFinalizeSession={registerFinalizeSession}
         onSessionRecordingChange={setRecordingState}
         isCodingSlotActive={isCodingSlotActive}
         codingSlotSatisfied={codingSlotSatisfied}
@@ -235,6 +248,7 @@ export function VoiceInterviewForm({
 
       <CodeWorkspace
         questionMeta={questionMeta}
+        codingEnabled={isCodingSlotActive}
         onSubmissionChange={onSubmissionChange}
         onSubmitAsAnswer={onSubmitAsAnswer}
         codingSecondsLeft={codingTimer.active ? codingTimer.secondsLeft : null}

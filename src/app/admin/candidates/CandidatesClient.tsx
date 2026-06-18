@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
-import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown, UserCheck } from 'lucide-react';
+import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown, UserCheck, UserPlus } from 'lucide-react';
 import { downloadCandidateReview } from '@/lib/downloadPdf';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,42 @@ type ImportResult = {
   details?: ImportDetail[];
 };
 
+type AddCandidateForm = {
+  name: string;
+  officialEmail: string;
+  personalEmail: string;
+  contactNumber: string;
+  batch: string;
+  batchMentor: string;
+  source: string;
+  candidateStatus: string;
+  rating: string;
+  skillSet: string;
+  yoeActual: string;
+  yoePortrayed: string;
+  yop: string;
+  interviewMentorName: string;
+  clientName: string;
+};
+
+const emptyAddForm = (): AddCandidateForm => ({
+  name: '',
+  officialEmail: '',
+  personalEmail: '',
+  contactNumber: '',
+  batch: '',
+  batchMentor: '',
+  source: '',
+  candidateStatus: 'TRAINING',
+  rating: '',
+  skillSet: '',
+  yoeActual: '',
+  yoePortrayed: '',
+  yop: '',
+  interviewMentorName: '',
+  clientName: '',
+});
+
 function getEffectiveInterviewCount(candidate: Candidate): number {
   return Math.max(candidate.noOfInterviews ?? 0, candidate.systemInterviewCount ?? 0);
 }
@@ -116,6 +152,10 @@ export default function CandidatesClient({ role }: Props) {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [endingDeployment, setEndingDeployment] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addForm, setAddForm] = useState<AddCandidateForm>(emptyAddForm);
+  const [creatingCandidate, setCreatingCandidate] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ username: string; password: string } | null>(null);
   const { confirm } = useConfirm();
 
   const { toast } = useToast();
@@ -324,6 +364,71 @@ export default function CandidatesClient({ role }: Props) {
 
   const inputCls = 'input-base';
   const selectSmCls = 'px-2 py-1 text-xs border rounded-md bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-700 dark:text-zinc-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500';
+  const canAddCandidate = role === 'ADMIN' || role === 'SUPER_ADMIN';
+
+  const handleAddCandidate = async () => {
+    if (!addForm.name.trim()) {
+      toast('Name is required', 'error');
+      return;
+    }
+    if (!addForm.officialEmail.trim() && !addForm.personalEmail.trim()) {
+      toast('Official or personal email is required', 'error');
+      return;
+    }
+    if (!addForm.contactNumber.trim() || !addForm.batch.trim() || !addForm.source || !addForm.skillSet) {
+      toast('Contact number, batch, source, and skill set are required', 'error');
+      return;
+    }
+
+    setCreatingCandidate(true);
+    try {
+      const payload = {
+        name: addForm.name.trim(),
+        officialEmail: addForm.officialEmail.trim() || null,
+        personalEmail: addForm.personalEmail.trim() || null,
+        contactNumber: addForm.contactNumber.trim(),
+        batch: addForm.batch.trim(),
+        batchMentor: addForm.batchMentor.trim() || null,
+        source: addForm.source,
+        candidateStatus: addForm.candidateStatus || 'TRAINING',
+        rating: addForm.rating || null,
+        skillSet: addForm.skillSet,
+        yoeActual: addForm.yoeActual ? parseFloat(addForm.yoeActual) : null,
+        yoePortrayed: addForm.yoePortrayed ? parseFloat(addForm.yoePortrayed) : null,
+        yop: addForm.yop ? parseInt(addForm.yop, 10) : null,
+        interviewMentorName: addForm.interviewMentorName.trim() || null,
+        clientName: addForm.clientName.trim() || null,
+      };
+
+      const res = await fetch('/api/auth/candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data.error ?? 'Failed to create candidate', 'error');
+        return;
+      }
+
+      setCreatedCredentials({
+        username: data.username ?? '',
+        password: data.password ?? '',
+      });
+      toast('Candidate created. Welcome email sent when an address is available.', 'success');
+      await fetchCandidates();
+    } catch {
+      toast('Error creating candidate', 'error');
+    } finally {
+      setCreatingCandidate(false);
+    }
+  };
+
+  const closeAddDialog = () => {
+    setShowAddDialog(false);
+    setAddForm(emptyAddForm());
+    setCreatedCredentials(null);
+  };
 
   const handleBulkImportDeployment = async (file: File) => {
     setUploadingFile(true);
@@ -688,6 +793,15 @@ export default function CandidatesClient({ role }: Props) {
                 {treeData.length !== 1 ? "s" : ""} found
               </div>
               <div className="flex items-center gap-2">
+                {canAddCandidate && selectedParent !== 'deployed' && (
+                  <Button
+                    onClick={() => setShowAddDialog(true)}
+                    className="h-8 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                  >
+                    <UserPlus className="mr-1 h-3.5 w-3.5" />
+                    Add Candidate
+                  </Button>
+                )}
                 {selectedParent === "deployed" && (
                   <Button
                     onClick={() => setShowBulkImportDialog(true)}
@@ -985,6 +1099,136 @@ export default function CandidatesClient({ role }: Props) {
             <div className="text-center py-12">
               <Briefcase className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
               <p className="text-sm text-zinc-500 dark:text-zinc-400">No deployment history found.</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Candidate Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={(open) => { if (!open) closeAddDialog(); else setShowAddDialog(true); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold">Add Candidate</DialogTitle>
+          </DialogHeader>
+          {createdCredentials ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">
+                <p className="font-medium">Candidate account created</p>
+                <p className="mt-1 text-emerald-800 dark:text-emerald-200">
+                  Login credentials were emailed when possible. Save these details to share manually if needed.
+                </p>
+              </div>
+              <div className="grid gap-3 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500">Username (email)</span>
+                  <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">{createdCredentials.username}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500">Password</span>
+                  <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">{createdCredentials.password}</span>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={closeAddDialog}>Done</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Creates a candidate login with an auto-generated password and sends a welcome email.
+              </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="grid gap-1 text-sm md:col-span-2">
+                  <span className="font-medium">Full name *</span>
+                  <input className={inputCls} value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Official email</span>
+                  <input className={inputCls} type="email" value={addForm.officialEmail} onChange={(e) => setAddForm((f) => ({ ...f, officialEmail: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Personal email</span>
+                  <input className={inputCls} type="email" value={addForm.personalEmail} onChange={(e) => setAddForm((f) => ({ ...f, personalEmail: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Contact number *</span>
+                  <input className={inputCls} value={addForm.contactNumber} onChange={(e) => setAddForm((f) => ({ ...f, contactNumber: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Batch (DOH) *</span>
+                  <input className={inputCls} value={addForm.batch} onChange={(e) => setAddForm((f) => ({ ...f, batch: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Batch mentor</span>
+                  <input className={inputCls} value={addForm.batchMentor} onChange={(e) => setAddForm((f) => ({ ...f, batchMentor: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Source *</span>
+                  <select className={inputCls} value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))}>
+                    <option value="">Select source</option>
+                    <option value="B2B">B2B</option>
+                    <option value="BENCH">Bench</option>
+                    <option value="MARKET">Market</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Status</span>
+                  <select className={inputCls} value={addForm.candidateStatus} onChange={(e) => setAddForm((f) => ({ ...f, candidateStatus: e.target.value }))}>
+                    <option value="TRAINING">Training</option>
+                    <option value="RFD">RFD</option>
+                    <option value="WFD">WFD</option>
+                    <option value="DOB">DOB</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Skill set *</span>
+                  <select className={inputCls} value={addForm.skillSet} onChange={(e) => setAddForm((f) => ({ ...f, skillSet: e.target.value }))}>
+                    <option value="">Select skill</option>
+                    <option value="JAVA_SB">Java + SB</option>
+                    <option value="JFSR">JFSR</option>
+                    <option value="REACT_JS">React JS</option>
+                    <option value="ANGULAR">Angular</option>
+                    <option value="PYTHON">Python</option>
+                    <option value="QA_ENGINEER">QA Engineer</option>
+                    <option value="PLAYWRIGHT_AUTOMATION">Playwright</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Rating</span>
+                  <select className={inputCls} value={addForm.rating} onChange={(e) => setAddForm((f) => ({ ...f, rating: e.target.value }))}>
+                    <option value="">None</option>
+                    <option value="ASSET">Asset</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LIABILITY">Liability</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">YOE actual</span>
+                  <input className={inputCls} type="number" step="0.1" value={addForm.yoeActual} onChange={(e) => setAddForm((f) => ({ ...f, yoeActual: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">YOE portrayed</span>
+                  <input className={inputCls} type="number" step="0.1" value={addForm.yoePortrayed} onChange={(e) => setAddForm((f) => ({ ...f, yoePortrayed: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Year of passing</span>
+                  <input className={inputCls} type="number" value={addForm.yop} onChange={(e) => setAddForm((f) => ({ ...f, yop: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium">Interview mentor</span>
+                  <input className={inputCls} value={addForm.interviewMentorName} onChange={(e) => setAddForm((f) => ({ ...f, interviewMentorName: e.target.value }))} />
+                </label>
+                <label className="grid gap-1 text-sm md:col-span-2">
+                  <span className="font-medium">Client name</span>
+                  <input className={inputCls} value={addForm.clientName} onChange={(e) => setAddForm((f) => ({ ...f, clientName: e.target.value }))} />
+                </label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={closeAddDialog} disabled={creatingCandidate}>Cancel</Button>
+                <Button onClick={handleAddCandidate} disabled={creatingCandidate} className="bg-emerald-600 hover:bg-emerald-700">
+                  {creatingCandidate ? 'Creating…' : 'Create candidate'}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

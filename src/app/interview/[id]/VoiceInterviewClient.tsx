@@ -1,10 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
 import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
 import { useVideoProctoring } from "@/hooks/useVideoProctoring";
 import { CODING_SLOT_MINUTES } from "@/lib/constants";
+import {
+  fetchWithTimeout,
+  isUsingBrowserVoiceFallback,
+  MediaServiceTimeoutError,
+  MEDIA_SERVICE_TIMEOUT_MS,
+  resetVoiceServicePrefs,
+  voiceServicePrefs,
+} from "@/lib/mediaTimeout";
 import type { ProctoringMode } from "@/lib/proctoring/mode";
 import type { QuestionMeta } from "./codingTypes";
 
@@ -41,6 +50,7 @@ type Props = {
   onTimeExpired?: () => void;
   onRegisterSubmitAnswer?: (fn: (answer: string) => void) => void;
   onRegisterEnsureRecording?: (fn: () => Promise<void>) => void;
+  onRegisterFinalizeSession?: (fn: () => void) => void;
   onSessionRecordingChange?: (state: { recording: boolean; uploaded: boolean; uploading: boolean }) => void;
   isCodingSlotActive?: boolean;
   codingSlotSatisfied?: boolean;
@@ -119,60 +129,82 @@ function cancelActiveTts() {
   }
 }
 
-/** Coqui TTS via ai-service (port 6014); falls back to browser speech if unavailable. */
-async function speakWhenDone(text: string): Promise<void> {
+/** Coqui TTS via ai-service; falls back to browser speech after 10s timeout or error. */
+async function speakWhenDone(text: string, onStart?: () => void): Promise<void> {
   if (typeof window === "undefined") return;
 
   cancelActiveTts();
+  let started = false;
+  const notifyStart = () => {
+    if (started) return;
+    started = true;
+    onStart?.();
+  };
 
-  try {
-    const res = await fetch("/api/ai/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (res.ok) {
-      const blob = await res.blob();
-      if (blob.size > 0) {
-        const url = URL.createObjectURL(blob);
-        await new Promise<void>((resolve) => {
-          const audio = new Audio(url);
-          activeTtsAudio = audio;
-          let resolved = false;
-          const done = () => {
-            if (!resolved) {
-              resolved = true;
-              URL.revokeObjectURL(url);
-              if (activeTtsAudio === audio) activeTtsAudio = null;
-              resolve();
-            }
-          };
-          const timer = setTimeout(done, Math.max(text.length * 80, 8000) + 5000);
-          audio.onended = () => {
-            clearTimeout(timer);
-            done();
-          };
-          audio.onerror = () => {
-            clearTimeout(timer);
-            done();
-          };
-          void audio.play().catch(() => {
-            clearTimeout(timer);
-            done();
+  if (voiceServicePrefs.preferServerTts) {
+    try {
+      const res = await fetchWithTimeout(
+        "/api/ai/tts",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        },
+        MEDIA_SERVICE_TIMEOUT_MS,
+      );
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 0) {
+          const url = URL.createObjectURL(blob);
+          await new Promise<void>((resolve) => {
+            const audio = new Audio(url);
+            activeTtsAudio = audio;
+            let resolved = false;
+            const done = () => {
+              if (!resolved) {
+                resolved = true;
+                URL.revokeObjectURL(url);
+                if (activeTtsAudio === audio) activeTtsAudio = null;
+                resolve();
+              }
+            };
+            const timer = setTimeout(done, Math.max(text.length * 80, 8000) + 5000);
+            audio.onplaying = () => notifyStart();
+            audio.onended = () => {
+              clearTimeout(timer);
+              done();
+            };
+            audio.onerror = () => {
+              clearTimeout(timer);
+              done();
+            };
+            void audio.play().then(() => notifyStart()).catch(() => {
+              clearTimeout(timer);
+              done();
+            });
           });
-        });
-        return;
+          notifyStart();
+          return;
+        }
+      } else {
+        const errBody = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
+        console.warn("[TTS] Coqui unavailable, using browser speech:", errBody?.error ?? res.status, errBody?.detail ?? "");
       }
-    } else {
-      const errBody = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
-      console.warn("[TTS] Coqui unavailable, using browser speech:", errBody?.error ?? res.status, errBody?.detail ?? "");
+    } catch (e) {
+      const timedOut = e instanceof MediaServiceTimeoutError;
+      console.warn(
+        timedOut ? "[TTS] Coqui timed out (>10s), using browser speech" : "[TTS] Server Coqui failed, using browser:",
+        e,
+      );
     }
-  } catch (e) {
-    console.warn("[TTS] Server Coqui failed, using browser:", e);
+    voiceServicePrefs.preferServerTts = false;
   }
 
   const synth = window.speechSynthesis;
-  if (!synth) return;
+  if (!synth) {
+    notifyStart();
+    return;
+  }
 
   await new Promise<void>((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
@@ -186,6 +218,7 @@ async function speakWhenDone(text: string): Promise<void> {
       }
     };
     const timer = setTimeout(done, Math.max(text.length * 80, 4000) + 5000);
+    u.onstart = () => notifyStart();
     u.onend = () => {
       clearTimeout(timer);
       done();
@@ -196,6 +229,7 @@ async function speakWhenDone(text: string): Promise<void> {
     };
     try {
       synth.speak(u);
+      notifyStart();
     } catch {
       clearTimeout(timer);
       done();
@@ -246,6 +280,7 @@ export function VoiceInterviewClient({
   onTimeExpired,
   onRegisterSubmitAnswer,
   onRegisterEnsureRecording,
+  onRegisterFinalizeSession,
   onSessionRecordingChange,
   isCodingSlotActive = false,
   codingSlotSatisfied = true,
@@ -297,6 +332,8 @@ export function VoiceInterviewClient({
   const [whisperLang, setWhisperLang] = useState("auto");
   const [answerRecording, setAnswerRecording] = useState(false);
   const [whisperProcessing, setWhisperProcessing] = useState(false);
+  const [fetchingNextQuestion, setFetchingNextQuestion] = useState(false);
+  const [usingBrowserVoice, setUsingBrowserVoice] = useState(false);
   const [whisperError, setWhisperError] = useState<string | null>(null);
   const [livePreviewText, setLivePreviewText] = useState("");
   const [micLevel, setMicLevel] = useState(0);
@@ -341,6 +378,11 @@ export function VoiceInterviewClient({
     : true;
   const getProctorVideoTrackRef = useRef(proctoring.getVideoTrack);
   getProctorVideoTrackRef.current = proctoring.getVideoTrack;
+  const getSnapshotForTranscriptRef = useRef(proctoring.getSnapshotForTranscript);
+  getSnapshotForTranscriptRef.current = proctoring.getSnapshotForTranscript;
+  const onTranscriptChangeRef = useRef(onTranscriptChange);
+  onTranscriptChangeRef.current = onTranscriptChange;
+  const lastEmittedTranscriptRef = useRef("");
   const crossSignalReportedRef = useRef(false);
 
   const fullscreen = useFullscreenEnforcement({
@@ -589,25 +631,8 @@ export function VoiceInterviewClient({
     syncUtterances(finalUtterances);
     
     // Stop the session but don't abandon - let user complete normally
-    sessionActiveRef.current = false;
-    typedOnlyRef.current = false;
-    setTypedAnswersOnly(false);
-    pausedForTtsRef.current = false;
-    commitAfterEndRef.current = false;
-    explicitStopRef.current = false;
-    finalBufferRef.current = "";
-    interimRef.current = "";
-    setInterimText("");
-    if (restartTimerRef.current) {
-      clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-    }
-    try {
-      recognitionRef.current?.stop();
-    } catch { /* ignore */ }
-    releaseMicStream();
-    setMicPhase("idle");
-    
+    finalizeVoiceSession();
+
     // Show time expired message and allow user to mark complete
     void speakWhenDone(timeUpMessage.text);
     // Auto-upload session recording if active
@@ -629,6 +654,7 @@ export function VoiceInterviewClient({
   const commitAfterEndRef = useRef(false);
   /** User clicked "Stop session" — must not flush buffer as an answer on `onend`. */
   const explicitStopRef = useRef(false);
+  const sessionFinalizedRef = useRef(false);
   /** User chose typed answers only (no Web Speech recognition). */
   const typedOnlyRef = useRef(false);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -853,6 +879,14 @@ export function VoiceInterviewClient({
     setLivePreviewText("");
   }
 
+  function resetAnswerCaptureState() {
+    previewBufferRef.current = "";
+    finalBufferRef.current = "";
+    interimRef.current = "";
+    setLivePreviewText("");
+    setInterimText("");
+  }
+
   function stopLiveSpeechPreview() {
     previewActiveRef.current = false;
     const rec = previewRecognitionRef.current;
@@ -866,7 +900,7 @@ export function VoiceInterviewClient({
   }
 
   function startLiveSpeechPreview() {
-    if (typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
+    if (sessionFinalizedRef.current || typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
     if (!serverVoiceModeRef.current || !sessionActiveRef.current) return;
 
     const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
@@ -906,7 +940,7 @@ export function VoiceInterviewClient({
     };
 
     rec.onend = () => {
-      if (!previewActiveRef.current || !sessionActiveRef.current || micPhaseRef.current !== "listening") return;
+      if (!previewActiveRef.current || sessionFinalizedRef.current || !sessionActiveRef.current || micPhaseRef.current !== "listening") return;
       try {
         rec.start();
       } catch {
@@ -1092,11 +1126,22 @@ export function VoiceInterviewClient({
     onRegisterEnsureRecording?.(ensureSessionRecordingUploaded);
   }, [onRegisterEnsureRecording, ensureSessionRecordingUploaded]);
 
+  const finalizeVoiceSessionRef = useRef(finalizeVoiceSession);
+  finalizeVoiceSessionRef.current = finalizeVoiceSession;
+
+  useEffect(() => {
+    onRegisterFinalizeSession?.(() => finalizeVoiceSessionRef.current());
+  }, [onRegisterFinalizeSession]);
+
+  useEffect(() => {
+    return () => finalizeVoiceSessionRef.current();
+  }, []);
+
   async function transcribeAnswerBlob(blob: Blob): Promise<string> {
     const fd = new FormData();
     fd.append("audio", blob, "answer.webm");
     if (whisperLang !== "auto") fd.append("language", whisperLang);
-    const res = await fetch("/api/ai/transcribe", { method: "POST", body: fd });
+    const res = await fetchWithTimeout("/api/ai/transcribe", { method: "POST", body: fd }, MEDIA_SERVICE_TIMEOUT_MS);
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { detail?: string; error?: string };
       throw new Error(err.detail ?? err.error ?? "Transcription failed");
@@ -1105,7 +1150,43 @@ export function VoiceInterviewClient({
     return data.text?.trim() ?? "";
   }
 
+  function getBrowserSttPreviewText(): string {
+    const preview = previewBufferRef.current.trim() || livePreviewText.trim();
+    const recognition = `${finalBufferRef.current}${interimRef.current ? (finalBufferRef.current ? " " : "") + interimRef.current : ""}`.trim();
+    return preview || recognition;
+  }
+
+  function enableBrowserSttFallback(reason: string) {
+    voiceServicePrefs.preferServerStt = false;
+    serverVoiceModeRef.current = false;
+    setUsingBrowserVoice(true);
+    setWhisperError(null);
+    console.warn("[STT] Switching to browser speech:", reason);
+    resetAnswerCaptureState();
+    void stopAnswerRecordingBlob().catch(() => null);
+    attachRecognitionHandlers();
+    if (sessionActiveRef.current && !sessionFinalizedRef.current) {
+      scheduleRecognitionStart("browser stt fallback");
+    }
+  }
+
+  async function submitVoiceAnswerText(text: string) {
+    const clean = text.trim();
+    if (!clean) return false;
+    resetAnswerCaptureState();
+    advancingRef.current = true;
+    if (isEndInterviewIntent(clean)) {
+      advancingRef.current = false;
+      void endInterviewFromVoice(clean);
+      return true;
+    }
+    addCandidate(clean);
+    void advanceAfterAnswer(clean);
+    return true;
+  }
+
   function startAnswerRecording() {
+    if (sessionFinalizedRef.current || !sessionActiveRef.current) return;
     const stream = micStreamRef.current;
     if (!stream || typedOnlyRef.current) return;
     if (answerMediaRef.current?.state === "recording") return;
@@ -1150,6 +1231,23 @@ export function VoiceInterviewClient({
       setWhisperError("This is a coding question — use Run & Submit in the code editor before sending a voice answer.");
       return;
     }
+
+    if (!voiceServicePrefs.preferServerStt) {
+      const answer = interimRef.current.trim() || finalBufferRef.current.trim();
+      if (!answer) {
+        setWhisperError("No speech detected. Speak your answer, then click Send answer again.");
+        if (sessionActiveRef.current) scheduleRecognitionStart("retry browser stt");
+        return;
+      }
+      finalBufferRef.current = answer;
+      interimRef.current = "";
+      setInterimText("");
+      clearLivePreview();
+      flushSpokenAnswer();
+      return;
+    }
+
+    const browserFallbackText = getBrowserSttPreviewText();
     setWhisperProcessing(true);
     setWhisperError(null);
     stopLiveSpeechPreview();
@@ -1160,6 +1258,9 @@ export function VoiceInterviewClient({
     }
     const blob = await stopAnswerRecordingBlob();
     if (!blob || blob.size < 200) {
+      if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+        return;
+      }
       setWhisperError("No speech recorded. Speak your answer, then click Send answer again.");
       startAnswerRecording();
       return;
@@ -1167,22 +1268,28 @@ export function VoiceInterviewClient({
     try {
       const text = await transcribeAnswerBlob(blob);
       if (!text) {
+        if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+          enableBrowserSttFallback("Whisper returned empty text");
+          return;
+        }
         setWhisperError("No speech detected. Try speaking louder or use the typed box.");
         startAnswerRecording();
         return;
       }
-      setLivePreviewText(text);
-      advancingRef.current = true;
-      if (isEndInterviewIntent(text)) {
-        advancingRef.current = false;
-        void endInterviewFromVoice(text);
+      await submitVoiceAnswerText(text);
+    } catch (e) {
+      const timedOut = e instanceof MediaServiceTimeoutError;
+      const reason = timedOut ? "Whisper timed out (>10s)" : (e instanceof Error ? e.message : "Transcription failed");
+      if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+        enableBrowserSttFallback(reason);
         return;
       }
-      addCandidate(text);
-      void advanceAfterAnswer(text);
-    } catch (e) {
-      setWhisperError(e instanceof Error ? e.message : "Transcription failed");
-      startAnswerRecording();
+      enableBrowserSttFallback(reason);
+      setWhisperError(
+        timedOut
+          ? "Whisper timed out. Switched to browser speech — speak and click Send answer again."
+          : "Whisper unavailable. Switched to browser speech — speak and click Send answer again.",
+      );
     } finally {
       setWhisperProcessing(false);
     }
@@ -1308,13 +1415,14 @@ export function VoiceInterviewClient({
     return null;
   }
 
-  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   const advancingRef = useRef(false);
   const nextQuestionAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [utterances, interimText]);
+    const el = transcriptContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [utterances]);
 
   useEffect(() => {
     utterancesRef.current = utterances;
@@ -1343,7 +1451,7 @@ export function VoiceInterviewClient({
         candidateSource,
         voiceValidation,
         ...(videoProctoringRequired
-          ? { videoProctoring: proctoring.getSnapshotForTranscript() }
+          ? { videoProctoring: getSnapshotForTranscriptRef.current() }
           : {}),
         tabSwitchCount: tabSwitchCountRef.current,
         tabSwitchViolation: tabSwitchCountRef.current >= 2,
@@ -1351,21 +1459,85 @@ export function VoiceInterviewClient({
       },
       utterances,
     };
-    onTranscriptChange(JSON.stringify(transcript, null, 2));
+    const json = JSON.stringify(transcript, null, 2);
+    if (json === lastEmittedTranscriptRef.current) return;
+    lastEmittedTranscriptRef.current = json;
+    onTranscriptChangeRef.current(json);
   }, [
     utterances,
     voiceValidation,
     proctoringMode,
     candidateSource,
     videoProctoringRequired,
-    proctoring,
     fullscreen.exitCount,
-    onTranscriptChange,
+    proctoring.snapshot.totalEvents,
+    proctoring.snapshot.violationLevel,
+    proctoring.snapshot.lastReasons,
   ]);
 
   function syncUtterances(next: Utterance[]) {
     utterancesRef.current = next;
     setUtterances(next);
+  }
+
+  function stopSpeechRecognition(rec: SpeechRecognitionLike | null) {
+    if (!rec) return;
+    try {
+      if (rec.abort) rec.abort();
+      else rec.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function finalizeVoiceSession() {
+    if (sessionFinalizedRef.current) return;
+    sessionFinalizedRef.current = true;
+
+    sessionActiveRef.current = false;
+    previewActiveRef.current = false;
+    pausedForTtsRef.current = true;
+    explicitStopRef.current = false;
+    commitAfterEndRef.current = false;
+    advancingRef.current = false;
+
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+
+    cancelActiveTts();
+    stopLiveSpeechPreview();
+    stopSpeechRecognition(previewRecognitionRef.current);
+    previewRecognitionRef.current = null;
+    stopSpeechRecognition(recognitionRef.current);
+    recognitionRef.current = null;
+
+    void stopAnswerRecordingBlob();
+
+    const sessionRec = sessionRecorderRef.current;
+    if (sessionRec && sessionRec.state !== "inactive") {
+      try {
+        sessionRec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    sessionRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
+
+    releaseMicStream();
+    resetAnswerCaptureState();
+
+    setMicPhase("idle");
+    setAnswerRecording(false);
+    setProctorSessionActive(false);
+    setWhisperProcessing(false);
+    setFetchingNextQuestion(false);
+    setSessionRecording(false);
   }
 
   function releaseMicStream() {
@@ -1434,6 +1606,7 @@ export function VoiceInterviewClient({
     syncUtterances([...utterancesRef.current, row]);
     setMicPhase("bot_speaking");
     await speakWhenDone(botText);
+    if (isUsingBrowserVoiceFallback()) setUsingBrowserVoice(true);
     setMicPhase("idle");
     finalizeVoiceValidation();
   }
@@ -1450,10 +1623,6 @@ export function VoiceInterviewClient({
   }
 
   async function addBot(text: string, meta?: { isCoding?: boolean; preferredLanguage?: string; starterCode?: string | null }) {
-    const row: Utterance = { speaker: "BOT", text, at: nowIso() };
-    syncUtterances([...utterancesRef.current, row]);
-    emitQuestionMeta(text, botPromptIdxRef.current, meta);
-
     void stopAnswerRecordingBlob();
     const rec = recognitionRef.current;
     if (rec && sessionActiveRef.current && !serverVoiceModeRef.current) {
@@ -1469,20 +1638,39 @@ export function VoiceInterviewClient({
     }
 
     setMicPhase("bot_speaking");
-    await speakWhenDone(text);
+
+    let revealed = false;
+    const revealQuestion = () => {
+      if (revealed) return;
+      revealed = true;
+      const row: Utterance = { speaker: "BOT", text, at: nowIso() };
+      syncUtterances([...utterancesRef.current, row]);
+      emitQuestionMeta(text, botPromptIdxRef.current, meta);
+    };
+
+    await speakWhenDone(text, revealQuestion);
+    revealQuestion();
+    if (isUsingBrowserVoiceFallback()) setUsingBrowserVoice(true);
 
     pausedForTtsRef.current = false;
-    if (sessionActiveRef.current) {
-      setMicPhase("listening");
-      if (typedOnlyRef.current) {
-        return;
-      }
-      scheduleRecognitionStart("after tts");
+    if (sessionFinalizedRef.current || !sessionActiveRef.current) {
+      setMicPhase("idle");
+      return;
     }
+    setMicPhase("listening");
+    if (typedOnlyRef.current) {
+      return;
+    }
+    resetAnswerCaptureState();
+    scheduleRecognitionStart("after tts");
   }
 
   function scheduleRecognitionStart(reason: string) {
     void reason;
+
+    if (sessionFinalizedRef.current || !sessionActiveRef.current) {
+      return;
+    }
 
     if (typedOnlyRef.current) {
       if (sessionActiveRef.current) {
@@ -1494,10 +1682,13 @@ export function VoiceInterviewClient({
     if (serverVoiceModeRef.current) {
       if (sessionActiveRef.current) {
         setMicPhase("listening");
+        resetAnswerCaptureState();
         startAnswerRecording();
       }
       return;
     }
+
+    resetAnswerCaptureState();
 
     if (restartTimerRef.current) {
       clearTimeout(restartTimerRef.current);
@@ -1559,6 +1750,7 @@ export function VoiceInterviewClient({
     }
 
     try {
+    setFetchingNextQuestion(true);
     const nextSlot = botPromptIdxRef.current + 1;
     const nextQ = await fetchNextQuestion({
       slot: nextSlot,
@@ -1566,6 +1758,7 @@ export function VoiceInterviewClient({
       transcript: utterancesRef.current,
       manipulationCount: manipulationCountRef.current,
     });
+    setFetchingNextQuestion(false);
 
     if (nextQ) {
       if (nextQ.manipulationDetected) {
@@ -1615,6 +1808,7 @@ export function VoiceInterviewClient({
       starterCode: nextQ?.starterCode,
     });
     } finally {
+      setFetchingNextQuestion(false);
       advancingRef.current = false;
     }
   }
@@ -1675,6 +1869,7 @@ export function VoiceInterviewClient({
     finalBufferRef.current = "";
     interimRef.current = "";
     setInterimText("");
+    clearLivePreview();
 
     lastSpeechTimeRef.current = 0;
 
@@ -1716,7 +1911,8 @@ export function VoiceInterviewClient({
       
       const trimmed = interim.trim();
       interimRef.current = trimmed;
-      setInterimText(trimmed);
+      const displayText = `${finalBufferRef.current}${trimmed ? `${finalBufferRef.current && !finalBufferRef.current.endsWith(" ") ? " " : ""}${trimmed}` : ""}`.trim();
+      setInterimText(displayText);
       
       // Update last speech time when we get any speech (final or interim)
       if (trimmed.length > 0 || hasNewFinal) {
@@ -1788,14 +1984,14 @@ export function VoiceInterviewClient({
       }
       
       // For other errors, only restart if we're still in an active session
-      if (sessionActiveRef.current && !pausedForTtsRef.current) {
+      if (sessionActiveRef.current && !pausedForTtsRef.current && !sessionFinalizedRef.current) {
         console.log('[Speech] Restarting after error:', err);
         scheduleRecognitionStart(`recover ${err ?? "error"}`);
       }
     };
 
     rec.onend = () => {
-      if (pausedForTtsRef.current) {
+      if (sessionFinalizedRef.current || pausedForTtsRef.current) {
         return;
       }
       if (explicitStopRef.current) {
@@ -1880,6 +2076,9 @@ export function VoiceInterviewClient({
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
+    resetVoiceServicePrefs();
+    setUsingBrowserVoice(false);
+    sessionFinalizedRef.current = false;
     setSpeechError(null);
     resetVoiceValidationSession();
     releaseMicStream();
@@ -1902,8 +2101,9 @@ export function VoiceInterviewClient({
     attachRecognitionHandlers();
 
     if (utterancesRef.current.length === 0) {
-      setMicPhase("bot_speaking");
+      setFetchingNextQuestion(true);
       const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount: manipulationCountRef.current });
+      setFetchingNextQuestion(false);
       if (nextQ) {
         if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
         if (nextQ.terminateInterview) {
@@ -1914,16 +2114,13 @@ export function VoiceInterviewClient({
       const q =
         nextQ?.question ??
         `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
-      const row: Utterance = { speaker: "BOT", text: q, at: nowIso() };
-      syncUtterances([...utterancesRef.current, row]);
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
-      emitQuestionMeta(q, 1, {
+      await addBot(q, {
         isCoding: nextQ?.isCoding,
         preferredLanguage: nextQ?.preferredLanguage,
         starterCode: nextQ?.starterCode,
       });
-      await speakWhenDone(q);
       if (sessionActiveRef.current) {
         setMicPhase("listening");
       }
@@ -1939,6 +2136,9 @@ export function VoiceInterviewClient({
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
+    resetVoiceServicePrefs();
+    setUsingBrowserVoice(false);
+    sessionFinalizedRef.current = false;
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
     serverVoiceModeRef.current = true;
@@ -1968,8 +2168,9 @@ export function VoiceInterviewClient({
     const rec = recognitionRef.current;
 
     if (utterancesRef.current.length === 0) {
-      setMicPhase("bot_speaking");
+      setFetchingNextQuestion(true);
       const nextQ = await fetchNextQuestion({ slot: 1, lastAnswer: "", transcript: [], manipulationCount: manipulationCountRef.current });
+      setFetchingNextQuestion(false);
       if (nextQ) {
         if (nextQ.manipulationDetected) setManipulationCount((prev) => prev + 1);
         if (nextQ.terminateInterview) {
@@ -1980,16 +2181,13 @@ export function VoiceInterviewClient({
       const q =
         nextQ?.question ??
         `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
-      const row: Utterance = { speaker: "BOT", text: q, at: nowIso() };
-      syncUtterances([...utterancesRef.current, row]);
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
-      emitQuestionMeta(q, 1, {
+      await addBot(q, {
         isCoding: nextQ?.isCoding,
         preferredLanguage: nextQ?.preferredLanguage,
         starterCode: nextQ?.starterCode,
       });
-      await speakWhenDone(q);
       if (sessionActiveRef.current) {
         setMicPhase("listening");
         attachRecognitionHandlers();
@@ -2169,9 +2367,12 @@ export function VoiceInterviewClient({
     mic_off: { label: "Mic disconnected", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200" },
   };
 
+  const browserSttActive = usingBrowserVoice || !voiceServicePrefs.preferServerStt;
   const spokenPreviewText = typedAnswersOnly
     ? typedDraft
-    : livePreviewText || interimText;
+    : browserSttActive
+      ? interimText
+      : (livePreviewText || interimText);
 
   if (!supported) {
     return (
@@ -2373,9 +2574,19 @@ export function VoiceInterviewClient({
         )}
 
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Bot voice uses Coqui TTS; your answers use Whisper STT (ports 6014 / 6013). Click{" "}
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
-          Session audio records automatically from Start.
+          {isUsingBrowserVoiceFallback() || usingBrowserVoice ? (
+            <>
+              Using <span className="font-medium text-zinc-700 dark:text-zinc-300">browser speech</span> for
+              voice (Whisper/Coqui timed out or unavailable). Click{" "}
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
+            </>
+          ) : (
+            <>
+              Bot voice uses Coqui TTS; your answers use Whisper STT. Click{" "}
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
+            </>
+          )}
+          {" "}Session audio records automatically from Start.
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -2439,104 +2650,105 @@ export function VoiceInterviewClient({
         </div>
       </div>
 
-      {listening && !timeExpired && (
-        <div
-          className={`mt-4 rounded-xl border-2 p-4 transition-colors ${
-            micPreviewStatus === "hearing"
-              ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
-                ? "border-red-300 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
-                : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              {typedAnswersOnly ? "Your answer (typed)" : "Your answer (live)"}
-            </span>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${micStatusMeta[micPreviewStatus].className}`}
-              role="status"
-              aria-live="polite"
-            >
-              {(micPreviewStatus === "hearing" || micPreviewStatus === "listening") && (
-                <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
-              )}
-              {micPreviewStatus === "transcribing" && (
-                <span className="h-2 w-2 rounded-full border-2 border-current border-t-transparent animate-spin" />
-              )}
-              {micStatusMeta[micPreviewStatus].label}
-            </span>
-          </div>
-
-          {!typedAnswersOnly && (
-            <div className="mt-3 flex h-8 items-end gap-1" aria-hidden="true">
-              {Array.from({ length: 12 }).map((_, i) => {
-                const threshold = (i + 1) * (100 / 12);
-                const active = micLevel >= threshold - 4;
-                return (
-                  <div
-                    key={i}
-                    className={`w-2 flex-1 rounded-sm transition-all duration-150 ${
-                      active
-                        ? micPreviewStatus === "hearing"
-                          ? "bg-emerald-500"
-                          : "bg-blue-400"
-                        : "bg-zinc-200 dark:bg-zinc-700"
-                    }`}
-                    style={{ height: active ? `${Math.max(30, Math.min(100, micLevel))}%` : "20%" }}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          <div className="mt-3 min-h-[4.5rem] rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-950">
-            {spokenPreviewText ? (
-              <p className="break-words text-zinc-800 dark:text-zinc-100">{spokenPreviewText}</p>
-            ) : (
-              <p className="text-zinc-400 dark:text-zinc-500">
-                {typedAnswersOnly
-                  ? "Type your answer in the box below."
-                  : micPreviewStatus === "transcribing"
-                    ? "Converting your speech to text…"
-                    : micPreviewStatus === "hearing"
-                      ? "Keep speaking — your words appear here as you talk."
-                      : "Start speaking — live preview will show here so you know the mic is working."}
-              </p>
-            )}
-          </div>
-
-          {!typedAnswersOnly && (
-            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
-              <span className="font-medium">Send answer</span>.
-            </p>
-          )}
-          {whisperError && (
-            <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
-          )}
+      {(isUsingBrowserVoiceFallback() || usingBrowserVoice) && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <span className="font-semibold">Browser voice mode active.</span>{" "}
+          Server STT/TTS took longer than 10 seconds or failed — the interview continues using your browser&apos;s speech engine.
         </div>
       )}
 
-      <div className="mt-4 max-h-[320px] overflow-auto rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
-        {utterances.length ? (
-          utterances.map((u, idx) => (
-            <div key={idx} className="mb-2">
-              <span className="font-medium">{u.speaker === "BOT" ? "Bot" : "You"}:</span>{" "}
-              <span className="break-words">{u.text}</span>
-            </div>
-          ))
-        ) : (
-          <div className="text-zinc-600 dark:text-zinc-400">
-            Press <span className="font-medium">Start (mic)</span> or <span className="font-medium">Use typed answers only</span>
-            : you will hear the first question, then you can speak and/or type your reply.
-          </div>
-        )}
-        <div ref={transcriptEndRef} />
-      </div>
+      {(fetchingNextQuestion || (botSpeaking && utterances.length === 0)) && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          <span>
+            {fetchingNextQuestion
+              ? "Preparing the next question — please wait…"
+              : "The interviewer is asking the question — listen carefully…"}
+          </span>
+        </div>
+      )}
 
-      {listening && !timeExpired ? (
-        <div className="mt-4 space-y-3">
+      {listening && !timeExpired && (
+        <div className="sticky top-0 z-10 mt-4 space-y-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
+          <div
+            className={`rounded-xl border-2 p-4 transition-colors ${
+              micPreviewStatus === "hearing"
+                ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+                : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
+                  ? "border-red-300 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
+                  : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                {typedAnswersOnly ? "Your answer (typed)" : "Your answer (live)"}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${micStatusMeta[micPreviewStatus].className}`}
+                role="status"
+                aria-live="polite"
+              >
+                {(micPreviewStatus === "hearing" || micPreviewStatus === "listening") && (
+                  <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+                )}
+                {micPreviewStatus === "transcribing" && (
+                  <span className="h-2 w-2 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                )}
+                {micStatusMeta[micPreviewStatus].label}
+              </span>
+            </div>
+
+            {!typedAnswersOnly && (
+              <div className="mt-3 flex h-8 items-end gap-1" aria-hidden="true">
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const threshold = (i + 1) * (100 / 12);
+                  const active = micLevel >= threshold - 4;
+                  return (
+                    <div
+                      key={i}
+                      className={`w-2 flex-1 rounded-sm transition-all duration-150 ${
+                        active
+                          ? micPreviewStatus === "hearing"
+                            ? "bg-emerald-500"
+                            : "bg-blue-400"
+                          : "bg-zinc-200 dark:bg-zinc-700"
+                      }`}
+                      style={{ height: active ? `${Math.max(30, Math.min(100, micLevel))}%` : "20%" }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-3 min-h-[4.5rem] max-h-32 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-950">
+              {spokenPreviewText ? (
+                <p className="break-words text-zinc-800 dark:text-zinc-100">{spokenPreviewText}</p>
+              ) : (
+                <p className="text-zinc-400 dark:text-zinc-500">
+                  {typedAnswersOnly
+                    ? "Type your answer in the box below."
+                    : micPreviewStatus === "transcribing"
+                      ? "Converting your speech to text…"
+                      : micPreviewStatus === "hearing"
+                        ? "Keep speaking — your words appear here as you talk."
+                        : "Start speaking — live preview will show here so you know the mic is working."}
+                </p>
+              )}
+            </div>
+
+            {!typedAnswersOnly && (
+              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                {isUsingBrowserVoiceFallback() || usingBrowserVoice
+                  ? <>Speak your answer, then click <span className="font-medium">Send answer</span> to continue.</>
+                  : <>Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
+                    <span className="font-medium">Send answer</span>.</>}
+              </p>
+            )}
+            {whisperError && (
+              <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
+            )}
+          </div>
+
           {!typedAnswersOnly && (
             <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="whisper-lang">
@@ -2555,7 +2767,6 @@ export function VoiceInterviewClient({
             </div>
           )}
 
-          {/* Typed answer box */}
           <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
             <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="typed-interview-reply">
               {typedAnswersOnly ? "Your answer (typed)" : "Or type your answer if the mic is flaky"}
@@ -2567,43 +2778,66 @@ export function VoiceInterviewClient({
               onChange={(e) => setTypedDraft(e.target.value)}
               placeholder="Write your technical answer here…"
             />
-            <button
-              type="button"
-              className="mt-2 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200"
-              onClick={() => void submitTypedReply()}
-            >
-              Submit typed reply
-            </button>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <p className="text-xs text-zinc-500 sm:mr-auto">
+                {typedAnswersOnly
+                  ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
+                  : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box</>}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {!typedAnswersOnly && (
+                  <button
+                    type="button"
+                    disabled={whisperProcessing || fetchingNextQuestion}
+                    className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                    onClick={() => void sendVoiceAnswer()}
+                  >
+                    {whisperProcessing ? "Transcribing…" : (isUsingBrowserVoiceFallback() || usingBrowserVoice ? "Send answer" : "Send answer (Whisper)")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={fetchingNextQuestion}
+                  className="shrink-0 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-200"
+                  onClick={() => void submitTypedReply()}
+                >
+                  Submit typed reply
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-        {!timeExpired && (
-          <>
-            <p className="text-xs text-zinc-500 sm:mr-auto">
-              {typedAnswersOnly
-                ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
-                : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box · <span className="font-medium">Stop session</span> ends</>}
-            </p>
-            <button
-              type="button"
-              disabled={!listening || typedAnswersOnly || whisperProcessing}
-              className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-              onClick={() => void sendVoiceAnswer()}
-            >
-              {whisperProcessing ? "Transcribing…" : "Send answer (Whisper)"}
-            </button>
-          </>
-        )}
-        {timeExpired && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              💡 <span className="font-medium">Ready to submit:</span> Your interview responses have been recorded. Click "Mark complete" below to get your AI assessment and feedback.
-            </p>
+      <div
+        ref={transcriptContainerRef}
+        className="mt-4 max-h-[220px] overflow-y-auto overscroll-contain rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900"
+      >
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Conversation history
+        </p>
+        {utterances.length ? (
+          utterances.map((u, idx) => (
+            <div key={idx} className="mb-2">
+              <span className="font-medium">{u.speaker === "BOT" ? "Bot" : "You"}:</span>{" "}
+              <span className="break-words">{u.text}</span>
+            </div>
+          ))
+        ) : (
+          <div className="text-zinc-600 dark:text-zinc-400">
+            Press <span className="font-medium">Start (mic)</span> or <span className="font-medium">Use typed answers only</span>
+            : you will hear the first question, then you can speak and/or type your reply.
           </div>
         )}
       </div>
+
+      {timeExpired && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            💡 <span className="font-medium">Ready to submit:</span> Your interview responses have been recorded. Click &quot;Mark complete&quot; below to get your AI assessment and feedback.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
