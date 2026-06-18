@@ -239,9 +239,17 @@ async function completeInterview(formData: FormData) {
   });
 
   if (asyncStart.ok) {
-    for (let attempt = 0; attempt < 120; attempt++) {
-      await new Promise((r) => setTimeout(r, 5000));
-      const statusRes = await apiServer(`/ai/assess-status/${parsed.interviewId}`, session.token, {
+    const asyncPayload = (await asyncStart.json().catch(() => ({}))) as { runId?: string };
+    const assessRunId = asyncPayload.runId;
+
+    for (let attempt = 0; attempt < 150; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+      const statusPath = assessRunId
+        ? `/ai/assess-status/${parsed.interviewId}?runId=${encodeURIComponent(assessRunId)}`
+        : `/ai/assess-status/${parsed.interviewId}`;
+      const statusRes = await apiServer(statusPath, session.token, {
         timeoutMs: 15_000,
       });
       if (!statusRes.ok) continue;
@@ -249,8 +257,12 @@ async function completeInterview(formData: FormData) {
         status?: string;
         result?: AssessmentPayload;
         error?: string;
+        runId?: string;
       };
       if (status.status === "COMPLETED" && status.result) {
+        if (assessRunId && status.runId && status.runId !== assessRunId) {
+          continue;
+        }
         assessment = status.result;
         break;
       }

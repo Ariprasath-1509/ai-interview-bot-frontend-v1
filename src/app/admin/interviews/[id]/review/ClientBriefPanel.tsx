@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, Save, Shield } from 'lucide-react';
+import { Download, Loader2, Save, Send, Shield } from 'lucide-react';
 
 export type ClientBriefData = {
   executiveSummary: string;
@@ -54,7 +54,7 @@ const EMPTY_BRIEF: ClientBriefData = {
   suggestedNextStep: '',
 };
 
-function normalizeBrief(raw: Partial<ClientBriefData> | undefined): ClientBriefData {
+function normalizeBrief(raw: Partial<ClientBriefData> | undefined | null): ClientBriefData {
   if (!raw) return { ...EMPTY_BRIEF };
   return {
     executiveSummary: raw.executiveSummary ?? '',
@@ -144,34 +144,61 @@ function ListEditor({
 export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
   const [brief, setBrief] = useState<ClientBriefData>(EMPTY_BRIEF);
   const [context, setContext] = useState<ClientBriefContext | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [checkingSaved, setCheckingSaved] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedOnce, setSavedOnce] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const loadBrief = useCallback(async () => {
-    setLoading(true);
+  const checkSavedBrief = useCallback(async () => {
+    setCheckingSaved(true);
     setError(null);
     try {
       const res = await fetch(`/api/interviews/${interviewId}/client-brief`, { credentials: 'include' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load client brief');
-      setBrief(normalizeBrief(data.brief));
+      if (!res.ok) throw new Error(data.error || 'Failed to check client brief');
       setContext(data.context ?? null);
-      setSavedOnce(Boolean(data.brief?.saved));
-      setDirty(false);
+      if (data.brief && (data.hasSavedBrief || data.brief.saved)) {
+        setBrief(normalizeBrief(data.brief));
+        setSavedOnce(true);
+        setVisible(true);
+        setDirty(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
-      setLoading(false);
+      setCheckingSaved(false);
     }
   }, [interviewId]);
 
   useEffect(() => {
-    loadBrief();
-  }, [loadBrief]);
+    checkSavedBrief();
+  }, [checkSavedBrief]);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}/client-brief/generate`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to generate client brief');
+      setBrief(normalizeBrief(data.brief));
+      setContext(data.context ?? null);
+      setSavedOnce(false);
+      setDirty(true);
+      setVisible(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const updateBrief = (patch: Partial<ClientBriefData>) => {
     setBrief((prev) => ({ ...prev, ...patch }));
@@ -227,11 +254,47 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
     }
   };
 
-  if (loading) {
+  if (checkingSaved) {
     return (
       <div className="mt-6 flex items-center gap-2 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
         <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm text-zinc-600">Loading client brief…</span>
+        <span className="text-sm text-zinc-600">Checking client brief…</span>
+      </div>
+    );
+  }
+
+  if (!visible) {
+    return (
+      <div className="mt-6 rounded-xl border border-blue-200 bg-white p-5 shadow-sm dark:border-blue-900/40 dark:bg-zinc-950">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 font-semibold text-blue-900 dark:text-blue-200">
+              <Shield className="h-5 w-5" />
+              Client Evaluation Brief
+            </div>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              Generate a professional summary when you are ready to share feedback with the client.
+            </p>
+          </div>
+          <Button type="button" onClick={handleGenerate} disabled={generating}>
+            {generating ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Send className="h-4 w-4 mr-2" />
+            )}
+            {generating ? 'Generating…' : 'Generate Client Brief'}
+          </Button>
+        </div>
+        {generating && (
+          <p className="mt-3 text-xs text-zinc-500">
+            AI is drafting the client brief — this usually takes about 1 minute.
+          </p>
+        )}
+        {error && (
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
+            {error}
+          </p>
+        )}
       </div>
     );
   }
@@ -247,7 +310,7 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
             Client Evaluation Brief
           </div>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Staff-only summary for sharing with clients. Edit the AI draft, save, then download the professional PDF.
+            Review and edit before sharing with the client. Save, then download the PDF.
           </p>
           {context && (
             <p className="mt-2 text-xs text-zinc-500">
@@ -257,6 +320,12 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          {!savedOnce && (
+            <Button type="button" variant="outline" onClick={handleGenerate} disabled={generating}>
+              {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              Regenerate
+            </Button>
+          )}
           <Button type="button" variant="outline" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
             Save

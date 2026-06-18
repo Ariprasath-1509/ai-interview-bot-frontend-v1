@@ -7,7 +7,7 @@ const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
     if (!session || !isStaffReadRole(session.role)) {
@@ -15,7 +15,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
 
     const { id } = await params;
-    const statusRes = await fetch(`${GATEWAY}/ai/assess-status/${id}`, {
+    const runId = request.nextUrl.searchParams.get('runId');
+    const statusUrl = runId
+      ? `${GATEWAY}/ai/assess-status/${id}?runId=${encodeURIComponent(runId)}`
+      : `${GATEWAY}/ai/assess-status/${id}`;
+
+    const statusRes = await fetch(statusUrl, {
       headers: { Authorization: `Bearer ${session.token}` },
       cache: 'no-store',
     });
@@ -34,6 +39,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       status: status.status ?? 'NOT_FOUND',
       error: status.error,
       hasResult: Boolean(status.result),
+      runId: (status as { runId?: string }).runId ?? null,
     });
   } catch (error) {
     console.error('Reassessment status error:', error);
@@ -42,7 +48,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 /** Apply completed assessment to scores + interview transcript. */
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
     if (!session || !isStaffReadRole(session.role)) {
@@ -50,7 +56,14 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     }
 
     const { id } = await params;
-    const statusRes = await fetch(`${GATEWAY}/ai/assess-status/${id}`, {
+    const body = await request.json().catch(() => ({}));
+    const expectedRunId = typeof body.runId === 'string' ? body.runId : null;
+
+    const statusUrl = expectedRunId
+      ? `${GATEWAY}/ai/assess-status/${id}?runId=${encodeURIComponent(expectedRunId)}`
+      : `${GATEWAY}/ai/assess-status/${id}`;
+
+    const statusRes = await fetch(statusUrl, {
       headers: { Authorization: `Bearer ${session.token}` },
       cache: 'no-store',
     });
@@ -70,6 +83,11 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     }
     if (status.status !== 'COMPLETED' || !status.result) {
       return NextResponse.json({ error: 'Assessment not complete yet' }, { status: 409 });
+    }
+
+    const statusRunId = (status as { runId?: string }).runId;
+    if (expectedRunId && statusRunId && statusRunId !== expectedRunId) {
+      return NextResponse.json({ error: 'Assessment result is from a previous run — still processing' }, { status: 409 });
     }
 
     const ctx = await loadReassessContext(id, session.token);
