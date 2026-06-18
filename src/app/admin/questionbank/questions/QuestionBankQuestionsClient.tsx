@@ -8,8 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+interface ExistingMatch {
+  id: string;
+  text: string;
+  similarity: number;
+  askedAt: string[];
+}
+
 interface ParsedQuestion {
   existingQuestionId: string | null;
+  linkToExisting: boolean;
+  existingMatch: ExistingMatch | null;
   text: string;
   category: string;
   tags: string[];
@@ -91,7 +100,16 @@ export default function QuestionBankQuestionsClient() {
         interviewerName: s.interviewer || s.interviewerName || "",
         candidateId: null,
         questions: (s.questions || []).map((q: any) => ({
-          existingQuestionId: q.existingMatch?.id || null,
+          existingQuestionId: null,
+          linkToExisting: false,
+          existingMatch: q.existingMatch
+            ? {
+                id: q.existingMatch.id,
+                text: q.existingMatch.text,
+                similarity: q.existingMatch.similarity,
+                askedAt: q.existingMatch.askedAt || [],
+              }
+            : null,
           text: q.text || "",
           category: q.category || "General",
           tags: q.suggestedTags || q.tags || [],
@@ -111,10 +129,22 @@ export default function QuestionBankQuestionsClient() {
     setLoading(true);
     setError("");
     try {
+      const payload = {
+        sessions: sessions.map((s) => ({
+          ...s,
+          questions: s.questions.map((q) => ({
+            text: q.text,
+            category: q.category,
+            tags: q.tags,
+            existingQuestionId:
+              q.linkToExisting && q.existingMatch?.id ? q.existingMatch.id : null,
+          })),
+        })),
+      };
       const res = await fetch("/api/questionbank/digest/commit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessions }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message || "Commit failed");
@@ -140,11 +170,20 @@ export default function QuestionBankQuestionsClient() {
     setSessions(prev => prev.map((s, si) => si !== sIdx ? s : { ...s, [field]: value }));
   };
 
-  const updateQuestion = (sIdx: number, qIdx: number, field: keyof ParsedQuestion, value: string | string[]) => {
+  const updateQuestion = (sIdx: number, qIdx: number, patch: Partial<ParsedQuestion>) => {
     setSessions(prev => prev.map((s, si) => si !== sIdx ? s : {
       ...s,
-      questions: s.questions.map((q, qi) => qi !== qIdx ? q : { ...q, [field]: value }),
+      questions: s.questions.map((q, qi) => qi !== qIdx ? q : { ...q, ...patch }),
     }));
+  };
+
+  const toggleLinkToExisting = (sIdx: number, qIdx: number, link: boolean) => {
+    const q = sessions[sIdx]?.questions[qIdx];
+    if (!q?.existingMatch) return;
+    updateQuestion(sIdx, qIdx, {
+      linkToExisting: link,
+      existingQuestionId: link ? q.existingMatch.id : null,
+    });
   };
 
   const removeQuestion = (sIdx: number, qIdx: number) => {
@@ -331,12 +370,52 @@ export default function QuestionBankQuestionsClient() {
                       </div>
                       <Textarea
                         value={q.text}
-                        onChange={(e) => updateQuestion(sIdx, qIdx, "text", e.target.value)}
+                        onChange={(e) => updateQuestion(sIdx, qIdx, { text: e.target.value, linkToExisting: false, existingQuestionId: null })}
                         rows={2}
                         className="font-body"
                       />
+                      {q.existingMatch && (
+                        <div className={`rounded-md border p-3 text-sm ${q.linkToExisting ? "border-amber-400 bg-amber-50 dark:bg-amber-950/20" : "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40"}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-amber-800 dark:text-amber-200">
+                                Possible duplicate ({Math.round(q.existingMatch.similarity * 100)}% similar)
+                              </p>
+                              <p className="mt-1 text-muted-foreground italic">&ldquo;{q.existingMatch.text}&rdquo;</p>
+                              {q.existingMatch.askedAt.length > 0 && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Previously asked at: {q.existingMatch.askedAt.join(", ")}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={q.linkToExisting ? "default" : "outline"}
+                                onClick={() => toggleLinkToExisting(sIdx, qIdx, true)}
+                              >
+                                Link existing
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={!q.linkToExisting ? "default" : "outline"}
+                                onClick={() => toggleLinkToExisting(sIdx, qIdx, false)}
+                              >
+                                Save as new
+                              </Button>
+                            </div>
+                          </div>
+                          {q.linkToExisting && (
+                            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                              This question will be linked to the existing entry — your company will be added to its history.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-4">
-                        <Select value={categories.some(c => c.name === q.category) ? q.category : ""} onValueChange={(v) => updateQuestion(sIdx, qIdx, "category", v)}>
+                        <Select value={categories.some(c => c.name === q.category) ? q.category : ""} onValueChange={(v) => updateQuestion(sIdx, qIdx, { category: v })}>
                           <SelectTrigger><SelectValue placeholder="Select Category..." /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="">Select Category...</SelectItem>
@@ -347,7 +426,7 @@ export default function QuestionBankQuestionsClient() {
                         </Select>
                         <Input
                           value={(q.tags || []).join(", ")}
-                          onChange={(e) => updateQuestion(sIdx, qIdx, "tags", e.target.value.split(",").map(t => t.trim()).filter(Boolean))}
+                          onChange={(e) => updateQuestion(sIdx, qIdx, { tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })}
                           placeholder="tags, comma, separated"
                           className="font-mono text-sm"
                         />

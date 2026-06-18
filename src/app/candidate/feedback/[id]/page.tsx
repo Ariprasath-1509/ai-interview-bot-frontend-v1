@@ -128,6 +128,9 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
         storedAssessment = typeof assessmentData.assessmentJson === 'string'
           ? JSON.parse(assessmentData.assessmentJson)
           : assessmentData.assessmentJson;
+        if (storedAssessment && typeof storedAssessment === 'object') {
+          delete storedAssessment.clientBrief;
+        }
       }
     }
   } catch {}

@@ -239,8 +239,8 @@ async function completeInterview(formData: FormData) {
   });
 
   if (asyncStart.ok) {
-    for (let attempt = 0; attempt < 90; attempt++) {
-      await new Promise((r) => setTimeout(r, 2000));
+    for (let attempt = 0; attempt < 120; attempt++) {
+      await new Promise((r) => setTimeout(r, 5000));
       const statusRes = await apiServer(`/ai/assess-status/${parsed.interviewId}`, session.token, {
         timeoutMs: 15_000,
       });
@@ -267,21 +267,12 @@ async function completeInterview(formData: FormData) {
   }
 
   if (!assessment && !assessmentMeta.assessFailed) {
-    const assessRes = await apiServer("/ai/assess", session.token, {
-      method: "POST",
-      body: JSON.stringify(assessBody),
-      timeoutMs: 120_000,
-    });
-    if (assessRes.ok) {
-      assessment = (await assessRes.json()) as AssessmentPayload;
-    } else {
-      assessmentMeta = {
-        assessFailed: true,
-        assessError: assessRes.status,
-        scoredAt: new Date().toISOString(),
-        summary: "AI assessment did not complete. A reviewer can re-run assessment from the review page.",
-      };
-    }
+    assessmentMeta = {
+      assessFailed: true,
+      assessError: "timeout",
+      scoredAt: new Date().toISOString(),
+      summary: "AI assessment is still running or timed out. A reviewer can re-run assessment from the review page.",
+    };
   }
 
   if (assessment) {

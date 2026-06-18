@@ -3,29 +3,74 @@
 import { useState } from "react";
 import { RefreshCw, Loader2 } from "lucide-react";
 
+const POLL_MS = 5000;
+const MAX_POLLS = 120; // ~10 minutes
+
 export function RerunAssessmentButton({ interviewId }: { interviewId: string }) {
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
   const handleRerun = async () => {
-    if (!confirm("This will re-run the AI assessment using the stored transcript. This may take 30-60 seconds. Continue?")) return;
+    if (
+      !confirm(
+        "This will re-run the AI assessment using the stored transcript. " +
+          "With Ollama this often takes 5–10 minutes. You can stay on this page while it runs. Continue?"
+      )
+    ) {
+      return;
+    }
 
     setLoading(true);
     setError(null);
+    setProgress("Starting assessment…");
 
     try {
-      const res = await fetch(`/api/interviews/${interviewId}/reassess`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: "Failed" }));
-        setError(data.error || "Assessment failed");
+      const startRes = await fetch(`/api/interviews/${interviewId}/reassess`, { method: "POST" });
+      const startData = await startRes.json().catch(() => ({}));
+      if (!startRes.ok) {
+        setError(startData.error || "Failed to start assessment");
         return;
       }
-      // Reload the page to show updated scores
-      window.location.reload();
-    } catch (e) {
+
+      for (let i = 0; i < MAX_POLLS; i++) {
+        setProgress(`Running AI assessment… (${Math.round(((i + 1) * POLL_MS) / 60000)} min elapsed)`);
+        await sleep(POLL_MS);
+
+        const statusRes = await fetch(`/api/interviews/${interviewId}/reassess/status`, {
+          credentials: "include",
+        });
+        const statusData = await statusRes.json().catch(() => ({}));
+
+        if (statusData.status === "FAILED") {
+          setError(statusData.error || "Assessment failed");
+          return;
+        }
+
+        if (statusData.status === "COMPLETED") {
+          setProgress("Saving results…");
+          const applyRes = await fetch(`/api/interviews/${interviewId}/reassess/status`, {
+            method: "POST",
+            credentials: "include",
+          });
+          const applyData = await applyRes.json().catch(() => ({}));
+          if (!applyRes.ok) {
+            setError(applyData.error || "Failed to save assessment results");
+            return;
+          }
+          window.location.reload();
+          return;
+        }
+      }
+
+      setError("Assessment is taking longer than expected. Refresh the page in a few minutes — results may already be saved.");
+    } catch {
       setError("Failed to connect to the server");
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   };
 
@@ -39,7 +84,7 @@ export function RerunAssessmentButton({ interviewId }: { interviewId: string }) 
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Re-assessing...
+            Re-assessing…
           </>
         ) : (
           <>
@@ -48,6 +93,7 @@ export function RerunAssessmentButton({ interviewId }: { interviewId: string }) 
           </>
         )}
       </button>
+      {progress && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{progress}</p>}
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   );

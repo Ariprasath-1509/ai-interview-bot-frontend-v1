@@ -1,12 +1,14 @@
 import { isStaffReadRole } from '@/lib/staffRoles';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
+import { loadReassessContext } from './reassessUtils';
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
-export const maxDuration = 120; // Allow up to 2 minutes for reassessment
+export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+/** Start async AI assessment (returns immediately — poll /reassess/status). */
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
     if (!session || !isStaffReadRole(session.role)) {
@@ -14,154 +16,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const { id } = await params;
-
-    // Fetch the interview to get transcript and JD info
-    const interviewRes = await fetch(`${GATEWAY}/interviews/${id}`, {
-      headers: { 'Authorization': `Bearer ${session.token}` }
-    });
-    if (!interviewRes.ok) {
-      return NextResponse.json({ error: 'Interview not found' }, { status: 404 });
-    }
-    const interview = await interviewRes.json() as {
-      id: string; jdId: string; planId: string | null;
-      transcriptJson: string | null; interviewMode?: string;
-    };
-
-    if (!interview.transcriptJson) {
-      return NextResponse.json({ error: 'No transcript available for this interview' }, { status: 400 });
+    const ctx = await loadReassessContext(id, session.token);
+    if ('error' in ctx) {
+      return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
-    let codeSubmissionJson: string | undefined;
-    try {
-      const doc = JSON.parse(interview.transcriptJson) as {
-        meta?: { codeSubmissions?: unknown; codeSubmission?: unknown };
-      };
-      const subs = doc.meta?.codeSubmissions ?? (doc.meta?.codeSubmission ? [doc.meta.codeSubmission] : null);
-      if (subs) codeSubmissionJson = JSON.stringify(subs);
-    } catch { /* ignore */ }
-
-    // Fetch JD
-    let jdTitle = 'Target role';
-    let jdText = '';
-    const jdRes = await fetch(`${GATEWAY}/interviews/jd/${interview.jdId}`, {
-      headers: { 'Authorization': `Bearer ${session.token}` }
-    }).catch(() => null);
-    if (jdRes?.ok) {
-      const jd = await jdRes.json() as { title?: string; text?: string };
-      jdTitle = jd.title ?? jdTitle;
-      jdText = jd.text ?? '';
-    }
-
-    // Fetch plan for rubric and candidate profile
-    let resumeSummary: string | undefined;
-    let rubricJson: string | undefined;
-    let candidateProfileJson: string | undefined;
-    if (interview.planId) {
-      const planRes = await fetch(`${GATEWAY}/interviews/plans/${interview.planId}`, {
-        headers: { 'Authorization': `Bearer ${session.token}` }
-      }).catch(() => null);
-      if (planRes?.ok) {
-        const plan = await planRes.json() as { gapMapJson?: string; rubricJson?: string; candidateProfileJson?: string };
-        rubricJson = plan.rubricJson;
-        candidateProfileJson = plan.candidateProfileJson;
-        try {
-          const gap = JSON.parse(plan.gapMapJson ?? '{}') as { resumeSummary?: string };
-          resumeSummary = gap.resumeSummary?.trim() || undefined;
-        } catch {}
-      }
-    }
-
-    // Call AI assessment
-    const assessRes = await fetch(`${GATEWAY}/ai/assess`, {
+    const asyncRes = await fetch(`${GATEWAY}/ai/assess-async`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${session.token}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${session.token}`,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        interviewId: id,
-        jdTitle,
-        jdText,
-        resumeSummary,
-        transcriptJson: interview.transcriptJson,
-        rubricJson,
-        candidateProfileJson,
-        interviewMode: interview.interviewMode ?? 'L3',
-        ...(codeSubmissionJson ? { codeSubmissionJson } : {}),
-      })
+      body: JSON.stringify(ctx.assessBody),
     });
 
-    if (!assessRes.ok) {
-      const err = await assessRes.text().catch(() => 'Assessment failed');
-      return NextResponse.json({ error: `Assessment failed: ${err}` }, { status: 500 });
+    if (!asyncRes.ok) {
+      const err = await asyncRes.text().catch(() => 'Failed to queue assessment');
+      return NextResponse.json({ error: err }, { status: 500 });
     }
 
-    const assessment = await assessRes.json() as {
-      proposedVerdict: string;
-      categoryScores?: { dimension: string; value: number; rationale?: string; gap?: string; evidence?: string }[];
-      [key: string]: any;
-    };
-
-    // Save updated scores (prefer categoryScores; fallback to legacy technicalKnowledge/communication)
-    const assessmentScores = assessment.categoryScores?.length
-      ? assessment.categoryScores
-      : [
-          {
-            dimension: 'TechnicalKnowledge',
-            value: (assessment as { technicalKnowledge?: { score?: number } }).technicalKnowledge?.score ?? 1,
-            rationale: (assessment as { technicalKnowledge?: { rationale?: string } }).technicalKnowledge?.rationale,
-          },
-          {
-            dimension: 'Communication',
-            value: (assessment as { communication?: { score?: number } }).communication?.score ?? 1,
-            rationale: (assessment as { communication?: { rationale?: string } }).communication?.rationale,
-          },
-        ];
-
-    if (assessmentScores.length) {
-      await fetch(`${GATEWAY}/scores`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          interviewId: id,
-          scores: assessmentScores.map(s => ({
-            dimension: s.dimension,
-            value: s.value,
-            rationale: s.rationale,
-            evidence: s.evidence,
-            gap: s.gap
-          }))
-        })
-      }).catch(() => null);
-    }
-
-    // Update interview with new assessment in transcript meta
-    let transcriptDoc: Record<string, unknown> = {};
-    try { transcriptDoc = JSON.parse(interview.transcriptJson) as Record<string, unknown>; } catch {}
-    const mergedTranscript = JSON.stringify({
-      ...transcriptDoc,
-      meta: { ...(transcriptDoc.meta as object ?? {}), aiAssessment: { ...assessment, scoredAt: new Date().toISOString() } }
+    return NextResponse.json({
+      started: true,
+      status: 'PROCESSING',
+      message: 'Assessment queued. Poll status until complete (typically 5–10 minutes with Ollama).',
     });
-
-    await fetch(`${GATEWAY}/interviews/${id}/complete`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${session.token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        transcriptJson: mergedTranscript,
-        proposedVerdict: assessment.proposedVerdict,
-        status: 'REVIEW_PENDING'
-      })
-    }).catch(() => null);
-
-    return NextResponse.json({ success: true, verdict: assessment.proposedVerdict });
   } catch (error) {
-    console.error('Reassessment error:', error);
+    console.error('Reassessment start error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
