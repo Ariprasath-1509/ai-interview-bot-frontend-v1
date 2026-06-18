@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Shield, Clock, FileText, User, Calendar } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EnhancedDataTable } from '@/components/common/EnhancedDataTable';
+import { entityBranchBadgeClass, entityBranchLabel } from '@/lib/staffRoles';
 
 interface AuditLog {
   id: string;
@@ -15,6 +16,7 @@ interface AuditLog {
   resource: string;
   resourceId: string;
   detail: string;
+  branch?: string | null;
   ipAddress: string;
   createdAt: string;
 }
@@ -131,6 +133,19 @@ export default function ComplianceClient() {
             {row.original.action}
           </span>
         ),
+      },
+      {
+        id: "branch",
+        header: "Branch",
+        accessorFn: (r) => r.branch ?? "",
+        cell: ({ row }) =>
+          row.original.branch ? (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(row.original.branch)}`}>
+              {entityBranchLabel(row.original.branch)}
+            </span>
+          ) : (
+            <span className="text-xs text-zinc-400">—</span>
+          ),
       },
       {
         id: "resource",

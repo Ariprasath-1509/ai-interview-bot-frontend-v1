@@ -76,7 +76,7 @@ export function AppShellClient({
       <div className="pointer-events-none absolute -right-40 top-1/4 -z-10 h-[600px] w-[600px] rounded-full bg-emerald-500/10 blur-[150px] dark:bg-emerald-500/10" />
 
       <header className="sticky top-0 z-10 border-b border-white/20 bg-white/70 backdrop-blur-xl dark:border-zinc-800/50 dark:bg-[#050505]/70 shadow-sm">
-        <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5 sm:px-6">
+        <div className="relative flex w-full items-center justify-between px-4 py-2.5 sm:px-6">
           <Link href="/" className="shrink-0 font-semibold tracking-tight">
             Bench Readiness
           </Link>
@@ -105,7 +105,7 @@ export function AppShellClient({
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="w-full px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-5 sm:mb-6">
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
           {subtitle ? <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p> : null}

@@ -1,25 +1,28 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { UserRole } from "@/server/roles";
+import { STAFF_ADMIN_ROLES, STAFF_READ_ROLES } from "@/lib/staffRoles";
+
+const STAFF_ROUTE_ROLES = STAFF_READ_ROLES as unknown as UserRole[];
 
 const ROUTE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/admin/staff", roles: ["SUPER_ADMIN"] },
-  { prefix: "/admin/setup", roles: ["ADMIN", "SUPER_ADMIN"] },
-  { prefix: "/admin/review", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/admin/interviews", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/admin/candidates", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/admin/calendar", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/admin/settings", roles: ["ADMIN", "SUPER_ADMIN"] },
-  { prefix: "/admin", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/observer", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/compliance", roles: ["SUPER_ADMIN", "ADMIN"] },
-  { prefix: "/dashboard", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/drive", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
-  { prefix: "/engineer", roles: ["ADMIN", "SUPER_ADMIN"] },
-  { prefix: "/practice", roles: ["ADMIN", "SUPER_ADMIN"] },
-  { prefix: "/talent", roles: ["ADMIN", "SUPER_ADMIN", "RECRUITER"] },
+  { prefix: "/admin/setup", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },
+  { prefix: "/admin/review", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/admin/interviews", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/admin/candidates", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/admin/calendar", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/admin/settings", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },
+  { prefix: "/admin", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/observer", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/compliance", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },
+  { prefix: "/dashboard", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/drive", roles: STAFF_ROUTE_ROLES },
+  { prefix: "/engineer", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },
+  { prefix: "/practice", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },
+  { prefix: "/talent", roles: STAFF_ROUTE_ROLES },
   { prefix: "/candidate", roles: ["CANDIDATE"] },
-  { prefix: "/interview", roles: ["CANDIDATE", "ADMIN", "SUPER_ADMIN", "RECRUITER"] },
+  { prefix: "/interview", roles: ["CANDIDATE", ...STAFF_ROUTE_ROLES] },
 ];
 
 const PUBLIC = ["/login", "/register", "/forgot-password", "/_next", "/favicon"];
@@ -57,6 +60,7 @@ function clearSessionAndRedirect(req: NextRequest, pathname: string): NextRespon
   res.cookies.delete("br_username");
   res.cookies.delete("br_issued");
   res.cookies.delete("br_admin_source");
+  res.cookies.delete("br_branch");
   return res;
 }
 

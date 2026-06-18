@@ -67,7 +67,7 @@ export default function TokenSettingsClient() {
   const inputCls = "w-full p-3 border rounded-lg bg-white dark:bg-black dark:border-zinc-800 text-zinc-900 dark:text-zinc-100";
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="w-full space-y-6">
       {/* Daily Analytics */}
       <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
         <h2 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Today's Usage</h2>

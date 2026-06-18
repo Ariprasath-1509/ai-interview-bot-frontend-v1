@@ -1,9 +1,8 @@
+import { isStaffReadRole } from "@/lib/staffRoles";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
 const GATEWAY = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
-
-const ADMIN_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "RECRUITER"]);
 
 export async function POST(
   request: NextRequest,
@@ -15,7 +14,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!ADMIN_ROLES.has(session.role)) {
+    if (!isStaffReadRole(session.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

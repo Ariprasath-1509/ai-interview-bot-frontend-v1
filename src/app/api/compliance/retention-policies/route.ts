@@ -1,3 +1,4 @@
+import { isStaffAdminRole } from '@/lib/staffRoles';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
@@ -6,7 +7,7 @@ const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || !['ADMIN', 'SUPER_ADMIN'].includes(session.role)) {
+    if (!session || !isStaffAdminRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

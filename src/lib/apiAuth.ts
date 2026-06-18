@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import type { UserRole } from "@/server/roles";
 import type { Session } from "@/lib/session";
+import { STAFF_ADMIN_ROLES, STAFF_READ_ROLES } from "@/lib/staffRoles";
 
 type AuthResult =
   | { ok: true; session: Session }
@@ -10,11 +11,6 @@ type AuthResult =
 /**
  * Standardized API route auth guard.
  * Checks session exists and optionally validates role.
- *
- * Usage:
- *   const auth = await requireAuth(["ADMIN", "SUPER_ADMIN"]);
- *   if (!auth.ok) return auth.response;
- *   // auth.session is available
  */
 export async function requireAuth(allowedRoles?: UserRole[]): Promise<AuthResult> {
   const session = await getSession();
@@ -25,4 +21,12 @@ export async function requireAuth(allowedRoles?: UserRole[]): Promise<AuthResult
     return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   return { ok: true, session };
+}
+
+export async function requireStaffRead(): Promise<AuthResult> {
+  return requireAuth([...STAFF_READ_ROLES]);
+}
+
+export async function requireStaffAdmin(): Promise<AuthResult> {
+  return requireAuth([...STAFF_ADMIN_ROLES]);
 }

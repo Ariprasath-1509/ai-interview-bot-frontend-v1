@@ -106,7 +106,7 @@ export default function TestFlowPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <div className="w-full p-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Resume Upload & Auto-fill Test Flow</h1>
         <p className="text-zinc-600">Test the complete user journey from resume upload to interview creation</p>

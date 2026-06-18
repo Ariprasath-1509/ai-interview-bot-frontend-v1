@@ -3,14 +3,17 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
+import { entityBranchBadgeClass, entityBranchLabel, staffBranchBadgeClass, staffBranchLabel, resolveStaffBranchFromRole } from "@/lib/staffRoles";
 import { DeleteButton } from "./DeleteButton";
+import { EditStaffDialog } from "./EditStaffDialog";
 
 export type StaffRow = {
   id: string;
   name: string;
   email: string;
   role: string;
-  adminSource?: string | null;
+  branch?: string;
+  adminSource?: string;
 };
 
 export function StaffDirectoryTable({ staff }: { staff: StaffRow[] }) {
@@ -23,7 +26,17 @@ export function StaffDirectoryTable({ staff }: { staff: StaffRow[] }) {
         header: "Role",
         cell: ({ row }) => (
           <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-            {row.original.role}
+            {row.original.role.replace(/_/g, " ")}
+          </span>
+        ),
+      },
+      {
+        id: "branch",
+        header: "Branch",
+        accessorFn: (r) => resolveStaffBranchFromRole(r.role),
+        cell: ({ row }) => (
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${staffBranchBadgeClass(row.original.branch, row.original.role)}`}>
+            {staffBranchLabel(row.original.branch, row.original.role)}
           </span>
         ),
       },
@@ -53,7 +66,12 @@ export function StaffDirectoryTable({ staff }: { staff: StaffRow[] }) {
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        cell: ({ row }) => <DeleteButton id={row.original.id} />,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-2">
+            <EditStaffDialog staff={row.original} />
+            <DeleteButton id={row.original.id} />
+          </div>
+        ),
       },
     ],
     []

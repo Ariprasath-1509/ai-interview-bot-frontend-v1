@@ -6,6 +6,7 @@ import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageHero, StatCard } from '@/components/common/AppUi';
 import { Badge } from '@/components/ui/badge';
+import { entityBranchLabel, defaultStaffBranch, entityBranchBadgeClass, isStaffReadRole, resolveFormBranch } from '@/lib/staffRoles';
 
 interface Client {
   id: string;
@@ -16,6 +17,7 @@ interface Client {
   marketCandidatesNeeded: number;
   benchB2bCandidatesNeeded: number;
   status: string;
+  branch?: string;
   benchReviewed: boolean;
   recruitmentReviewed: boolean;
   createdAt: string;
@@ -44,6 +46,7 @@ interface ClientFormData {
   marketCandidatesNeeded: number;
   benchB2bCandidatesNeeded: number;
   status: string;
+  branch: string;
   skillRequirements: SkillRequirement[];
 }
 
@@ -68,10 +71,11 @@ interface CandidateMatch {
 const emptyForm: ClientFormData = {
   clientName: '', jdRole: '', jdDescription: '',
   positionsVacant: 0, marketCandidatesNeeded: 0, benchB2bCandidatesNeeded: 0, status: 'ACTIVE',
+  branch: 'DEVELOPMENT',
   skillRequirements: [],
 };
 
-export default function ClientsClient({ userRole }: { userRole: string }) {
+export default function ClientsClient({ userRole, userBranch }: { userRole: string; userBranch?: string }) {
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +96,8 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [masterListCollapsed, setMasterListCollapsed] = useState(false);
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const showEntityBranch = isStaffReadRole(userRole);
+  const staffDefaultBranch = defaultStaffBranch(userRole, userBranch);
 
   const SKILL_OPTIONS = [
     { value: 'JAVA_SB', label: 'Java + Spring Boot' },
@@ -106,10 +112,10 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
   const resetForm = useCallback(() => {
     setShowForm(false);
     setEditingClient(null);
-    setFormData(emptyForm);
+    setFormData({ ...emptyForm, branch: staffDefaultBranch });
     setJdFile(null);
     setUseSkillBasedRequirements(false);
-  }, []);
+  }, [staffDefaultBranch]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -208,6 +214,10 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      ...formData,
+      branch: resolveFormBranch(userRole, userBranch, formData.branch),
+    };
     const wasEditing = !!editingClient;
     const url = editingClient ? `/api/recruiter/clients/${editingClient.id}` : '/api/recruiter/clients';
     const method = editingClient ? 'PUT' : 'POST';
@@ -215,7 +225,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
       let res;
       if (jdFile) {
         const fd = new FormData();
-        fd.append('client', JSON.stringify(formData));
+        fd.append('client', JSON.stringify(payload));
         fd.append('jdFile', jdFile);
         res = await fetch(url, { method, body: fd, credentials: 'include' });
       } else {
@@ -223,7 +233,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
           method,
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
       }
       if (res.ok) {
@@ -288,6 +298,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
       clientName: client.clientName, jdRole: client.jdRole, jdDescription: client.jdDescription,
       positionsVacant: client.positionsVacant, marketCandidatesNeeded: client.marketCandidatesNeeded,
       benchB2bCandidatesNeeded: client.benchB2bCandidatesNeeded, status: client.status,
+      branch: client.branch ?? 'DEVELOPMENT',
       skillRequirements: client.skillRequirements || [],
     });
     setUseSkillBasedRequirements((client.skillRequirements || []).length > 0);
@@ -558,6 +569,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                       onSelect={toggleSelect}
                       onEdit={openEditForm}
                       onRefresh={fetchClients}
+                      showBranchBadge={showEntityBranch}
                     />
                   ))}
                 </TreeGroup>
@@ -573,6 +585,7 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                       onSelect={toggleSelect}
                       onEdit={openEditForm}
                       onRefresh={fetchClients}
+                      showBranchBadge={showEntityBranch}
                     />
                   ))}
                 </TreeGroup>
@@ -857,6 +870,29 @@ export default function ClientsClient({ userRole }: { userRole: string }) {
                   <option value="INACTIVE">Inactive</option>
                 </select>
               </label>
+              {isSuperAdmin ? (
+                <label className="field">
+                  Branch
+                  <select
+                    value={formData.branch}
+                    onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="DEVELOPMENT">Development</option>
+                    <option value="TESTING">Testing</option>
+                  </select>
+                </label>
+              ) : (
+                <label className="field">
+                  Branch
+                  <input
+                    readOnly
+                    disabled
+                    value={entityBranchLabel(editingClient ? formData.branch : staffDefaultBranch)}
+                    className="input-base opacity-70"
+                  />
+                </label>
+              )}
 
               {/* Skill-based Requirements Toggle */}
               <div className="field">
@@ -1066,13 +1102,14 @@ function TreeGroup({ label, defaultOpen, children }: { label: string; defaultOpe
 }
 
 /* Hierarchical Client Tree Node */
-function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelect, onEdit, onRefresh }: {
+function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelect, onEdit, onRefresh, showBranchBadge = false }: {
   clients: Client[];
   selectedClientId: string | null;
   selectedPositionId: string | null;
   onSelect: (clientId: string, positionId?: string) => void;
   onEdit: (client: Client) => void;
   onRefresh?: () => void;
+  showBranchBadge?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const client = clients[0];
@@ -1179,6 +1216,11 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
               isAnySelected ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-900 dark:text-zinc-100'
             }`}>
               {client.clientName}
+              {showBranchBadge && (
+                <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(client.branch)}`}>
+                  {entityBranchLabel(client.branch)}
+                </span>
+              )}
               {needsSkillSetup && (
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
                   Setup Needed

@@ -7,7 +7,7 @@ export default async function ClientsPage() {
   const role = session?.role ?? "CANDIDATE";
   return (
     <AppShell title="Client Management" subtitle="Manage client companies and their job positions.">
-      <ClientsClient userRole={role} />
+      <ClientsClient userRole={role} userBranch={session?.branch} />
     </AppShell>
   );
 }

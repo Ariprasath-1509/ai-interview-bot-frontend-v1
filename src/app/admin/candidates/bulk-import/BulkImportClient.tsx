@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { entityBranchLabel, defaultStaffBranch } from '@/lib/staffRoles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +46,10 @@ interface ImportResult {
   sessionId: string;
 }
 
-export default function BulkImportClient() {
+export default function BulkImportClient({ userRole, userBranch }: { userRole: string; userBranch?: string }) {
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const staffDefaultBranch = defaultStaffBranch(userRole, userBranch);
+  const [importBranch, setImportBranch] = useState<'DEVELOPMENT' | 'TESTING'>(staffDefaultBranch);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -109,6 +113,8 @@ export default function BulkImportClient() {
       const response = await fetch(`/api/auth/candidates/bulk-confirm/${validationResult.sessionId}`, {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isSuperAdmin ? { branch: importBranch } : { branch: staffDefaultBranch }),
       });
 
       const result = await response.json();
@@ -168,7 +174,7 @@ export default function BulkImportClient() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <div className="w-full p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Bulk Import Candidates</h1>
         <p className="text-zinc-600">Upload Excel file to import B2B and Bench candidates with automatic credential generation</p>
@@ -198,6 +204,21 @@ export default function BulkImportClient() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Branch for imported candidates
+                {isSuperAdmin ? (
+                  <select
+                    className="input-base max-w-xs"
+                    value={importBranch}
+                    onChange={(e) => setImportBranch(e.target.value as 'DEVELOPMENT' | 'TESTING')}
+                  >
+                    <option value="DEVELOPMENT">Development</option>
+                    <option value="TESTING">Testing</option>
+                  </select>
+                ) : (
+                  <input readOnly disabled value={entityBranchLabel(staffDefaultBranch)} className="input-base max-w-xs opacity-70" />
+                )}
+              </label>
               <Input
                 id="file-input"
                 type="file"
@@ -356,7 +377,9 @@ export default function BulkImportClient() {
               disabled={!validationResult.canProceed || processing}
               className="flex-1"
             >
-              {processing ? 'Creating Accounts...' : `Confirm Import (${validationResult.validRows} candidates)`}
+              {processing ? 'Creating Accounts...' : validationResult.canProceed
+                ? `Confirm Import (${validationResult.validRows} candidates)`
+                : 'Fix validation errors to import'}
             </Button>
             <Button variant="outline" onClick={resetForm}>
               Cancel

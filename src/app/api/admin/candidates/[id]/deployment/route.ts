@@ -1,3 +1,4 @@
+import { isStaffAdminRole } from '@/lib/staffRoles';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
@@ -9,7 +10,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getSession();
-    if (!session || !['ADMIN', 'SUPER_ADMIN'].includes(session.role)) {
+    if (!session || !isStaffAdminRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -45,7 +46,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getSession();
-    if (!session || !['ADMIN', 'SUPER_ADMIN'].includes(session.role)) {
+    if (!session || !isStaffAdminRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -1,3 +1,4 @@
+import { isStaffAdminRole } from '@/lib/staffRoles';
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
@@ -8,7 +9,7 @@ const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN")) {
+  if (!session || (!isStaffAdminRole(session.role))) {
     return new NextResponse("Unauthorized", { status: 403 });
   }
 

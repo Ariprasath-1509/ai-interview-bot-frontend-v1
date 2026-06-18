@@ -33,8 +33,17 @@ export async function POST(req: Request) {
     if (data.adminSource) {
       jar.set("br_admin_source", data.adminSource, { ...opts, httpOnly: false });
     }
+    if (data.branch) {
+      jar.set("br_branch", data.branch, { ...opts, httpOnly: false });
+    }
 
-    return NextResponse.json({ ok: true, role: data.role, name: data.name, adminSource: data.adminSource });
+    return NextResponse.json({
+      ok: true,
+      role: data.role,
+      name: data.name,
+      adminSource: data.adminSource,
+      branch: data.branch,
+    });
   } catch {
     return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
   }

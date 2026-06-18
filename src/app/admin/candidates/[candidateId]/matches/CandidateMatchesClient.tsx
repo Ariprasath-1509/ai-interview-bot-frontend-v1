@@ -178,7 +178,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
 
   if (!matchingResult) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="w-full p-6">
         <div className="text-center py-12">
           <AlertCircle className="h-16 w-16 mx-auto mb-4 text-zinc-300" />
           <h3 className="text-lg font-semibold text-zinc-900 mb-2">No Matching Data Available</h3>
@@ -194,7 +194,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto p-6 space-y-8">
+      <div className="w-full p-6 space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">

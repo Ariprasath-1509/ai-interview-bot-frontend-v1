@@ -1,7 +1,14 @@
 import { cookies } from "next/headers";
 import type { UserRole } from "@/server/roles";
 
-export type Session = { token: string; role: UserRole; username: string; adminSource?: string; userId?: string };
+export type Session = {
+  token: string;
+  role: UserRole;
+  username: string;
+  adminSource?: string;
+  branch?: string;
+  userId?: string;
+};
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -14,7 +21,6 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 function extractUserId(token: string): string | undefined {
   const p = decodeJwtPayload(token);
   if (!p) return undefined;
-  // common JWT claims for user ID
   return (
     (typeof p["userId"] === "string" && p["userId"]) ||
     (typeof p["id"] === "string" && p["id"]) ||
@@ -26,7 +32,6 @@ function extractUserId(token: string): string | undefined {
 function extractUsername(token: string, fallback: string): string {
   const p = decodeJwtPayload(token);
   if (!p) return fallback;
-  // common JWT claims for name/username
   return (
     (typeof p["name"] === "string" && p["name"]) ||
     (typeof p["username"] === "string" && p["username"]) ||
@@ -36,6 +41,12 @@ function extractUsername(token: string, fallback: string): string {
   );
 }
 
+function extractBranch(token: string): string | undefined {
+  const p = decodeJwtPayload(token);
+  const branch = p?.["branch"];
+  return typeof branch === "string" && branch ? branch : undefined;
+}
+
 export async function getSession(): Promise<Session | null> {
   const jar = await cookies();
   const token = jar.get("br_jwt")?.value;
@@ -43,9 +54,10 @@ export async function getSession(): Promise<Session | null> {
   if (!token || !role) return null;
   const cookieUsername = jar.get("br_username")?.value;
   const adminSource = jar.get("br_admin_source")?.value;
+  const branch = jar.get("br_branch")?.value ?? extractBranch(token);
   const username = extractUsername(token, cookieUsername ?? "User");
   const userId = extractUserId(token);
-  return { token, role, username, adminSource, userId };
+  return { token, role, username, adminSource, branch, userId };
 }
 
 export async function getToken(): Promise<string | undefined> {

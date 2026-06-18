@@ -148,7 +148,7 @@ export default function DashboardClient() {
   ] as const;
 
   return (
-    <div className="space-y-6 max-w-6xl animate-in">
+    <div className="space-y-6 w-full animate-in">
       <PageHero
         icon={LayoutDashboard}
         title="Admin Dashboard"

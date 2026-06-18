@@ -10,7 +10,9 @@ const ROLE_ROUTES: Record<string, string> = {
   CANDIDATE: "/candidate/dashboard",
   SUPER_ADMIN: "/admin",
   ADMIN: "/admin",
+  TESTING_ADMIN: "/admin",
   RECRUITER: "/admin",
+  TESTING_RECRUITER: "/admin",
 };
 
 function redirectForRole(role: string, fallback: string) {

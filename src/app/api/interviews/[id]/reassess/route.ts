@@ -1,3 +1,4 @@
+import { isStaffReadRole } from '@/lib/staffRoles';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
@@ -8,7 +9,7 @@ export const maxDuration = 120; // Allow up to 2 minutes for reassessment
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
-    if (!session || !['ADMIN', 'SUPER_ADMIN', 'RECRUITER'].includes(session.role)) {
+    if (!session || !isStaffReadRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

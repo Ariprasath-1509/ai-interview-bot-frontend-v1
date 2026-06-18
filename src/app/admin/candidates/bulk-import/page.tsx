@@ -1,3 +1,4 @@
+import { isStaffAdminRole } from '@/lib/staffRoles';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import { AppShell } from '@/app/components/AppShell';
@@ -10,13 +11,13 @@ export default async function BulkImportPage() {
     redirect('/login');
   }
 
-  if (!['ADMIN', 'SUPER_ADMIN'].includes(session.role)) {
+  if (!isStaffAdminRole(session.role)) {
     redirect('/dashboard');
   }
 
   return (
     <AppShell title="Bulk Import" subtitle="Import candidates from Excel">
-      <BulkImportClient />
+      <BulkImportClient userRole={session.role} userBranch={session.branch} />
     </AppShell>
   );
 }

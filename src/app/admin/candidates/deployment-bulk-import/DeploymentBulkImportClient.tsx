@@ -111,7 +111,7 @@ export default function DeploymentBulkImportClient() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <div className="w-full p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Bulk Import Deployment Data</h1>
         <p className="text-zinc-600">Upload Excel file to update deployment information for multiple candidates</p>

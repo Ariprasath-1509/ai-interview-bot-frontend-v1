@@ -13,12 +13,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ ok: false, error: 'Authentication required' }, { status: 401 });
     }
 
+    const body = await request.json().catch(() => ({}));
+
     const response = await fetch(`${GATEWAY}/auth/candidates/bulk-confirm/${sessionId}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify(body),
     });
 
     const text = await response.text();
@@ -30,10 +33,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (!response.ok) {
-      return NextResponse.json({ ok: false, error: (result.message as string) || 'Confirmation failed' }, { status: response.status });
+      return NextResponse.json({
+        ok: false,
+        error: (result.error as string) || (result.message as string) || 'Confirmation failed',
+        successCount: result.successCount ?? 0,
+        errorCount: result.errorCount ?? 0,
+        errors: result.errors ?? [],
+      }, { status: response.status });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     console.error('Bulk confirm error:', error);
     return NextResponse.json({ ok: false, error: 'Internal server error' }, { status: 500 });

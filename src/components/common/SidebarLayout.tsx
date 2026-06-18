@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo, type ComponentType } from "react";
 import { Menu, X, ChevronLeft, ChevronDown } from "lucide-react";
 import { LogoutButton } from "@/app/components/LogoutButton";
 import { NotificationCenter } from "@/components/common/NotificationCenter";
+import { entityBranchBadgeClass, entityBranchLabel } from "@/lib/staffRoles";
 import type { SidebarItem } from "@/config/roleConfig";
 import * as LucideIcons from "lucide-react";
 
@@ -78,6 +79,7 @@ export function SidebarLayout({
   items,
   username,
   role,
+  branch,
 }: {
   title: string;
   subtitle?: string;
@@ -85,6 +87,7 @@ export function SidebarLayout({
   items: SidebarItem[];
   username?: string;
   role?: string;
+  branch?: string;
 }) {
   const [pathname, setPathname] = useState("/");
   const [collapsed, setCollapsed] = useState(false);
@@ -246,6 +249,11 @@ export function SidebarLayout({
             <span className="font-medium text-zinc-700 dark:text-zinc-300">{username}</span>
             <br />
             <span>{role}</span>
+            {branch && (
+              <span className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
+                {entityBranchLabel(branch)}
+              </span>
+            )}
           </div>
         )}
         <LogoutButton />
@@ -299,8 +307,13 @@ export function SidebarLayout({
           <div className="flex items-center gap-3">
             <NotificationCenter />
             {username && (
-              <span className="hidden text-xs font-semibold text-zinc-500 lg:inline">
+              <span className="hidden items-center gap-2 text-xs font-semibold text-zinc-500 lg:inline">
                 {username} · <span className="text-zinc-400">{role}</span>
+                {branch && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
+                    {entityBranchLabel(branch)}
+                  </span>
+                )}
               </span>
             )}
           </div>

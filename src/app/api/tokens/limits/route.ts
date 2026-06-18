@@ -1,3 +1,4 @@
+import { isStaffAdminRole } from '@/lib/staffRoles';
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN")) {
+  if (!session || (!isStaffAdminRole(session.role))) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const data = (await upstream.json()) as { ok: boolean; token: string; role: string; name?: string };
+  const data = (await upstream.json()) as { ok: boolean; token: string; role: string; name?: string; branch?: string };
   const username = data.name ?? (body as { username?: string }).username ?? "User";
   const res = NextResponse.json({ ok: true, role: data.role });
   res.cookies.set("br_jwt", data.token, {
@@ -49,5 +49,13 @@ export async function POST(req: Request) {
     sameSite: "lax",
     path: "/",
   });
+  if (data.branch) {
+    res.cookies.set("br_branch", data.branch, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+  }
   return res;
 }

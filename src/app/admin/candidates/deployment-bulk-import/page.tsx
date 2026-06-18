@@ -1,3 +1,4 @@
+import { isStaffAdminRole } from '@/lib/staffRoles';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import { AppShell } from '@/app/components/AppShell';
@@ -10,7 +11,7 @@ export default async function DeploymentBulkImportPage() {
     redirect('/login');
   }
 
-  if (!['ADMIN', 'SUPER_ADMIN'].includes(session.role)) {
+  if (!isStaffAdminRole(session.role)) {
     redirect('/dashboard');
   }
 

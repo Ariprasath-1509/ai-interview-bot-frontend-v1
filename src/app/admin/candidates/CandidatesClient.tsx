@@ -17,6 +17,7 @@ import {
   DeployedCandidatesTable,
   type CandidateEditForm,
 } from '@/app/admin/candidates/CandidatesDirectoryTable';
+import { isStaffReadRole } from '@/lib/staffRoles';
 
 export interface Candidate {
   id: string;
@@ -45,6 +46,7 @@ export interface Candidate {
   batchMentor?: string | null;
   interviewMentorName?: string | null;
   clientName?: string | null;
+  branch?: string | null;
 }
 
 interface Props { role: string; }
@@ -91,7 +93,7 @@ export default function CandidatesClient({ role }: Props) {
     name: '', email: '', officialEmail: '', personalEmail: '', contactNumber: '',
     batch: '', batchMentor: '', source: '', candidateStatus: '', rating: '',
     skillSet: '', yoeActual: '', yoePortrayed: '', yop: '', noOfInterviews: '',
-    interviewMentorName: '', clientName: '',
+    interviewMentorName: '', clientName: '', branch: 'DEVELOPMENT',
   });
   const [saving, setSaving] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -220,6 +222,11 @@ export default function CandidatesClient({ role }: Props) {
   };
 
   const allStatusGroups = ['ALL', ...Array.from(new Set(allCandidates.map(c => c.candidateStatus || 'UNKNOWN')))];
+  const allStatusCounts = allCandidates.reduce<Record<string, number>>((acc, c) => {
+    const key = c.candidateStatus || 'UNKNOWN';
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, { ALL: allCandidates.length });
   const matchedSubGroups = ['ALL', 'ELIGIBLE', 'HIGH_ATTEMPTS', 'REVIEW_NEEDED', 'EARLY_STAGE'];
   const deployedClientGroups = ['ALL', ...Array.from(new Set(deployedCandidates.map(c => c.deployedClientName || 'UNASSIGNED')))];
 
@@ -266,6 +273,7 @@ export default function CandidatesClient({ role }: Props) {
       noOfInterviews: c.noOfInterviews?.toString() ?? '0',
       interviewMentorName: c.interviewMentorName ?? '',
       clientName: c.clientName ?? '',
+      branch: c.branch ?? 'DEVELOPMENT',
     });
   }
 
@@ -291,6 +299,7 @@ export default function CandidatesClient({ role }: Props) {
       if (role === 'SUPER_ADMIN') {
         if (editForm.source) payload.source = editForm.source;
         if (editForm.email) payload.email = editForm.email;
+        if (editForm.branch) payload.branch = editForm.branch;
       }
 
       const res = await fetch(`/api/candidates/${id}`, {
@@ -547,6 +556,8 @@ export default function CandidatesClient({ role }: Props) {
                     }`}
                   >
                     {group === 'ALL' ? 'All' : group}
+                    {' '}
+                    <span className="text-zinc-400">({allStatusCounts[group] ?? 0})</span>
                   </button>
                 ))}
               </div>
@@ -724,6 +735,7 @@ export default function CandidatesClient({ role }: Props) {
                     },
                   }}
                   selectSmCls={selectSmCls}
+                  showBranchColumn={isStaffReadRole(role)}
                 />
               </div>
             ) : (

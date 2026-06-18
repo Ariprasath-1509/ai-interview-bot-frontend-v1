@@ -135,7 +135,7 @@ export default function InterviewSetupClient() {
   const lockedCls = `${inputCls} opacity-60 cursor-not-allowed`;
 
   return (
-    <div className="max-w-4xl p-6 bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+    <div className="w-full p-6 bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Position Search for Auto-fill */}
         <PositionSearch onSelect={onPositionSelect} onClear={onPositionClear} />

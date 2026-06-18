@@ -2,6 +2,8 @@ import { getSession } from "@/lib/session";
 import { SidebarLayout } from "@/components/common/SidebarLayout";
 import { getSidebarItems } from "@/config/roleConfig";
 import type { UserRole } from "@/server/roles";
+import { formatRoleLabel } from "@/server/roles";
+import { StaffSessionProvider } from "@/lib/StaffSessionContext";
 
 export async function AppShell({
   title,
@@ -16,19 +18,30 @@ export async function AppShell({
   const role = (session?.role ?? "CANDIDATE") as UserRole;
   const items = getSidebarItems(role);
 
-  const displayRole = role === "ADMIN" && session?.adminSource
-    ? `${role} (${session.adminSource})`
-    : role;
+  let displayRole = formatRoleLabel(role);
+  if ((role === "ADMIN" || role === "TESTING_ADMIN") && session?.adminSource) {
+    displayRole = `${displayRole} (${session.adminSource})`;
+  }
 
   return (
-    <SidebarLayout
-      title={title}
-      subtitle={subtitle}
-      items={items}
-      username={session?.username}
-      role={displayRole}
+    <StaffSessionProvider
+      session={{
+        role,
+        branch: session?.branch,
+        username: session?.username,
+        adminSource: session?.adminSource,
+      }}
     >
-      {children}
-    </SidebarLayout>
+      <SidebarLayout
+        title={title}
+        subtitle={subtitle}
+        items={items}
+        username={session?.username}
+        role={displayRole}
+        branch={session?.branch && role !== "SUPER_ADMIN" ? session.branch : undefined}
+      >
+        {children}
+      </SidebarLayout>
+    </StaffSessionProvider>
   );
 }

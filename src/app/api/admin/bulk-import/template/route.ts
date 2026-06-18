@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
       'Rating',                      // Column F - Optional (ASSET/MEDIUM/LIABILITY)
       'Name *',                      // Column G - Required
       'Contact Number',              // Column H - Optional
-      'Official Mail ID *',          // Column I - Required (at least one email required)
-      'Personal Mail ID *',          // Column J - Required (at least one email required)
+      'Official Mail ID',            // Column I - At least one email required (official or personal)
+      'Personal Mail ID',            // Column J - At least one email required (official or personal)
       'YOE - A',                     // Column K - Optional (Actual experience)
       'YOE - P',                     // Column L - Optional (Portrayed experience)
       'Skill Set *',                 // Column M - Required (JAVA_SB/JFSR/REACT_JS)

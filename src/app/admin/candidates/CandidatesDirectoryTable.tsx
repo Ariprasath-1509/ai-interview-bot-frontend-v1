@@ -8,6 +8,7 @@ import { FileText, Upload, Download, Sparkles, Eye, FileDown } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
+import { entityBranchBadgeClass, entityBranchLabel } from "@/lib/staffRoles";
 import type { Candidate } from "./CandidatesClient";
 
 const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + SB", JFSR: "JFSR", REACT_JS: "React JS", ANGULAR: "Angular", PYTHON: "Python", QA_ENGINEER: "QA Engineer", PLAYWRIGHT_AUTOMATION: "Playwright" };
@@ -91,6 +92,7 @@ export type CandidateEditForm = {
   noOfInterviews: string;
   interviewMentorName: string;
   clientName: string;
+  branch: string;
 };
 
 type RowHandlers = {
@@ -297,6 +299,19 @@ function CandidateEditRow({
       </div>
       {role === "SUPER_ADMIN" && (
         <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">Branch</span>
+          <select
+            className={selectSmCls}
+            value={editForm.branch}
+            onChange={(e) => setEditForm((p) => ({ ...p, branch: e.target.value }))}
+          >
+            <option value="DEVELOPMENT">Development</option>
+            <option value="TESTING">Testing</option>
+          </select>
+        </div>
+      )}
+      {role === "SUPER_ADMIN" && (
+        <div className="flex flex-col gap-1">
           <span className="text-[10px] text-zinc-400">Login Email</span>
           <input
             className={selectSmCls}
@@ -338,6 +353,7 @@ export function CandidatesMainTable({
   onCancelEdit,
   handlers,
   selectSmCls,
+  showBranchColumn = false,
 }: {
   data: Candidate[];
   role: string;
@@ -349,6 +365,7 @@ export function CandidatesMainTable({
   onCancelEdit: () => void;
   handlers: RowHandlers;
   selectSmCls: string;
+  showBranchColumn?: boolean;
 }) {
   const handlersRef = useRef(handlers);
   useEffect(() => {
@@ -367,6 +384,20 @@ export function CandidatesMainTable({
           </div>
         ),
       },
+      ...(showBranchColumn
+        ? [
+            {
+              id: "branch",
+              header: "Branch",
+              accessorFn: (r: Candidate) => r.branch ?? "DEVELOPMENT",
+              cell: ({ row }: { row: { original: Candidate } }) => (
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(row.original.branch)}`}>
+                  {entityBranchLabel(row.original.branch)}
+                </span>
+              ),
+            } satisfies ColumnDef<Candidate, unknown>,
+          ]
+        : []),
       {
         accessorKey: "contactNumber",
         header: "Contact",
@@ -613,7 +644,7 @@ export function CandidatesMainTable({
         },
       },
     ],
-    []
+    [showBranchColumn]
   );
 
   return (

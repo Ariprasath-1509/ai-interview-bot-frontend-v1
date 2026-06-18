@@ -1,3 +1,4 @@
+import { isStaffReadRole, isStaffAdminRole } from '@/lib/staffRoles';
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -30,7 +31,10 @@ export default async function ObserverInterviewPage({
   if (!id) redirect("/admin/review");
 
   const session = await getSession();
-  if (!session) redirect("/");
+  if (!session || !isStaffReadRole(session.role)) redirect("/login");
+
+  const interviewRes = await apiServer(`/interviews/${id}`, session.token).catch(() => null);
+  if (!interviewRes?.ok) redirect("/admin/review");
 
   const eventsRes = await apiServer(`/observer/events/${id}`, session.token).catch(() => null);
   const events: ObserverEvent[] = eventsRes?.ok ? await eventsRes.json() : [];
@@ -121,7 +125,7 @@ export default async function ObserverInterviewPage({
 async function inject(formData: FormData) {
   "use server";
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN" && session.role !== "RECRUITER")) redirect("/unauthorized");
+  if (!session || (!isStaffReadRole(session.role))) redirect("/unauthorized");
 
   const parsed = InjectSchema.parse({
     interviewId: formData.get("interviewId"),
@@ -140,7 +144,7 @@ async function inject(formData: FormData) {
 async function flag(formData: FormData) {
   "use server";
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN")) redirect("/unauthorized");
+  if (!session || (!isStaffAdminRole(session.role))) redirect("/unauthorized");
 
   const parsed = FlagSchema.parse({
     interviewId: formData.get("interviewId"),

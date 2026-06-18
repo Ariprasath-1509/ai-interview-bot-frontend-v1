@@ -1,3 +1,4 @@
+import { isStaffReadRole, isStaffAdminRole } from '@/lib/staffRoles';
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -204,7 +205,7 @@ export default async function InterviewReviewPage({
   return (
     <AppShell title="Review interview" subtitle={summary?.candidateName ?? "Unknown candidate"}>
     <ReviewPageScrollReset />
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+    <div className="w-full">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -232,7 +233,7 @@ export default async function InterviewReviewPage({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {(session?.role === "ADMIN" || session?.role === "SUPER_ADMIN" || session?.role === "RECRUITER") && (
+          {(isStaffReadRole(session?.role)) && (
             <RerunAssessmentButton interviewId={interview.id} />
           )}
           <Link
@@ -662,7 +663,7 @@ export default async function InterviewReviewPage({
           </div>
         )}
 
-        {session?.role === "ADMIN" || session?.role === "SUPER_ADMIN" ? (
+        {isStaffAdminRole(session?.role) ? (
           <>
             <p className="mt-3 text-sm text-zinc-600">
               {existingSignOff.signedOff ? "Update sign-off:" : "Admin can override and must leave a note."}
@@ -719,7 +720,7 @@ async function signOff(formData: FormData) {
   "use server";
 
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN")) redirect("/unauthorized");
+  if (!session || (!isStaffAdminRole(session.role))) redirect("/unauthorized");
 
   const parsed = SignOffSchema.parse({
     interviewId: formData.get("interviewId"),

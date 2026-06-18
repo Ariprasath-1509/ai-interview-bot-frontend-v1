@@ -1,3 +1,4 @@
+import { isStaffReadRole } from '@/lib/staffRoles';
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -45,9 +46,8 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
 
   const session = await getSession();
   const isCandidate = session?.role === "CANDIDATE";
-  const isOwner = session?.role === "RECRUITER";
-  const isManager = session?.role === "ADMIN" || session?.role === "SUPER_ADMIN" || session?.role === "RECRUITER";
-  if (!isCandidate && !isOwner && !isManager) redirect("/login");
+  const isStaff = isStaffReadRole(session?.role);
+  if (!isCandidate && !isStaff) redirect("/login");
 
   const interviewRes = await apiServer(`/interviews/${id}`, session?.token);
   if (!interviewRes.ok) {

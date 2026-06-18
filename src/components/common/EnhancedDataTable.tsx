@@ -143,6 +143,7 @@ export function EnhancedDataTable<TData extends object>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     ...(pageSize ? { getPaginationRowModel: getPaginationRowModel() } : {}),
+    autoResetPageIndex: false,
     getRowId,
     defaultColumn: {
       enableSorting: true,
