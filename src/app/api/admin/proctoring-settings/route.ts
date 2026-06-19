@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSessionOrRefresh } from "@/lib/session";
 
 const GATEWAY = process.env.API_URL ?? "http://localhost:6002";
 
 async function proxyProctoringSettings(init?: RequestInit) {
-  const session = await getSession();
+  const session = await getSessionOrRefresh();
   if (!session) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }

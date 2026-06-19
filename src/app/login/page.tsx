@@ -16,6 +16,7 @@ const ROLE_ROUTES: Record<string, string> = {
 };
 
 function redirectForRole(role: string, fallback: string) {
+  if (fallback && !fallback.startsWith("/login")) return fallback;
   return ROLE_ROUTES[role] ?? (fallback || "/dashboard");
 }
 

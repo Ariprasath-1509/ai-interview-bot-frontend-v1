@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { ToastProvider } from "@/components/common/Toast";
 import { ConfirmProvider } from "@/components/common/ConfirmDialog";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { AuthSessionGuard } from "@/components/AuthSessionGuard";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -23,6 +24,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       >
         <ToastProvider>
           <ConfirmProvider>
+            <AuthSessionGuard />
             {children}
           </ConfirmProvider>
         </ToastProvider>

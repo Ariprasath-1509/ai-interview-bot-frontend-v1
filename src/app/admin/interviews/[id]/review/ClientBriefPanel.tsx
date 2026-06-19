@@ -2,25 +2,71 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, Save, Send, Shield } from 'lucide-react';
+import { Download, Loader2, RefreshCw, Save, Send, Shield } from 'lucide-react';
+import { authFetch } from '@/lib/clientFetch';
+
+export type SkillSummary = {
+  rank: number;
+  categoryKey: string;
+  skill: string;
+  subSkill: string;
+  score10: number;
+  note: string;
+};
+
+export type SkillMapping = {
+  skill: string;
+  subSkill: string;
+  categoryKey: string;
+};
+
+export type QuestionAsked = {
+  number: number;
+  difficulty: string;
+  text: string;
+  type: string;
+  skillMappings: SkillMapping[];
+};
+
+export type SkillAssessment = {
+  rank: number;
+  categoryKey: string;
+  skill: string;
+  subSkill: string;
+  score10: number;
+  proficiencyOptions: string[];
+  selectedProficiencyIndex: number;
+  strengths: string[];
+  areasOfImprovement: string[];
+};
+
+export type BriefHeader = {
+  candidateName?: string;
+  candidateEmail?: string;
+  positionTitle?: string;
+  clientName?: string;
+  roundName?: string;
+  seniorityBand?: string;
+  interviewDate?: string;
+  totalMinutes?: number;
+  playbackUrl?: string;
+  resumeUrl?: string;
+  reviewer?: {
+    name?: string;
+    yearsExperience?: string;
+    company?: string;
+    verifiedSkills?: string[];
+  };
+};
 
 export type ClientBriefData = {
-  executiveSummary: string;
-  keyStrengths: string[];
-  areasToNote: string[];
-  technicalFit: {
-    overall: string;
-    highlights: string[];
-    gaps: string[];
-  };
-  interviewPerformance: {
-    communication: string;
-    problemSolving: string;
-    overallRating: string;
-  };
-  recommendation: string;
-  recommendedFor: string;
-  suggestedNextStep: string;
+  header?: BriefHeader;
+  mustHaveSkills: SkillSummary[];
+  goodToHaveSkills: SkillSummary[];
+  questionsAsked: QuestionAsked[];
+  overallFeedback: string;
+  generationWarning?: string;
+  skillAssessments: SkillAssessment[];
   source?: string;
   saved?: boolean;
   lastEditedByName?: string;
@@ -31,48 +77,61 @@ type ClientBriefContext = {
   candidateName: string;
   candidateEmail: string;
   jdTitle: string;
+  clientName?: string;
   interviewDate: string;
   interviewMode: string;
+  roundName?: string;
+  seniorityBand?: string;
+  totalMinutes?: number | null;
   verdict: string | null;
   skillSet: string | null;
   yoeActual: number | null;
   yoePortrayed: number | null;
+  reviewerName?: string;
+  reviewerYoe?: string;
+  reviewerCompany?: string;
+  reviewerSkills?: string[];
+  playbackUrl?: string;
+  resumeUrl?: string;
 };
 
 const EMPTY_BRIEF: ClientBriefData = {
-  executiveSummary: '',
-  keyStrengths: [''],
-  areasToNote: [''],
-  technicalFit: { overall: 'Adequate', highlights: [''], gaps: [''] },
-  interviewPerformance: {
-    communication: '',
-    problemSolving: '',
-    overallRating: 'Adequate',
-  },
-  recommendation: 'RECOMMENDED_WITH_CONDITIONS',
-  recommendedFor: '',
-  suggestedNextStep: '',
+  mustHaveSkills: [],
+  goodToHaveSkills: [],
+  questionsAsked: [],
+  overallFeedback: '',
+  skillAssessments: [],
 };
+
+function isLegacyBrief(raw: Record<string, unknown>): boolean {
+  return (
+    ('executiveSummary' in raw || 'keyStrengths' in raw || 'technicalFit' in raw) &&
+    !('mustHaveSkills' in raw) &&
+    !('skillAssessments' in raw)
+  );
+}
+
+function isNewFormatBrief(raw: Record<string, unknown>): boolean {
+  return 'mustHaveSkills' in raw || 'skillAssessments' in raw || 'overallFeedback' in raw;
+}
 
 function normalizeBrief(raw: Partial<ClientBriefData> | undefined | null): ClientBriefData {
   if (!raw) return { ...EMPTY_BRIEF };
+  const record = raw as Record<string, unknown>;
+  if (isLegacyBrief(record)) {
+    return { ...EMPTY_BRIEF, source: raw.source, saved: raw.saved, lastEditedByName: raw.lastEditedByName, lastEditedAt: raw.lastEditedAt };
+  }
+  if (!isNewFormatBrief(record)) {
+    return { ...EMPTY_BRIEF, source: raw.source, saved: raw.saved, lastEditedByName: raw.lastEditedByName, lastEditedAt: raw.lastEditedAt };
+  }
   return {
-    executiveSummary: raw.executiveSummary ?? '',
-    keyStrengths: raw.keyStrengths?.length ? raw.keyStrengths : [''],
-    areasToNote: raw.areasToNote?.length ? raw.areasToNote : [''],
-    technicalFit: {
-      overall: raw.technicalFit?.overall ?? 'Adequate',
-      highlights: raw.technicalFit?.highlights?.length ? raw.technicalFit.highlights : [''],
-      gaps: raw.technicalFit?.gaps?.length ? raw.technicalFit.gaps : [''],
-    },
-    interviewPerformance: {
-      communication: raw.interviewPerformance?.communication ?? '',
-      problemSolving: raw.interviewPerformance?.problemSolving ?? '',
-      overallRating: raw.interviewPerformance?.overallRating ?? 'Adequate',
-    },
-    recommendation: raw.recommendation ?? 'RECOMMENDED_WITH_CONDITIONS',
-    recommendedFor: raw.recommendedFor ?? '',
-    suggestedNextStep: raw.suggestedNextStep ?? '',
+    header: raw.header,
+    mustHaveSkills: raw.mustHaveSkills ?? [],
+    goodToHaveSkills: raw.goodToHaveSkills ?? [],
+    questionsAsked: raw.questionsAsked ?? [],
+    overallFeedback: raw.overallFeedback ?? '',
+    generationWarning: raw.generationWarning,
+    skillAssessments: raw.skillAssessments ?? [],
     source: raw.source,
     saved: raw.saved,
     lastEditedByName: raw.lastEditedByName,
@@ -80,21 +139,13 @@ function normalizeBrief(raw: Partial<ClientBriefData> | undefined | null): Clien
   };
 }
 
-function cleanList(items: string[]): string[] {
-  return items.map((s) => s.trim()).filter(Boolean);
-}
-
-function payloadFromBrief(brief: ClientBriefData): ClientBriefData {
-  return {
-    ...brief,
-    keyStrengths: cleanList(brief.keyStrengths),
-    areasToNote: cleanList(brief.areasToNote),
-    technicalFit: {
-      ...brief.technicalFit,
-      highlights: cleanList(brief.technicalFit.highlights),
-      gaps: cleanList(brief.technicalFit.gaps),
-    },
-  };
+function ScoreBar({ score }: { score: number }) {
+  const pct = Math.max(0, Math.min(100, (score / 10) * 100));
+  return (
+    <div className="h-2.5 overflow-hidden rounded-full bg-violet-100 dark:bg-violet-950">
+      <div className="h-full rounded-full bg-violet-600" style={{ width: `${pct}%` }} />
+    </div>
+  );
 }
 
 function ListEditor({
@@ -108,17 +159,18 @@ function ListEditor({
   onChange: (items: string[]) => void;
   placeholder: string;
 }) {
+  const safeItems = items.length ? items : [''];
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</label>
-      {items.map((item, index) => (
+      {safeItems.map((item, index) => (
         <div key={index} className="flex gap-2">
           <input
             className="input-base flex-1"
             value={item}
             placeholder={placeholder}
             onChange={(e) => {
-              const next = [...items];
+              const next = [...safeItems];
               next[index] = e.target.value;
               onChange(next);
             }}
@@ -127,16 +179,52 @@ function ListEditor({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => onChange(items.filter((_, i) => i !== index))}
-            disabled={items.length <= 1}
+            onClick={() => onChange(safeItems.filter((_, i) => i !== index))}
+            disabled={safeItems.length <= 1}
           >
             Remove
           </Button>
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...items, ''])}>
+      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...safeItems, ''])}>
         Add item
       </Button>
+    </div>
+  );
+}
+
+function SkillSummarySection({
+  title,
+  skills,
+}: {
+  title: string;
+  skills: SkillSummary[];
+}) {
+  if (!skills.length) {
+    return (
+      <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <h4 className="text-sm font-semibold text-violet-900 dark:text-violet-200">{title}</h4>
+        <p className="mt-2 text-sm text-zinc-500">No skills in this group.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <h4 className="mb-4 text-sm font-semibold text-violet-900 dark:text-violet-200">{title}</h4>
+      <div className="space-y-4">
+        {skills.map((s) => (
+          <div key={`${s.categoryKey}-${s.rank}`}>
+            <div className="text-sm font-semibold">
+              {s.rank}. {s.skill} — {s.subSkill}{' '}
+              <span className="text-violet-700 dark:text-violet-300">({s.score10}/10)</span>
+            </div>
+            {s.note ? <p className="mt-1 text-xs text-zinc-500">{s.note}</p> : null}
+            <div className="mt-2">
+              <ScoreBar score={s.score10} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -152,16 +240,19 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [savedOnce, setSavedOnce] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [legacySaved, setLegacySaved] = useState(false);
 
   const checkSavedBrief = useCallback(async () => {
     setCheckingSaved(true);
     setError(null);
     try {
-      const res = await fetch(`/api/interviews/${interviewId}/client-brief`, { credentials: 'include' });
+      const res = await authFetch(`/api/interviews/${interviewId}/client-brief`, { credentials: 'include' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to check client brief');
       setContext(data.context ?? null);
       if (data.brief && (data.hasSavedBrief || data.brief.saved)) {
+        const raw = data.brief as Record<string, unknown>;
+        setLegacySaved(isLegacyBrief(raw));
         setBrief(normalizeBrief(data.brief));
         setSavedOnce(true);
         setVisible(true);
@@ -182,12 +273,13 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
     setGenerating(true);
     setError(null);
     try {
-      const res = await fetch(`/api/interviews/${interviewId}/client-brief/generate`, {
+      const res = await authFetch(`/api/interviews/${interviewId}/client-brief/generate`, {
         method: 'POST',
         credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate client brief');
+      setLegacySaved(false);
       setBrief(normalizeBrief(data.brief));
       setContext(data.context ?? null);
       setSavedOnce(false);
@@ -205,18 +297,36 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
     setDirty(true);
   };
 
+  const updateAssessment = (index: number, patch: Partial<SkillAssessment>) => {
+    setBrief((prev) => {
+      const next = [...prev.skillAssessments];
+      next[index] = { ...next[index], ...patch };
+      return { ...prev, skillAssessments: next };
+    });
+    setDirty(true);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/interviews/${interviewId}/client-brief`, {
+      const payload = {
+        ...brief,
+        skillAssessments: brief.skillAssessments.map((a) => ({
+          ...a,
+          strengths: a.strengths.map((s) => s.trim()).filter(Boolean),
+          areasOfImprovement: a.areasOfImprovement.map((s) => s.trim()).filter(Boolean),
+        })),
+      };
+      const res = await authFetch(`/api/interviews/${interviewId}/client-brief`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadFromBrief(brief)),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save');
+      setLegacySaved(false);
       setBrief(normalizeBrief(data.brief));
       setSavedOnce(true);
       setDirty(false);
@@ -231,7 +341,7 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
     setDownloading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/interviews/${interviewId}/client-brief/download`, {
+      const res = await authFetch(`/api/interviews/${interviewId}/client-brief/download`, {
         credentials: 'include',
       });
       if (!res.ok) {
@@ -273,21 +383,21 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
               Client Evaluation Brief
             </div>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Generate a professional summary when you are ready to share feedback with the client.
+              Generate a skill-based client report after AI assessment is complete.
             </p>
           </div>
           <Button type="button" onClick={handleGenerate} disabled={generating}>
             {generating ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-4 w-4 mr-2" />
+              <Send className="mr-2 h-4 w-4" />
             )}
             {generating ? 'Generating…' : 'Generate Client Brief'}
           </Button>
         </div>
         {generating && (
           <p className="mt-3 text-xs text-zinc-500">
-            AI is drafting the client brief — this usually takes about 1 minute.
+            AI is drafting the client brief — this usually takes 1–3 minutes. Please keep this tab open.
           </p>
         )}
         {error && (
@@ -299,7 +409,15 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
     );
   }
 
+  const header = brief.header ?? {};
+  const reviewer = header.reviewer ?? {};
   const canDownload = savedOnce && !dirty;
+  const hasBody =
+    brief.mustHaveSkills.length > 0 ||
+    brief.goodToHaveSkills.length > 0 ||
+    brief.questionsAsked.length > 0 ||
+    !!brief.overallFeedback.trim() ||
+    brief.skillAssessments.length > 0;
 
   return (
     <div className="mt-6 rounded-xl border border-blue-200 bg-white p-5 shadow-sm dark:border-blue-900/40 dark:bg-zinc-950">
@@ -320,18 +438,20 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {!savedOnce && (
-            <Button type="button" variant="outline" onClick={handleGenerate} disabled={generating}>
-              {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Regenerate
-            </Button>
-          )}
+          <Button type="button" variant="outline" onClick={handleGenerate} disabled={generating}>
+            {generating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            {generating ? 'Regenerating…' : 'Regenerate'}
+          </Button>
           <Button type="button" variant="outline" onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Save
           </Button>
           <Button type="button" onClick={handleDownload} disabled={!canDownload || downloading}>
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+            {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             Download PDF
           </Button>
         </div>
@@ -343,6 +463,20 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
         </p>
       )}
 
+      {(legacySaved || brief.generationWarning) && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          {legacySaved
+            ? 'This interview has an older saved brief format. Click Regenerate to create the new skill-based report.'
+            : brief.generationWarning}
+        </p>
+      )}
+
+      {!hasBody && !legacySaved && !brief.generationWarning && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          The brief has no skill content yet. Re-run AI assessment if needed, then click Regenerate.
+        </p>
+      )}
+
       {!canDownload && (
         <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
           {dirty
@@ -351,142 +485,134 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
         </p>
       )}
 
-      <div className="mt-5 grid gap-5">
-        <label className="grid gap-2 text-sm">
-          <span className="font-medium">Executive Summary</span>
-          <textarea
-            className="input-base min-h-[120px]"
-            value={brief.executiveSummary}
-            onChange={(e) => updateBrief({ executiveSummary: e.target.value })}
-            placeholder="Professional overview of the candidate's fit for the role…"
-          />
-        </label>
-
-        <div className="grid gap-5 lg:grid-cols-2">
-          <ListEditor
-            label="Key Strengths"
-            items={brief.keyStrengths}
-            onChange={(keyStrengths) => updateBrief({ keyStrengths })}
-            placeholder="Evidence-based strength for the client"
-          />
-          <ListEditor
-            label="Areas to Note"
-            items={brief.areasToNote}
-            onChange={(areasToNote) => updateBrief({ areasToNote })}
-            placeholder="Professional consideration (not harsh criticism)"
-          />
+      <div className="mt-5 overflow-hidden rounded-xl bg-gradient-to-br from-[#382060] to-[#764ba2] p-5 text-white">
+        <div className="text-[11px] font-bold tracking-widest opacity-90">BENCH READINESS</div>
+        <h3 className="mt-2 text-2xl font-bold">
+          {header.candidateName || context?.candidateName || 'Candidate'}
+        </h3>
+        <div className="mt-3 grid gap-2 text-sm opacity-95 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <strong>Position:</strong> {header.positionTitle || context?.jdTitle || '—'}
+          </div>
+          <div>
+            <strong>Client:</strong> {header.clientName || context?.clientName || '—'}
+          </div>
+          <div>
+            <strong>Round:</strong> {header.roundName || context?.roundName || '—'}
+          </div>
+          <div>
+            <strong>Seniority:</strong> {header.seniorityBand || context?.seniorityBand || '—'}
+          </div>
+          <div>
+            <strong>Date:</strong> {header.interviewDate || context?.interviewDate || '—'}
+          </div>
+          <div>
+            <strong>Duration:</strong>{' '}
+            {header.totalMinutes ?? context?.totalMinutes ? `${header.totalMinutes ?? context?.totalMinutes} min` : '—'}
+          </div>
         </div>
-
-        <div className="grid gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-          <h4 className="text-sm font-semibold">Technical Fit</h4>
-          <label className="grid gap-1.5 text-sm">
-            Overall
-            <select
-              className="input-base max-w-xs"
-              value={brief.technicalFit.overall}
-              onChange={(e) =>
-                updateBrief({
-                  technicalFit: { ...brief.technicalFit, overall: e.target.value },
-                })
-              }
-            >
-              <option value="Strong">Strong</option>
-              <option value="Adequate">Adequate</option>
-              <option value="Developing">Developing</option>
-            </select>
-          </label>
-          <ListEditor
-            label="Alignment Highlights"
-            items={brief.technicalFit.highlights}
-            onChange={(highlights) =>
-              updateBrief({ technicalFit: { ...brief.technicalFit, highlights } })
-            }
-            placeholder="Technical alignment with JD"
-          />
-          <ListEditor
-            label="Development Areas"
-            items={brief.technicalFit.gaps}
-            onChange={(gaps) => updateBrief({ technicalFit: { ...brief.technicalFit, gaps } })}
-            placeholder="Gap framed professionally"
-          />
+        <div className="mt-4 border-t border-white/20 pt-4 text-sm">
+          <strong>Reviewed by:</strong> {reviewer.name || context?.reviewerName || '—'}
+          {reviewer.yearsExperience || context?.reviewerYoe
+            ? ` · ${reviewer.yearsExperience || context?.reviewerYoe} yrs`
+            : ''}
+          {reviewer.company || context?.reviewerCompany
+            ? ` at ${reviewer.company || context?.reviewerCompany}`
+            : ''}
+          {(reviewer.verifiedSkills?.length || context?.reviewerSkills?.length) ? (
+            <div className="mt-1 text-xs opacity-90">
+              {(reviewer.verifiedSkills ?? context?.reviewerSkills ?? []).map((s) => `✓ ${s}`).join('   ')}
+            </div>
+          ) : null}
         </div>
+      </div>
 
-        <div className="grid gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800 lg:grid-cols-3">
-          <h4 className="text-sm font-semibold lg:col-span-3">Interview Performance</h4>
-          <label className="grid gap-1.5 text-sm">
-            Communication
-            <textarea
-              className="input-base min-h-[80px]"
-              value={brief.interviewPerformance.communication}
-              onChange={(e) =>
-                updateBrief({
-                  interviewPerformance: { ...brief.interviewPerformance, communication: e.target.value },
-                })
-              }
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            Problem Solving
-            <textarea
-              className="input-base min-h-[80px]"
-              value={brief.interviewPerformance.problemSolving}
-              onChange={(e) =>
-                updateBrief({
-                  interviewPerformance: { ...brief.interviewPerformance, problemSolving: e.target.value },
-                })
-              }
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            Overall Rating
-            <select
-              className="input-base"
-              value={brief.interviewPerformance.overallRating}
-              onChange={(e) =>
-                updateBrief({
-                  interviewPerformance: { ...brief.interviewPerformance, overallRating: e.target.value },
-                })
-              }
-            >
-              <option value="Strong">Strong</option>
-              <option value="Adequate">Adequate</option>
-              <option value="Developing">Developing</option>
-            </select>
-          </label>
-        </div>
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <SkillSummarySection title="Must have" skills={brief.mustHaveSkills} />
+        <SkillSummarySection title="Good to have" skills={brief.goodToHaveSkills} />
+      </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <label className="grid gap-1.5 text-sm">
-            Recommendation
-            <select
-              className="input-base"
-              value={brief.recommendation}
-              onChange={(e) => updateBrief({ recommendation: e.target.value })}
-            >
-              <option value="RECOMMENDED">Recommended</option>
-              <option value="RECOMMENDED_WITH_CONDITIONS">Recommended with Conditions</option>
-              <option value="NOT_RECOMMENDED">Not Recommended</option>
-            </select>
-          </label>
-          <label className="grid gap-1.5 text-sm lg:col-span-2">
-            Recommended For
-            <input
-              className="input-base"
-              value={brief.recommendedFor}
-              onChange={(e) => updateBrief({ recommendedFor: e.target.value })}
-              placeholder="e.g. Mid-level Java backend role with Spring Boot"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm lg:col-span-3">
-            Suggested Next Step
-            <input
-              className="input-base"
-              value={brief.suggestedNextStep}
-              onChange={(e) => updateBrief({ suggestedNextStep: e.target.value })}
-              placeholder="e.g. Proceed to client technical round"
-            />
-          </label>
-        </div>
+      <div className="mt-5 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <h4 className="mb-4 text-sm font-semibold text-violet-900 dark:text-violet-200">Questions asked</h4>
+        {!brief.questionsAsked.length ? (
+          <p className="text-sm text-zinc-500">No questions recorded.</p>
+        ) : (
+          <div className="space-y-3">
+            {brief.questionsAsked.map((q) => (
+              <div
+                key={q.number}
+                className="rounded-lg border border-violet-100 bg-violet-50/60 p-3 dark:border-violet-900/40 dark:bg-violet-950/20"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <strong className="text-sm">Question {q.number}</strong>
+                  <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                    {q.difficulty || 'Medium'}
+                  </span>
+                </div>
+                <p className="text-sm whitespace-pre-wrap">{q.text}</p>
+                {q.skillMappings?.length ? (
+                  <p className="mt-2 text-xs text-zinc-500">
+                    {q.skillMappings.map((m) => `${m.skill}: ${m.subSkill}`).join('   |   ')}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <label className="mt-5 grid gap-2 text-sm">
+        <span className="font-medium">Overall feedback</span>
+        <textarea
+          className="input-base min-h-[120px]"
+          value={brief.overallFeedback}
+          onChange={(e) => updateBrief({ overallFeedback: e.target.value })}
+          placeholder="Balanced overview for the client…"
+        />
+      </label>
+
+      <div className="mt-5 space-y-5">
+        <h4 className="text-sm font-semibold text-violet-900 dark:text-violet-200">Detailed skill assessment</h4>
+        {!brief.skillAssessments.length ? (
+          <p className="text-sm text-zinc-500">No detailed assessments.</p>
+        ) : (
+          brief.skillAssessments.map((assessment, index) => (
+            <div key={`${assessment.categoryKey}-${assessment.rank}`} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+              <div className="text-sm font-semibold">
+                {assessment.rank}. {assessment.skill} — {assessment.subSkill}{' '}
+                <span className="text-violet-700 dark:text-violet-300">({assessment.score10}/10)</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {(assessment.proficiencyOptions ?? []).map((opt, optIndex) => (
+                  <label key={optIndex} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name={`proficiency-${assessment.categoryKey}`}
+                      checked={assessment.selectedProficiencyIndex === optIndex}
+                      onChange={() => updateAssessment(index, { selectedProficiencyIndex: optIndex })}
+                      className="mt-1"
+                    />
+                    <span>{opt}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <ListEditor
+                  label="Strengths"
+                  items={assessment.strengths?.length ? assessment.strengths : ['']}
+                  onChange={(strengths) => updateAssessment(index, { strengths })}
+                  placeholder="Strength bullet"
+                />
+                <ListEditor
+                  label="Areas of improvement"
+                  items={assessment.areasOfImprovement?.length ? assessment.areasOfImprovement : ['']}
+                  onChange={(areasOfImprovement) => updateAssessment(index, { areasOfImprovement })}
+                  placeholder="Improvement bullet"
+                />
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

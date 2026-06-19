@@ -1,13 +1,13 @@
 import { isStaffReadRole, isStaffAdminRole } from '@/lib/staffRoles';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
+import { getSessionOrRefresh } from "@/lib/session";
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session || !isStaffReadRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session || !isStaffReadRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -95,7 +95,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session || !isStaffAdminRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

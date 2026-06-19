@@ -1,6 +1,6 @@
 import { isStaffReadRole } from '@/lib/staffRoles';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
+import { getSessionOrRefresh } from "@/lib/session";
 import { applyAssessmentResult, loadReassessContext } from '../reassessUtils';
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session || !isStaffReadRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 /** Apply completed assessment to scores + interview transcript. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session || !isStaffReadRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

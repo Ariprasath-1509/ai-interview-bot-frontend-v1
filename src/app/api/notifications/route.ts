@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSessionOrRefresh } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { CheckCircle, Clock, AlertTriangle, FileText } from "lucide-react";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { setAuthCookies } from "@/lib/authCookies";
 
 export const dynamic = "force-dynamic";
 
@@ -15,27 +16,37 @@ export async function POST(req: Request) {
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
+    const raw = await res.text();
+    let data: Record<string, unknown> = {};
+    if (raw.trim()) {
+      try {
+        data = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        return NextResponse.json({ error: "Invalid login response" }, { status: 502 });
+      }
+    }
 
     if (!res.ok || !data.ok) {
-      return NextResponse.json(
-        { error: data.error ?? "Login failed" },
-        { status: res.status }
-      );
+      const message = typeof data.error === "string" ? data.error : "Login failed";
+      return NextResponse.json({ error: message }, { status: res.status });
+    }
+
+    const token = typeof data.token === "string" ? data.token : "";
+    const refreshToken = typeof data.refreshToken === "string" ? data.refreshToken : "";
+    if (!token || !refreshToken) {
+      return NextResponse.json({ error: "Login response missing tokens" }, { status: 502 });
     }
 
     const jar = await cookies();
-    const opts = { path: "/", httpOnly: true, sameSite: "lax" as const };
-    jar.set("br_jwt", data.token, opts);
-    jar.set("br_role", data.role, { ...opts, httpOnly: true });
-    jar.set("br_username", data.name ?? "", { ...opts, httpOnly: false });
-    jar.set("br_issued", Date.now().toString(), { ...opts, httpOnly: false });
-    if (data.adminSource) {
-      jar.set("br_admin_source", data.adminSource, { ...opts, httpOnly: false });
-    }
-    if (data.branch) {
-      jar.set("br_branch", data.branch, { ...opts, httpOnly: false });
-    }
+    setAuthCookies(jar, {
+      token,
+      refreshToken,
+      expiresIn: typeof data.expiresIn === "number" ? data.expiresIn : undefined,
+      role: typeof data.role === "string" ? data.role : undefined,
+      name: typeof data.name === "string" ? data.name : undefined,
+      adminSource: typeof data.adminSource === "string" ? data.adminSource : undefined,
+      branch: typeof data.branch === "string" ? data.branch : undefined,
+    });
 
     return NextResponse.json({
       ok: true,

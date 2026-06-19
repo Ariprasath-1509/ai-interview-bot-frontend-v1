@@ -15,6 +15,7 @@ import {
   buildAssessmentBanners,
   mergeAssessmentScores,
   parseAiAssessment,
+  inferAssessmentScoreMax,
   type ScoreRow,
 } from "@/app/interview/assessmentUtils";
 
@@ -194,6 +195,8 @@ export default async function InterviewReviewPage({
     ...s,
     id: s.id ?? `merged-${i}`,
   })) as Score[];
+
+  const scoreMax = inferAssessmentScoreMax(ai, scores);
 
   const banners = buildAssessmentBanners({
     ai,
@@ -477,7 +480,7 @@ export default async function InterviewReviewPage({
                         {s.confidence}
                       </span>
                     )}
-                    <span className="rounded bg-zinc-200/50 px-2 py-0.5 font-medium dark:bg-zinc-800">{s.value}/5</span>
+                    <span className="rounded bg-zinc-200/50 px-2 py-0.5 font-medium dark:bg-zinc-800">{s.value}/{scoreMax}</span>
                   </div>
                 </div>
                 {s.rationale && <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{cleanText(s.rationale)}</p>}
@@ -500,7 +503,7 @@ export default async function InterviewReviewPage({
             <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-medium">Resume Consistency</h3>
-                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-semibold dark:bg-zinc-800">{ai.resumeConsistency.consistencyScore}/5</span>
+                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-semibold dark:bg-zinc-800">{ai.resumeConsistency.consistencyScore}/{scoreMax}</span>
               </div>
               <div className="space-y-3 text-sm">
                 <div>
@@ -563,7 +566,7 @@ export default async function InterviewReviewPage({
             <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-medium">Interview Quality</h3>
-                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-semibold dark:bg-zinc-800">Coverage: {ai.interviewQuality.coverageScore}/5</span>
+                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-semibold dark:bg-zinc-800">Coverage: {ai.interviewQuality.coverageScore}/{scoreMax}</span>
               </div>
               <div className="space-y-2 text-sm">
                 <div>

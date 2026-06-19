@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSessionOrRefresh } from "@/lib/session";
 
 const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
 export async function GET() {
-  const session = await getSession();
+  const session = await getSessionOrRefresh();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const res = await fetch(`${GATEWAY}/clients/matching/cache/stats`, {

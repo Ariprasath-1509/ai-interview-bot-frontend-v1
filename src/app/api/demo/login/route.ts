@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { setAuthCookies } from "@/lib/authCookies";
 
 export const runtime = "nodejs";
 
@@ -22,40 +23,29 @@ export async function POST(req: Request) {
     );
   }
 
-  const data = (await upstream.json()) as { ok: boolean; token: string; role: string; name?: string; branch?: string };
+  const data = (await upstream.json()) as {
+    ok: boolean;
+    token: string;
+    refreshToken: string;
+    role: string;
+    name?: string;
+    branch?: string;
+    expiresIn?: number;
+  };
+
+  if (!data.token || !data.refreshToken) {
+    return NextResponse.json({ ok: false, error: "Login response missing tokens" }, { status: 502 });
+  }
+
   const username = data.name ?? (body as { username?: string }).username ?? "User";
   const res = NextResponse.json({ ok: true, role: data.role });
-  res.cookies.set("br_jwt", data.token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
+  setAuthCookies(res.cookies, {
+    token: data.token,
+    refreshToken: data.refreshToken,
+    expiresIn: data.expiresIn,
+    role: data.role,
+    name: username,
+    branch: data.branch,
   });
-  res.cookies.set("br_role", data.role, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-  });
-  res.cookies.set("br_username", username, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-  });
-  res.cookies.set("br_issued", Date.now().toString(), {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-  });
-  if (data.branch) {
-    res.cookies.set("br_branch", data.branch, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-  }
   return res;
 }

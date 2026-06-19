@@ -1,9 +1,11 @@
 "use client";
 
+import { redirectToLogin } from "@/lib/clientFetch";
+
 export function LogoutButton() {
   async function logout() {
-    await fetch("/api/demo/logout", { method: "POST" });
-    window.location.href = "/";
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    redirectToLogin();
   }
 
   return (

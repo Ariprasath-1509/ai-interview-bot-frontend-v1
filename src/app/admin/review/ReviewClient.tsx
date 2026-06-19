@@ -2,14 +2,14 @@
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EnhancedDataTable } from '@/components/common/EnhancedDataTable';
 import { PageHero, PanelCard, StatCard } from '@/components/common/AppUi';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
-import { ClipboardList, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ClipboardList, Eye, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 
 interface InterviewSummary {
   id: string;
@@ -64,6 +64,8 @@ export default function InterviewReviewClient() {
   
   const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -110,6 +112,14 @@ export default function InterviewReviewClient() {
     return () => window.clearTimeout(t);
   }, [fetchInterviews]);
 
+  const handleReview = useCallback(
+    (interviewId: string) => {
+      setReviewingId(interviewId);
+      router.push(`/admin/interviews/${interviewId}/review`);
+    },
+    [router]
+  );
+
   const handleDelete = useCallback(async (interviewId: string) => {
     const ok = await confirm({
       title: "Delete Interview",
@@ -119,6 +129,7 @@ export default function InterviewReviewClient() {
     });
     if (!ok) return;
 
+    setDeletingId(interviewId);
     try {
       const response = await fetch(`/api/interviews/${interviewId}`, {
         method: 'DELETE'
@@ -134,6 +145,8 @@ export default function InterviewReviewClient() {
     } catch (error) {
       console.error('Delete error:', error);
       toast('Error deleting interview', 'error');
+    } finally {
+      setDeletingId(null);
     }
   }, [confirm, fetchInterviews, toast]);
 
@@ -225,27 +238,58 @@ export default function InterviewReviewClient() {
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        cell: ({ row }) => (
-          <div className="flex gap-2 justify-end">
-            <Link
-              href={`/admin/interviews/${row.original.id}/review`}
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium underline underline-offset-2"
-            >
-              Review
-            </Link>
-            <button
-              type="button"
-              onClick={() => handleDelete(row.original.id)}
-              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm font-medium underline underline-offset-2"
-              title="Delete interview"
-            >
-              Delete
-            </button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const isReviewing = reviewingId === row.original.id;
+          const isDeleting = deletingId === row.original.id;
+          const isBusy = isReviewing || isDeleting;
+
+          return (
+            <div className="flex gap-2 justify-end">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => handleReview(row.original.id)}
+                disabled={isBusy}
+                className="gap-1.5 min-w-[5.5rem]"
+              >
+                {isReviewing ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading…
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-3 w-3" />
+                    Review
+                  </>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleDelete(row.original.id)}
+                disabled={isBusy}
+                className="gap-1.5 min-w-[5.5rem]"
+                title="Delete interview"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3 w-3" />
+                    Delete
+                  </>
+                )}
+              </Button>
+            </div>
+          );
+        },
       },
     ],
-    [handleDelete]
+    [deletingId, handleDelete, handleReview, reviewingId]
   );
 
   if (loading) return <LoadingSpinner message="Loading interviews..." />;

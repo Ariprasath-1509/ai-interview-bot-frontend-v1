@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSessionOrRefresh } from "@/lib/session";
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     console.log('Session:', { role: session?.role, userId: session?.userId, hasToken: !!session?.token });
     
     if (!session || session.role !== "CANDIDATE") {

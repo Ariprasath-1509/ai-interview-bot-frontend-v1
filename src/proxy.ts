@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { UserRole } from "@/server/roles";
 import { STAFF_ADMIN_ROLES, STAFF_READ_ROLES } from "@/lib/staffRoles";
+import { clearAuthCookiesOnResponse } from "@/lib/authCookies";
 
 const STAFF_ROUTE_ROLES = STAFF_READ_ROLES as unknown as UserRole[];
 
@@ -67,11 +68,27 @@ function clearSessionAndRedirect(req: NextRequest, pathname: string): NextRespon
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (isPublic(pathname)) return NextResponse.next();
+  if (isPublic(pathname)) {
+    if (pathname.startsWith("/login") && !req.cookies.get("br_refresh")?.value) {
+      const res = NextResponse.next();
+      clearAuthCookiesOnResponse(res);
+      return res;
+    }
+    return NextResponse.next();
+  }
 
   // API routes: validate JWT exists and is not expired (skip public API endpoints)
   if (pathname.startsWith("/api")) {
-    const PUBLIC_API = ["/api/auth/login", "/api/auth/register", "/api/auth/forgot-password", "/api/auth/reset-password", "/api/demo/login", "/api/health"];
+    const PUBLIC_API = [
+      "/api/auth/login",
+      "/api/auth/register",
+      "/api/auth/forgot-password",
+      "/api/auth/reset-password",
+      "/api/auth/refresh",
+      "/api/auth/logout",
+      "/api/demo/login",
+      "/api/health",
+    ];
     if (PUBLIC_API.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
     const token = req.cookies.get("br_jwt")?.value;

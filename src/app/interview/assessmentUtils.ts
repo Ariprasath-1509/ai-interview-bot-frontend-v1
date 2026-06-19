@@ -54,6 +54,7 @@ export type CandidateFeedback = {
 
 export type AiAssessment = {
   source?: string;
+  scoreMax?: number;
   scoredAt?: string;
   summary?: string;
   strengths?: string[];
@@ -129,6 +130,23 @@ export function mergeAssessmentScores(
     return rows;
   }
   return [];
+}
+
+/** Assessment category scores use a 1–10 scale (review UI previously mislabeled as /5). */
+export function inferAssessmentScoreMax(
+  ai: AiAssessment | null | undefined,
+  scores: ScoreRow[],
+): number {
+  if (typeof ai?.scoreMax === "number" && ai.scoreMax > 0) {
+    return ai.scoreMax;
+  }
+  if (ai?.source === "heuristic") return 5;
+  const values = scores.map((s) => s.value).filter((v) => Number.isFinite(v));
+  if (values.some((v) => v > 5)) return 10;
+  if (values.length > 0 && values.every((v) => v >= 1 && v <= 5)) {
+    return ai?.source === "ollama-four-stage" ? 10 : 5;
+  }
+  return 10;
 }
 
 export function buildAssessmentBanners(opts: {

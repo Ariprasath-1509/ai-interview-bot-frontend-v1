@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSessionOrRefresh } from "@/lib/session";
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
@@ -9,7 +9,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
+  const session = await getSessionOrRefresh();
   if (!session) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }

@@ -1,6 +1,6 @@
 import { isStaffReadRole } from '@/lib/staffRoles';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
+import { getSessionOrRefresh } from "@/lib/session";
 import { loadReassessContext } from './reassessUtils';
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
@@ -11,7 +11,7 @@ export const maxDuration = 60;
 /** Start async AI assessment (returns immediately — poll /reassess/status). */
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session || !isStaffReadRole(session.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

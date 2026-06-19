@@ -1,6 +1,6 @@
 import { isStaffReadRole } from "@/lib/staffRoles";
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSessionOrRefresh } from "@/lib/session";
 
 const GATEWAY = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ candidateId: string }> }
 ) {
   try {
-    const session = await getSession();
+    const session = await getSessionOrRefresh();
     if (!session?.token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
