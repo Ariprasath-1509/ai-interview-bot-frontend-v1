@@ -844,8 +844,10 @@ export function VoiceInterviewClient({
 
   function startLiveSpeechPreview() {
     if (sessionFinalizedRef.current || typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
-    // Allow live preview in browser mode - removed serverVoiceModeRef check
-    if (!sessionActiveRef.current) return;
+    // Browser STT mode uses the main recognizer (recognitionRef) for live text, so the
+    // separate preview recognizer must NOT run there — two SpeechRecognition instances on
+    // the same mic conflict and abort. Preview only runs in server/Whisper mode.
+    if (!serverVoiceModeRef.current || !sessionActiveRef.current) return;
 
     const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
     const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | undefined;
@@ -1247,7 +1249,7 @@ export function VoiceInterviewClient({
   }
 
   useEffect(() => {
-    if (micPhase === "listening" && !typedAnswersOnly && sessionActiveRef.current) {
+    if (micPhase === "listening" && !typedAnswersOnly && serverVoiceModeRef.current && sessionActiveRef.current) {
       startLiveSpeechPreview();
     } else {
       stopLiveSpeechPreview();
@@ -1646,6 +1648,8 @@ export function VoiceInterviewClient({
     if (!rec || !sessionActiveRef.current) {
       return;
     }
+
+    rec.lang = speechPreviewLang();
 
     const attempt = (delayMs: number) => {
       restartTimerRef.current = setTimeout(() => {
@@ -2084,6 +2088,11 @@ export function VoiceInterviewClient({
       return;
     }
     resetVoiceServicePrefs();
+    // Option A: browser STT/TTS. Keep voiceServicePrefs in sync with serverVoiceModeRef so
+    // sendVoiceAnswer() reads the browser buffers (interimRef/finalBufferRef) instead of the
+    // dead Whisper recording path.
+    voiceServicePrefs.preferServerStt = false;
+    voiceServicePrefs.preferServerTts = false;
     setUsingBrowserVoice(true); // Force browser voice mode
     sessionFinalizedRef.current = false;
     typedOnlyRef.current = false;
