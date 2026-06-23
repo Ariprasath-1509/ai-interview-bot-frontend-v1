@@ -2099,27 +2099,21 @@ export function VoiceInterviewClient({
     serverVoiceModeRef.current = false; // OPTION A: Disable Whisper recording, use browser STT
     setSpeechError(null);
     resetVoiceValidationSession();
-    const micOk = await ensureMicStream();
-    if (!micOk) {
-      sessionActiveRef.current = false;
-      setUsingBrowserVoice(false);
-      setMicPhase("idle");
-      return;
-    }
 
-    // Browser STT needs the Web Speech API (Chrome/Edge on desktop). If it is missing we
-    // cannot capture spoken answers — tell the user and fall back to typed mode instead of
-    // silently doing nothing.
+    // Browser STT mode: SpeechRecognition handles its own mic permission internally.
+    // Do NOT call ensureMicStream() here — getUserMedia can fail with NotFoundError on
+    // devices where audio input isn't enumerable (e.g. permission remembered as denied,
+    // USB headset unplugged) and would block the interview without ever showing a prompt.
+    // Session recording (startSessionRecording) uses its own independent getUserMedia call.
     if (!recognitionRef.current) {
       setUsingBrowserVoice(false);
       setSpeechError(
         "Live voice transcription needs Chrome or Edge on desktop. Switching to typed answers — type your reply and click Submit.",
       );
-      releaseMicStream();
       void startTypedOnly();
       return;
     }
-    setUsingBrowserVoice(true); // Mic + recognizer ready — browser voice mode is genuinely active
+    setUsingBrowserVoice(true);
 
     await fetch(`/api/interviews/${interviewId}/start`, { method: "POST" }).catch(() => null);
 
@@ -2320,7 +2314,8 @@ export function VoiceInterviewClient({
   const micPreviewStatus: MicPreviewStatus = (() => {
     if (whisperProcessing) return "transcribing";
     if (whisperError && listening && !typedAnswersOnly) return "error";
-    if (listening && !typedAnswersOnly && !micStreamRef.current?.active) return "mic_off";
+    // In browser STT mode, SpeechRecognition manages its own stream — micStreamRef is not used
+    if (listening && !typedAnswersOnly && serverVoiceModeRef.current && !micStreamRef.current?.active) return "mic_off";
     if (!listening || typedAnswersOnly) return "idle";
     if (answerRecording && micLevel >= 10) return "hearing";
     if (answerRecording) return "quiet";
@@ -2381,7 +2376,7 @@ export function VoiceInterviewClient({
       ) : null}
       {sessionActiveRef.current && micPhase === "listening" &&
           !typedAnswersOnly &&
-          !micStreamRef.current?.active && (
+          serverVoiceModeRef.current && !micStreamRef.current?.active && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
                 <div className="font-medium">Microphone disconnected</div>
 
