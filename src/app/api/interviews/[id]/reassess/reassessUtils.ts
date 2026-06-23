@@ -118,7 +118,7 @@ export async function applyAssessmentResult(
       ];
 
   if (assessmentScores.length) {
-    await fetch(`${GATEWAY}/scores`, {
+    const scoresRes = await fetch(`${GATEWAY}/scores`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -134,7 +134,11 @@ export async function applyAssessmentResult(
           gap: s.gap,
         })),
       }),
-    }).catch(() => null);
+    });
+    if (!scoresRes.ok) {
+      const err = await scoresRes.text().catch(() => 'Failed to save assessment scores');
+      throw new Error(err || 'Failed to save assessment scores');
+    }
   }
 
   let transcriptDoc: Record<string, unknown> = {};
@@ -152,7 +156,7 @@ export async function applyAssessmentResult(
     },
   });
 
-  await fetch(`${GATEWAY}/interviews/${interviewId}/complete`, {
+  const completeRes = await fetch(`${GATEWAY}/interviews/${interviewId}/complete`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -163,7 +167,11 @@ export async function applyAssessmentResult(
       proposedVerdict: assessment.proposedVerdict,
       status: 'REVIEW_PENDING',
     }),
-  }).catch(() => null);
+  });
+  if (!completeRes.ok) {
+    const err = await completeRes.text().catch(() => 'Failed to update interview with new assessment');
+    throw new Error(err || 'Failed to update interview with new assessment');
+  }
 
   return assessment.proposedVerdict ?? '';
 }

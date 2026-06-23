@@ -35,11 +35,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       error?: string;
     };
 
+    const statusRunId = (status as { runId?: string }).runId ?? null;
+
+    // Never expose a completed result from a previous run while a new runId is being polled.
+    if (runId && status.status === 'COMPLETED' && statusRunId !== runId) {
+      return NextResponse.json({
+        status: 'PROCESSING',
+        error: status.error,
+        hasResult: false,
+        runId: statusRunId,
+      });
+    }
+
     return NextResponse.json({
       status: status.status ?? 'NOT_FOUND',
       error: status.error,
       hasResult: Boolean(status.result),
-      runId: (status as { runId?: string }).runId ?? null,
+      runId: statusRunId,
     });
   } catch (error) {
     console.error('Reassessment status error:', error);
@@ -85,8 +97,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Assessment not complete yet' }, { status: 409 });
     }
 
-    const statusRunId = (status as { runId?: string }).runId;
-    if (expectedRunId && statusRunId && statusRunId !== expectedRunId) {
+    const statusRunId = (status as { runId?: string }).runId ?? null;
+    if (expectedRunId && statusRunId !== expectedRunId) {
       return NextResponse.json({ error: 'Assessment result is from a previous run — still processing' }, { status: 409 });
     }
 
@@ -105,6 +117,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: true, verdict, status: 'COMPLETED' });
   } catch (error) {
     console.error('Reassessment apply error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

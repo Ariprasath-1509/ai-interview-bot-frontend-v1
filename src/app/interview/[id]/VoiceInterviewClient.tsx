@@ -339,6 +339,7 @@ export function VoiceInterviewClient({
   const [micLevel, setMicLevel] = useState(0);
   const answerMediaRef = useRef<MediaRecorder | null>(null);
   const answerChunksRef = useRef<Blob[]>([]);
+  const answerRecordingStartTimeRef = useRef<number>(0);
   const serverVoiceModeRef = useRef(true);
   const previewRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const previewBufferRef = useRef("");
@@ -901,7 +902,8 @@ export function VoiceInterviewClient({
 
   function startLiveSpeechPreview() {
     if (sessionFinalizedRef.current || typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
-    if (!serverVoiceModeRef.current || !sessionActiveRef.current) return;
+    // Allow live preview in browser mode - removed serverVoiceModeRef check
+    if (!sessionActiveRef.current) return;
 
     const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
     const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | undefined;
@@ -1192,12 +1194,13 @@ export function VoiceInterviewClient({
     if (answerMediaRef.current?.state === "recording") return;
     try {
       answerChunksRef.current = [];
+      answerRecordingStartTimeRef.current = Date.now();
       const rec = new MediaRecorder(stream);
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) answerChunksRef.current.push(e.data);
       };
       answerMediaRef.current = rec;
-      rec.start(1000);
+      rec.start(2000);
       setAnswerRecording(true);
       setWhisperError(null);
       clearLivePreview();
@@ -1247,6 +1250,12 @@ export function VoiceInterviewClient({
       return;
     }
 
+    const recordingDuration = Date.now() - answerRecordingStartTimeRef.current;
+    if (recordingDuration < 1500) {
+      setWhisperError(`Recording too short (${Math.round(recordingDuration / 1000)}s). Speak for at least 2 seconds before clicking Send.`);
+      return;
+    }
+
     const browserFallbackText = getBrowserSttPreviewText();
     setWhisperProcessing(true);
     setWhisperError(null);
@@ -1257,22 +1266,22 @@ export function VoiceInterviewClient({
       /* ignore */
     }
     const blob = await stopAnswerRecordingBlob();
-    if (!blob || blob.size < 200) {
+    if (!blob || blob.size < 2000) {
       if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
         return;
       }
-      setWhisperError("No speech recorded. Speak your answer, then click Send answer again.");
+      setWhisperError(`Recording too small (${blob?.size ?? 0} bytes). Speak louder or longer, then try again.`);
       startAnswerRecording();
       return;
     }
     try {
       const text = await transcribeAnswerBlob(blob);
-      if (!text) {
+      if (!text || text.length < 3) {
         if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
-          enableBrowserSttFallback("Whisper returned empty text");
+          enableBrowserSttFallback("Whisper returned insufficient text");
           return;
         }
-        setWhisperError("No speech detected. Try speaking louder or use the typed box.");
+        setWhisperError("Transcription too short. Speak a complete sentence and try again.");
         startAnswerRecording();
         return;
       }
@@ -1296,7 +1305,7 @@ export function VoiceInterviewClient({
   }
 
   useEffect(() => {
-    if (micPhase === "listening" && !typedAnswersOnly && serverVoiceModeRef.current && sessionActiveRef.current) {
+    if (micPhase === "listening" && !typedAnswersOnly && sessionActiveRef.current) {
       startLiveSpeechPreview();
     } else {
       stopLiveSpeechPreview();
@@ -1637,19 +1646,15 @@ export function VoiceInterviewClient({
       }
     }
 
+    // Show question immediately before TTS starts
+    const row: Utterance = { speaker: "BOT", text, at: nowIso() };
+    syncUtterances([...utterancesRef.current, row]);
+    emitQuestionMeta(text, botPromptIdxRef.current, meta);
+
     setMicPhase("bot_speaking");
 
-    let revealed = false;
-    const revealQuestion = () => {
-      if (revealed) return;
-      revealed = true;
-      const row: Utterance = { speaker: "BOT", text, at: nowIso() };
-      syncUtterances([...utterancesRef.current, row]);
-      emitQuestionMeta(text, botPromptIdxRef.current, meta);
-    };
-
-    await speakWhenDone(text, revealQuestion);
-    revealQuestion();
+    // Speak the question
+    await speakWhenDone(text);
     if (isUsingBrowserVoiceFallback()) setUsingBrowserVoice(true);
 
     pausedForTtsRef.current = false;
@@ -2083,7 +2088,7 @@ export function VoiceInterviewClient({
     resetVoiceValidationSession();
     releaseMicStream();
     typedOnlyRef.current = true;
-    serverVoiceModeRef.current = false;
+    serverVoiceModeRef.current = false; // Force browser mode for typed-only
     setTypedAnswersOnly(true);
     updateVoiceValidation({
       status: "NOT_VERIFIED",
@@ -2137,11 +2142,11 @@ export function VoiceInterviewClient({
       return;
     }
     resetVoiceServicePrefs();
-    setUsingBrowserVoice(false);
+    setUsingBrowserVoice(true); // Force browser voice mode
     sessionFinalizedRef.current = false;
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
-    serverVoiceModeRef.current = true;
+    serverVoiceModeRef.current = false; // OPTION A: Disable Whisper recording, use browser STT
     setSpeechError(null);
     resetVoiceValidationSession();
     const micOk = await ensureMicStream();

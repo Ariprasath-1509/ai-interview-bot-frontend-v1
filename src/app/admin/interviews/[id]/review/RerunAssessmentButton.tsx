@@ -1,23 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw, Loader2 } from "lucide-react";
 
 const POLL_MS = 5000;
 const MAX_POLLS = 150; // ~12.5 minutes
 
 export function RerunAssessmentButton({ interviewId }: { interviewId: string }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  const pollStatus = async (runId: string | null) => {
-    const qs = runId ? `?runId=${encodeURIComponent(runId)}` : "";
-    const statusRes = await fetch(`/api/interviews/${interviewId}/reassess/status${qs}`, {
-      credentials: "include",
-    });
+  const pollStatus = async (runId: string) => {
+    const statusRes = await fetch(
+      `/api/interviews/${interviewId}/reassess/status?runId=${encodeURIComponent(runId)}`,
+      {
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
     return statusRes.json().catch(() => ({}));
   };
 
@@ -36,22 +41,34 @@ export function RerunAssessmentButton({ interviewId }: { interviewId: string }) 
     setProgress("Starting assessment…");
 
     try {
-      const startRes = await fetch(`/api/interviews/${interviewId}/reassess`, { method: "POST" });
+      const startRes = await fetch(`/api/interviews/${interviewId}/reassess`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
       const startData = await startRes.json().catch(() => ({}));
       if (!startRes.ok) {
         setError(startData.error || "Failed to start assessment");
         return;
       }
 
-      const runId: string | null = startData.runId ?? null;
+      const runId = typeof startData.runId === "string" ? startData.runId : "";
+      if (!runId) {
+        setError("Assessment did not return a run id — cannot track the new assessment run.");
+        return;
+      }
+
       setProgress("Assessment queued — waiting for AI (this usually takes 5–10 min)…");
+
+      // Give the backend a moment to mark the interview as PROCESSING before polling.
+      await sleep(1000);
 
       for (let i = 0; i < MAX_POLLS; i++) {
         if (i > 0) {
           await sleep(POLL_MS);
         }
 
-        const elapsedMin = Math.round((i * POLL_MS) / 60000);
+        const elapsedMin = Math.round(((i + 1) * POLL_MS) / 60000);
         setProgress(
           elapsedMin > 0
             ? `Running AI assessment… (${elapsedMin} min elapsed)`
@@ -66,7 +83,7 @@ export function RerunAssessmentButton({ interviewId }: { interviewId: string }) 
         }
 
         if (statusData.status === "COMPLETED") {
-          if (runId && statusData.runId && statusData.runId !== runId) {
+          if (statusData.runId !== runId) {
             continue;
           }
 
@@ -74,6 +91,7 @@ export function RerunAssessmentButton({ interviewId }: { interviewId: string }) 
           const applyRes = await fetch(`/api/interviews/${interviewId}/reassess/status`, {
             method: "POST",
             credentials: "include",
+            cache: "no-store",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ runId }),
           });
@@ -82,7 +100,9 @@ export function RerunAssessmentButton({ interviewId }: { interviewId: string }) 
             setError(applyData.error || "Failed to save assessment results");
             return;
           }
-          window.location.reload();
+
+          setProgress("Refreshing review…");
+          router.refresh();
           return;
         }
       }
