@@ -2093,7 +2093,6 @@ export function VoiceInterviewClient({
     // dead Whisper recording path.
     voiceServicePrefs.preferServerStt = false;
     voiceServicePrefs.preferServerTts = false;
-    setUsingBrowserVoice(true); // Force browser voice mode
     sessionFinalizedRef.current = false;
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
@@ -2103,9 +2102,24 @@ export function VoiceInterviewClient({
     const micOk = await ensureMicStream();
     if (!micOk) {
       sessionActiveRef.current = false;
+      setUsingBrowserVoice(false);
       setMicPhase("idle");
       return;
     }
+
+    // Browser STT needs the Web Speech API (Chrome/Edge on desktop). If it is missing we
+    // cannot capture spoken answers — tell the user and fall back to typed mode instead of
+    // silently doing nothing.
+    if (!recognitionRef.current) {
+      setUsingBrowserVoice(false);
+      setSpeechError(
+        "Live voice transcription needs Chrome or Edge on desktop. Switching to typed answers — type your reply and click Submit.",
+      );
+      releaseMicStream();
+      void startTypedOnly();
+      return;
+    }
+    setUsingBrowserVoice(true); // Mic + recognizer ready — browser voice mode is genuinely active
 
     await fetch(`/api/interviews/${interviewId}/start`, { method: "POST" }).catch(() => null);
 
@@ -2355,7 +2369,7 @@ export function VoiceInterviewClient({
           </p>
         </div>
       )}
-      {speechError && sessionActiveRef.current ? (
+      {speechError ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="font-medium">Microphone / speech</div>
           <p className="mt-1">{speechError}</p>
