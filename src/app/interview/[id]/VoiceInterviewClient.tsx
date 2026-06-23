@@ -1525,7 +1525,7 @@ export function VoiceInterviewClient({
       micStreamRef.current = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
-      startVoiceMonitor(micStreamRef.current);
+      // Don't start voice monitor - voice validation disabled in browser mode
       return true;
     }  catch (e) {
       const err = e as { name?: string; message?: string };
