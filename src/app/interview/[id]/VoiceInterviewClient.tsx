@@ -129,7 +129,7 @@ function cancelActiveTts() {
   }
 }
 
-/** Coqui TTS via ai-service; falls back to browser speech after 10s timeout or error. */
+/** Browser TTS only - disable Coqui completely for Option A */
 async function speakWhenDone(text: string, onStart?: () => void): Promise<void> {
   if (typeof window === "undefined") return;
 
@@ -141,65 +141,7 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
     onStart?.();
   };
 
-  if (voiceServicePrefs.preferServerTts) {
-    try {
-      const res = await fetchWithTimeout(
-        "/api/ai/tts",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        },
-        MEDIA_SERVICE_TIMEOUT_MS,
-      );
-      if (res.ok) {
-        const blob = await res.blob();
-        if (blob.size > 0) {
-          const url = URL.createObjectURL(blob);
-          await new Promise<void>((resolve) => {
-            const audio = new Audio(url);
-            activeTtsAudio = audio;
-            let resolved = false;
-            const done = () => {
-              if (!resolved) {
-                resolved = true;
-                URL.revokeObjectURL(url);
-                if (activeTtsAudio === audio) activeTtsAudio = null;
-                resolve();
-              }
-            };
-            const timer = setTimeout(done, Math.max(text.length * 80, 8000) + 5000);
-            audio.onplaying = () => notifyStart();
-            audio.onended = () => {
-              clearTimeout(timer);
-              done();
-            };
-            audio.onerror = () => {
-              clearTimeout(timer);
-              done();
-            };
-            void audio.play().then(() => notifyStart()).catch(() => {
-              clearTimeout(timer);
-              done();
-            });
-          });
-          notifyStart();
-          return;
-        }
-      } else {
-        const errBody = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
-        console.warn("[TTS] Coqui unavailable, using browser speech:", errBody?.error ?? res.status, errBody?.detail ?? "");
-      }
-    } catch (e) {
-      const timedOut = e instanceof MediaServiceTimeoutError;
-      console.warn(
-        timedOut ? "[TTS] Coqui timed out (>10s), using browser speech" : "[TTS] Server Coqui failed, using browser:",
-        e,
-      );
-    }
-    voiceServicePrefs.preferServerTts = false;
-  }
-
+  // Skip server TTS - use browser speech directly
   const synth = window.speechSynthesis;
   if (!synth) {
     notifyStart();
@@ -2372,12 +2314,10 @@ export function VoiceInterviewClient({
     mic_off: { label: "Mic disconnected", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200" },
   };
 
-  const browserSttActive = usingBrowserVoice || !voiceServicePrefs.preferServerStt;
+  const browserSttActive = true; // Force browser mode always
   const spokenPreviewText = typedAnswersOnly
     ? typedDraft
-    : browserSttActive
-      ? interimText
-      : (livePreviewText || interimText);
+    : interimText; // Always use interimText for live preview
 
   if (!supported) {
     return (
@@ -2579,18 +2519,9 @@ export function VoiceInterviewClient({
         )}
 
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {isUsingBrowserVoiceFallback() || usingBrowserVoice ? (
-            <>
-              Using <span className="font-medium text-zinc-700 dark:text-zinc-300">browser speech</span> for
-              voice (Whisper/Coqui timed out or unavailable). Click{" "}
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
-            </>
-          ) : (
-            <>
-              Bot voice uses Coqui TTS; your answers use Whisper STT. Click{" "}
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
-            </>
-          )}
+          Using <span className="font-medium text-zinc-700 dark:text-zinc-300">browser speech recognition</span> for
+          live voice transcription. Speak your answer, and it will appear in real-time. Click{" "}
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
           {" "}Session audio records automatically from Start.
         </p>
 
@@ -2655,10 +2586,10 @@ export function VoiceInterviewClient({
         </div>
       </div>
 
-      {(isUsingBrowserVoiceFallback() || usingBrowserVoice) && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+      {usingBrowserVoice && (
+        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
           <span className="font-semibold">Browser voice mode active.</span>{" "}
-          Server STT/TTS took longer than 10 seconds or failed — the interview continues using your browser&apos;s speech engine.
+          Using your browser&apos;s built-in speech recognition and text-to-speech for real-time interaction.
         </div>
       )}
 
@@ -2743,10 +2674,8 @@ export function VoiceInterviewClient({
 
             {!typedAnswersOnly && (
               <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                {isUsingBrowserVoiceFallback() || usingBrowserVoice
-                  ? <>Speak your answer, then click <span className="font-medium">Send answer</span> to continue.</>
-                  : <>Live preview uses your browser speech engine; final answer is sent via Whisper when you click{" "}
-                    <span className="font-medium">Send answer</span>.</>}
+                Live transcription using browser speech recognition. Your words appear as you speak.
+                Click <span className="font-medium">Send answer</span> to continue to the next question.
               </p>
             )}
             {whisperError && (
@@ -2797,7 +2726,7 @@ export function VoiceInterviewClient({
                     className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                     onClick={() => void sendVoiceAnswer()}
                   >
-                    {whisperProcessing ? "Transcribing…" : (isUsingBrowserVoiceFallback() || usingBrowserVoice ? "Send answer" : "Send answer (Whisper)")}
+                    Send answer
                   </button>
                 )}
                 <button
