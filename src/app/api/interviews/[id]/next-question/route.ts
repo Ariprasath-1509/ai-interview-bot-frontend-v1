@@ -9,7 +9,7 @@ const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 const inFlight = new Map<string, Promise<Response>>();
 
 const BodySchema = z.object({
-  slot: z.number().int().min(1).max(30), // Increased to handle extended interviews
+  slot: z.number().int().min(1).max(60), // Timer-based interviews — no fixed question count
   lastAnswer: z.string().optional().or(z.literal("")),
   utterances: z.array(z.object({ speaker: z.enum(["BOT", "CANDIDATE"]), text: z.string(), at: z.string() })).optional(),
   manipulationCount: z.number().int().optional(),
@@ -50,32 +50,8 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
     usedQuestionIds?: string;
   };
 
-  // Get interview mode specific limits
-  const getMaxSlots = (mode: string): number => {
-    switch (mode) {
-      case 'SCREENING': return 5;
-      case 'L1': return 7;
-      case 'L2': return 8;
-      case 'L3': return 10;
-      case 'L4': return 10;
-      default: return 10;
-    }
-  };
-
-  const maxSlots = getMaxSlots(interview.interviewMode ?? 'L3');
-  
-  // When selected questions are exhausted the AI continues generating until the timer ends.
-  // Only enforce the cap when NO question bank questions or custom questions are attached (pure AI mode).
-  const hasQuestionBank = !!interview.questionBankQuestionsJson;
-  const hasCustomQuestions = !!interview.customQuestionsJson;
-  if (!hasQuestionBank && !hasCustomQuestions && body.data.slot > maxSlots) {
-    console.log(`[next-question] Interview ${id} reached max slots (${maxSlots}) for mode ${interview.interviewMode}`);
-    return Response.json({ 
-      question: "Thank you for your detailed responses. We've covered all the planned questions for this interview. You can now mark the interview as complete.",
-      terminateInterview: false,
-      interviewComplete: true
-    });
-  }
+  // No slot cap — interview runs until the candidate's timer expires.
+  // The AI generates questions continuously; the frontend timer controls session length.
 
   // 2. Fetch JD
   let jdTitle = "Target role";

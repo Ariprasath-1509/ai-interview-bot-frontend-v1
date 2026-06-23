@@ -1637,7 +1637,10 @@ export function VoiceInterviewClient({
       return;
     }
 
-    resetAnswerCaptureState();
+    // Do NOT call resetAnswerCaptureState() here for browser STT mode.
+    // Chrome's Web Speech API restarts recognition periodically (e.g. after ~60s or on silence),
+    // and we must preserve finalBufferRef across restarts so long answers aren't truncated.
+    // The buffer is only cleared when the answer is actually sent (flushSpokenAnswer / addBot).
 
     if (restartTimerRef.current) {
       clearTimeout(restartTimerRef.current);
@@ -1777,12 +1780,21 @@ export function VoiceInterviewClient({
       clearTimeout(restartTimerRef.current);
       restartTimerRef.current = null;
     }
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+    cancelActiveTts();
     try {
       recognitionRef.current?.stop();
     } catch {
       /* ignore */
     }
+    void stopAnswerRecordingBlob();
     releaseMicStream();
+    finalizeVoiceValidation();
+    void stopSessionRecordingAndUpload();
+    setProctorSessionActive(false);
     addCandidate(userLine);
     await playClosingLine(
       "Got it—we’ll wrap up here. Thanks for letting me know; you can press Mark complete below when you’re ready.",
@@ -1920,6 +1932,22 @@ export function VoiceInterviewClient({
       }
       
       if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
+        // If a session is already active (bot asked a question), keep it alive and
+        // switch to typed-only so the candidate can still answer instead of losing progress.
+        if (sessionActiveRef.current) {
+          typedOnlyRef.current = true;
+          setTypedAnswersOnly(true);
+          if (micPhaseRef.current !== "bot_speaking") {
+            setMicPhase("listening");
+          }
+          setSpeechError(
+            err === "audio-capture"
+              ? "No microphone found. Continue typing your answers below — click Submit typed reply to proceed."
+              : "Microphone access was blocked. You can still continue using typed answers below — type your reply and click Submit typed reply.",
+          );
+          return;
+        }
+        // No active session yet — kill cleanly so the user can fix permissions and retry.
         sessionActiveRef.current = false;
         pausedForTtsRef.current = false;
         typedOnlyRef.current = false;
