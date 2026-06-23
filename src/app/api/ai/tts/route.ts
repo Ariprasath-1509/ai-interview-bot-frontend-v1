@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { MEDIA_SERVICE_TIMEOUT_MS } from "@/lib/mediaTimeout";
+import { TTS_TIMEOUT_MS } from "@/lib/mediaTimeout";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text }),
-    signal: AbortSignal.timeout(MEDIA_SERVICE_TIMEOUT_MS),
+    signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
   }).catch((err: unknown) => {
     if ((err as { name?: string }).name === "TimeoutError") {
       return null;
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
   if (!upstream) {
     return Response.json(
-      { error: "tts_timeout", detail: "Coqui TTS timed out — use browser speech instead" },
+      { error: "tts_timeout", detail: "Kokoro TTS timed out — using browser speech instead" },
       { status: 504 },
     );
   }
