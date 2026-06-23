@@ -1,10 +1,5 @@
-import { AppShell } from "@/app/components/AppShell";
-import TokenSettingsClient from "./TokenSettingsClient";
+import { redirect } from "next/navigation";
 
 export default function TokenSettingsPage() {
-  return (
-    <AppShell title="Token Management" subtitle="Manage API usage and limits for AI integration.">
-      <TokenSettingsClient />
-    </AppShell>
-  );
+  redirect("/admin/settings?tab=tokens");
 }

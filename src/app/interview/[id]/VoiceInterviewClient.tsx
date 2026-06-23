@@ -129,7 +129,6 @@ function cancelActiveTts() {
   }
 }
 
-/** Browser TTS only - disable Coqui completely for Option A */
 async function speakWhenDone(text: string, onStart?: () => void): Promise<void> {
   if (typeof window === "undefined") return;
 
@@ -141,7 +140,39 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
     onStart?.();
   };
 
-  // Skip server TTS - use browser speech directly
+  // Try Kokoro TTS (server) first — much more natural voice than browser speech
+  if (voiceServicePrefs.preferServerTts && text.trim().length > 0) {
+    try {
+      const res = await fetchWithTimeout(
+        "/api/ai/tts",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text.trim() }) },
+        MEDIA_SERVICE_TIMEOUT_MS,
+      );
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        activeTtsAudio = audio;
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+          const done = () => {
+            if (!resolved) { resolved = true; URL.revokeObjectURL(url); activeTtsAudio = null; resolve(); }
+          };
+          const timer = setTimeout(done, Math.max(text.length * 100, 6000));
+          audio.onplay = () => notifyStart();
+          audio.onended = () => { clearTimeout(timer); done(); };
+          audio.onerror = () => { clearTimeout(timer); done(); };
+          audio.play().then(() => notifyStart()).catch(() => { clearTimeout(timer); done(); });
+        });
+        return;
+      }
+    } catch {
+      // Server TTS unavailable this session — fall back to browser speech
+      voiceServicePrefs.preferServerTts = false;
+    }
+  }
+
+  // Browser speech fallback
   const synth = window.speechSynthesis;
   if (!synth) {
     notifyStart();
@@ -161,14 +192,8 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
     };
     const timer = setTimeout(done, Math.max(text.length * 80, 4000) + 5000);
     u.onstart = () => notifyStart();
-    u.onend = () => {
-      clearTimeout(timer);
-      done();
-    };
-    u.onerror = () => {
-      clearTimeout(timer);
-      done();
-    };
+    u.onend = () => { clearTimeout(timer); done(); };
+    u.onerror = () => { clearTimeout(timer); done(); };
     try {
       synth.speak(u);
       notifyStart();
@@ -242,7 +267,8 @@ export function VoiceInterviewClient({
     const rec = new Ctor();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = "en-US";
+    rec.lang = "en-IN";
+    (rec as unknown as { maxAlternatives?: number }).maxAlternatives = 3;
     recognitionRef.current = rec;
   }, []);
   const [micPhase, setMicPhase] = useState<MicPhase>("idle");
@@ -802,7 +828,7 @@ export function VoiceInterviewClient({
 
   function speechPreviewLang(): string {
     const map: Record<string, string> = {
-      en: "en-US",
+      en: "en-IN",
       hi: "hi-IN",
       ta: "ta-IN",
       te: "te-IN",
@@ -814,7 +840,9 @@ export function VoiceInterviewClient({
       pa: "pa-IN",
       ur: "ur-PK",
     };
-    return whisperLang === "auto" ? "en-US" : (map[whisperLang] ?? "en-US");
+    // en-IN gives Chrome the Indian English acoustic model, which handles
+    // Indian accents and technical vocabulary significantly better than en-US.
+    return whisperLang === "auto" ? "en-IN" : (map[whisperLang] ?? "en-IN");
   }
 
   function clearLivePreview() {
@@ -1860,15 +1888,25 @@ export function VoiceInterviewClient({
       
       let interim = "";
       let hasNewFinal = false;
-      
+
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
-        const text = res?.[0]?.transcript ?? "";
         if (res?.isFinal) {
-          finalBufferRef.current += text.trim() + " ";
+          // Pick the alternative with the highest confidence score
+          let bestText = (res[0] as { transcript?: string })?.transcript ?? "";
+          let bestConf = (res[0] as { confidence?: number })?.confidence ?? 0;
+          const altCount = (res as unknown as { length: number }).length ?? 1;
+          for (let k = 1; k < altCount; k++) {
+            const alt = (res as unknown as Record<number, { transcript?: string; confidence?: number }>)[k];
+            if (alt && (alt.confidence ?? 0) > bestConf) {
+              bestConf = alt.confidence ?? 0;
+              bestText = alt.transcript ?? bestText;
+            }
+          }
+          finalBufferRef.current += bestText.trim() + " ";
           hasNewFinal = true;
         } else {
-          interim += text;
+          interim += (res?.[0] as { transcript?: string })?.transcript ?? "";
         }
       }
       
@@ -2115,33 +2153,34 @@ export function VoiceInterviewClient({
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
-    resetVoiceServicePrefs();
-    // Option A: browser STT/TTS. Keep voiceServicePrefs in sync with serverVoiceModeRef so
-    // sendVoiceAnswer() reads the browser buffers (interimRef/finalBufferRef) instead of the
-    // dead Whisper recording path.
-    voiceServicePrefs.preferServerStt = false;
-    voiceServicePrefs.preferServerTts = false;
+    resetVoiceServicePrefs(); // preferServerStt=true, preferServerTts=true
     sessionFinalizedRef.current = false;
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
-    serverVoiceModeRef.current = false; // OPTION A: Disable Whisper recording, use browser STT
+    setUsingBrowserVoice(false);
     setSpeechError(null);
     resetVoiceValidationSession();
 
-    // Browser STT mode: SpeechRecognition handles its own mic permission internally.
-    // Do NOT call ensureMicStream() here — getUserMedia can fail with NotFoundError on
-    // devices where audio input isn't enumerable (e.g. permission remembered as denied,
-    // USB headset unplugged) and would block the interview without ever showing a prompt.
-    // Session recording (startSessionRecording) uses its own independent getUserMedia call.
-    if (!recognitionRef.current) {
-      setUsingBrowserVoice(false);
-      setSpeechError(
-        "Live voice transcription needs Chrome or Edge on desktop. Switching to typed answers — type your reply and click Submit.",
-      );
-      void startTypedOnly();
-      return;
+    // Try server STT (faster-whisper) — more accurate than browser Web Speech API.
+    // ensureMicStream() gets the MediaRecorder stream for audio blob recording.
+    // If it fails (denied / no device), fall back to browser SpeechRecognition.
+    const gotMic = await ensureMicStream();
+    if (gotMic) {
+      serverVoiceModeRef.current = true;
+      startVoiceMonitor(micStreamRef.current!);
+    } else {
+      // No mic stream — use browser STT preview only
+      serverVoiceModeRef.current = false;
+      voiceServicePrefs.preferServerStt = false;
+      if (!recognitionRef.current) {
+        setSpeechError(
+          "Microphone unavailable and no browser speech support. Switching to typed answers.",
+        );
+        void startTypedOnly();
+        return;
+      }
+      setUsingBrowserVoice(true);
     }
-    setUsingBrowserVoice(true);
 
     await fetch(`/api/interviews/${interviewId}/start`, { method: "POST" }).catch(() => null);
 
@@ -2183,7 +2222,9 @@ export function VoiceInterviewClient({
       if (sessionActiveRef.current) {
         setMicPhase("listening");
         attachRecognitionHandlers();
-        if (!typedOnlyRef.current) {
+        if (serverVoiceModeRef.current) {
+          startAnswerRecording();
+        } else if (!typedOnlyRef.current) {
           scheduleRecognitionStart("open mic after intro");
         }
       }
