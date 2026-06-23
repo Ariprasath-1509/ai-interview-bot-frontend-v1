@@ -2346,7 +2346,7 @@ export function VoiceInterviewClient({
           </p>
         </div>
       )}
-      {speechError ? (
+      {speechError && sessionActiveRef.current ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="font-medium">Microphone / speech</div>
           <p className="mt-1">{speechError}</p>
@@ -2356,7 +2356,7 @@ export function VoiceInterviewClient({
           </p>
         </div>
       ) : null}
-      {micPhase === "listening" &&
+      {sessionActiveRef.current && micPhase === "listening" &&
           !typedAnswersOnly &&
           !micStreamRef.current?.active && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
