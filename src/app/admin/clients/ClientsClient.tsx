@@ -95,19 +95,24 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
   const [cacheStats, setCacheStats] = useState<{ cachedCount?: number } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [masterListCollapsed, setMasterListCollapsed] = useState(false);
+  const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
   const showEntityBranch = isStaffReadRole(userRole);
   const staffDefaultBranch = defaultStaffBranch(userRole, userBranch);
 
-  const SKILL_OPTIONS = [
-    { value: 'JAVA_SB', label: 'Java + Spring Boot' },
-    { value: 'JFSR', label: 'Java Full Stack React' },
-    { value: 'REACT_JS', label: 'React JS' },
-    { value: 'ANGULAR', label: 'Angular' },
-    { value: 'PYTHON', label: 'Python' },
-    { value: 'QA_ENGINEER', label: 'QA Engineer' },
-    { value: 'PLAYWRIGHT_AUTOMATION', label: 'Playwright Automation' },
-  ];
+  const skillLabels = Object.fromEntries(skillOptions.map((s) => [s.value, s.label]));
+
+  useEffect(() => {
+    fetch('/api/admin/master-data/lookups/SKILL_SET')
+      .then((r) => r.json())
+      .then((json) => {
+        const entries: { code: string; label: string }[] = json?.data ?? json ?? [];
+        if (Array.isArray(entries) && entries.length > 0) {
+          setSkillOptions(entries.map((e) => ({ value: e.code, label: e.label })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const resetForm = useCallback(() => {
     setShowForm(false);
@@ -311,7 +316,7 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
       skillRequirements: [
         ...formData.skillRequirements,
         {
-          skillSet: 'JAVA_SB',
+          skillSet: skillOptions[0]?.value ?? '',
           positions: [{ candidatesNeeded: 1, minYoeRequired: 3, source: 'BENCH_B2B' }],
         },
       ],
@@ -570,6 +575,7 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
                       onEdit={openEditForm}
                       onRefresh={fetchClients}
                       showBranchBadge={showEntityBranch}
+                      skillLabels={skillLabels}
                     />
                   ))}
                 </TreeGroup>
@@ -586,6 +592,7 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
                       onEdit={openEditForm}
                       onRefresh={fetchClients}
                       showBranchBadge={showEntityBranch}
+                      skillLabels={skillLabels}
                     />
                   ))}
                 </TreeGroup>
@@ -972,7 +979,7 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
                             onChange={(e) => updateSkillRequirement(skillIndex, 'skillSet', e.target.value)}
                             className="input-base text-sm font-medium w-full"
                           >
-                            {SKILL_OPTIONS.map(option => (
+                            {skillOptions.map(option => (
                               <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                           </select>
@@ -1102,7 +1109,7 @@ function TreeGroup({ label, defaultOpen, children }: { label: string; defaultOpe
 }
 
 /* Hierarchical Client Tree Node */
-function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelect, onEdit, onRefresh, showBranchBadge = false }: {
+function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelect, onEdit, onRefresh, showBranchBadge = false, skillLabels = {} }: {
   clients: Client[];
   selectedClientId: string | null;
   selectedPositionId: string | null;
@@ -1110,6 +1117,7 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
   onEdit: (client: Client) => void;
   onRefresh?: () => void;
   showBranchBadge?: boolean;
+  skillLabels?: Record<string, string>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const client = clients[0];
@@ -1132,17 +1140,7 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
     }, {} as Record<string, PositionRequirement[]>) : {};
 
   const handleDeleteSkill = async (skillSet: string) => {
-    const SKILL_LABELS: Record<string, string> = { 
-      JAVA_SB: 'Java + Spring Boot', 
-      JFSR: 'Java Full Stack React', 
-      REACT_JS: 'React JS',
-      ANGULAR: 'Angular',
-      PYTHON: 'Python',
-      QA_ENGINEER: 'QA Engineer',
-      PLAYWRIGHT_AUTOMATION: 'Playwright Automation'
-    };
-    
-    const skillLabel = SKILL_LABELS[skillSet] || skillSet;
+    const skillLabel = skillLabels[skillSet] || skillSet;
     if (!confirm(`Remove "${skillLabel}" skill requirement from ${client.clientName}?`)) return;
     
     try {
@@ -1257,6 +1255,7 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
           selectedPositionId={selectedPositionId}
           onSelect={onSelect}
           onDeleteSkill={handleDeleteSkill}
+          skillLabels={skillLabels}
         />
       ))}
       
@@ -1280,27 +1279,18 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
 }
 
 /* Distinct Skill Tree Node - Groups positions by YOE and source */
-function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId, onSelect, onDeleteSkill }: {
+function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId, onSelect, onDeleteSkill, skillLabels = {} }: {
   client: Client;
   skillSet: string;
   positions: PositionRequirement[];
   selectedPositionId: string | null;
   onSelect: (clientId: string, positionId?: string) => void;
   onDeleteSkill: (skillSet: string) => void;
+  skillLabels?: Record<string, string>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingPosition, setEditingPosition] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ candidatesNeeded: number; minYoeRequired: number; source: string } | null>(null);
-  
-  const SKILL_LABELS: Record<string, string> = { 
-    JAVA_SB: 'Java + Spring Boot', 
-    JFSR: 'Java Full Stack React', 
-    REACT_JS: 'React JS',
-    ANGULAR: 'Angular',
-    PYTHON: 'Python',
-    QA_ENGINEER: 'QA Engineer',
-    PLAYWRIGHT_AUTOMATION: 'Playwright Automation'
-  };
 
   const totalPositions = positions.reduce((sum, pos) => sum + pos.candidatesNeeded, 0);
 
@@ -1382,7 +1372,7 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
         >
           <ChevronRight className={`h-3 w-3 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} />
           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-            {SKILL_LABELS[skillSet] ?? skillSet}
+            {skillLabels[skillSet] ?? skillSet}
           </span>
           <span className="text-[10px] text-zinc-400">({totalPositions} total positions)</span>
         </button>
@@ -1394,7 +1384,7 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
             onDeleteSkill(skillSet);
           }}
           className="mr-3 p-1 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-          title={`Remove ${SKILL_LABELS[skillSet] ?? skillSet} skill requirement`}
+          title={`Remove ${skillLabels[skillSet] ?? skillSet} skill requirement`}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
