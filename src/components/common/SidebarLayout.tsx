@@ -291,7 +291,7 @@ export function SidebarLayout({
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 dark:border-zinc-900/20 bg-white/40 dark:bg-[#040409]/40 px-4 backdrop-blur-xl sm:px-6 shadow-[0_1px_2px_0_rgba(0,0,0,0.01)]">
+        <header className="relative z-20 flex h-14 shrink-0 items-center justify-between border-b border-white/10 dark:border-zinc-900/20 bg-white/40 dark:bg-[#040409]/40 px-4 backdrop-blur-xl sm:px-6 shadow-[0_1px_2px_0_rgba(0,0,0,0.01)]">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
