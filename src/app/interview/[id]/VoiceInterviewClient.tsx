@@ -303,6 +303,8 @@ export function VoiceInterviewClient({
   const [whisperProcessing, setWhisperProcessing] = useState(false);
   const [fetchingNextQuestion, setFetchingNextQuestion] = useState(false);
   const [usingBrowserVoice, setUsingBrowserVoice] = useState(false);
+  /** Mirrors serverVoiceModeRef so JSX can react to mode switches. */
+  const [isServerVoiceMode, setIsServerVoiceMode] = useState(true);
   const [whisperError, setWhisperError] = useState<string | null>(null);
   const [livePreviewText, setLivePreviewText] = useState("");
   const [micLevel, setMicLevel] = useState(0);
@@ -1134,6 +1136,7 @@ export function VoiceInterviewClient({
   function enableBrowserSttFallback(reason: string) {
     voiceServicePrefs.preferServerStt = false;
     serverVoiceModeRef.current = false;
+    setIsServerVoiceMode(false);
     setUsingBrowserVoice(true);
     setWhisperError(null);
     console.warn("[STT] Switching to browser speech:", reason);
@@ -2101,7 +2104,8 @@ export function VoiceInterviewClient({
     resetVoiceValidationSession();
     releaseMicStream();
     typedOnlyRef.current = true;
-    serverVoiceModeRef.current = false; // Force browser mode for typed-only
+    serverVoiceModeRef.current = false;
+    setIsServerVoiceMode(false);
     setTypedAnswersOnly(true);
     updateVoiceValidation({
       status: "NOT_VERIFIED",
@@ -2168,10 +2172,12 @@ export function VoiceInterviewClient({
       const gotMic = await ensureMicStream();
       if (gotMic) {
         serverVoiceModeRef.current = true;
+        setIsServerVoiceMode(true);
         startVoiceMonitor(micStreamRef.current!);
       } else {
         // No mic stream — fall back to browser SpeechRecognition
         serverVoiceModeRef.current = false;
+        setIsServerVoiceMode(false);
         voiceServicePrefs.preferServerStt = false;
         if (!recognitionRef.current) {
           setSpeechError(
@@ -2185,6 +2191,7 @@ export function VoiceInterviewClient({
     } else {
       // Browser STT mode: SpeechRecognition manages its own mic stream
       serverVoiceModeRef.current = false;
+      setIsServerVoiceMode(false);
       if (!recognitionRef.current) {
         setSpeechError(
           "Browser speech recognition is not supported. Switching to typed answers.",
@@ -2420,6 +2427,8 @@ export function VoiceInterviewClient({
       ? (livePreviewText || interimText)
       : interimText;
 
+  const currentBotQuestion = utterances.filter((u) => u.speaker === "BOT").at(-1)?.text ?? "";
+
   if (!supported) {
     return (
       <div className="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
@@ -2429,7 +2438,77 @@ export function VoiceInterviewClient({
   }
 
   return (
-    <div className="card p-4">
+    <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+
+      {/* ── Modals ── */}
+      {showConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowConfirm(false); }}
+        >
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 dark:bg-zinc-900 shadow-xl space-y-4">
+            <h2 className="text-lg font-semibold">End interview?</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              This will be recorded. Your partial responses will still be assessed.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void abandonInterview(utterances, "not_prepared")}
+                disabled={abandoning}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {abandoning ? "Ending…" : "Yes, end interview"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTabWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl border-2 border-red-500 bg-white p-6 shadow-xl dark:bg-zinc-900 space-y-4">
+            <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
+              {tabSwitchCount === 1 ? "Tab switch detected" : "Interview ending"}
+            </h2>
+            <div className="space-y-2 text-sm">
+              <p className="font-semibold">You switched tabs/windows during the interview. This is not allowed.</p>
+              <p className="text-zinc-600 dark:text-zinc-400">
+                {tabSwitchCount === 1
+                  ? "This is your first and only warning. One more tab switch will automatically terminate your interview."
+                  : "You have exceeded the allowed tab switches. Your interview is being terminated."}
+              </p>
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+                <p className="text-xs font-mono">Tab switches: <span className="font-bold text-red-600">{tabSwitchCount}/2</span></p>
+              </div>
+            </div>
+            {tabSwitchCount === 1 ? (
+              <button
+                onClick={() => {
+                  setShowTabWarning(false);
+                  if (!sessionActiveRef.current && utterancesRef.current.length > 0) {
+                    void start();
+                  }
+                }}
+                className="w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                I Understand — Resume Interview
+              </button>
+            ) : (
+              <div className="text-center text-sm text-zinc-500">Redirecting to dashboard in 3 seconds…</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Proctoring panel ── */}
       {videoProctoringRequired ? (
         <VideoProctorPanel
           proctoring={proctoring}
@@ -2440,360 +2519,247 @@ export function VoiceInterviewClient({
           onCancelStuck={() => proctoring.resetCameraSetup()}
         />
       ) : (
-        <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
           <span className="font-medium text-zinc-800 dark:text-zinc-200">Interview integrity</span>
-          <p className="mt-1">
-            Fullscreen mode and tab-switch monitoring are active. Camera proctoring is not required for your candidate type.
+          <span className="ml-2">Fullscreen mode and tab-switch monitoring are active.</span>
+        </div>
+      )}
+
+      {/* ── Error banners ── */}
+      {speechError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="font-medium">Microphone / speech issue</div>
+          <p className="mt-1">{speechError}</p>
+          <p className="mt-2 text-xs opacity-80">
+            Use <span className="font-medium">Chrome or Edge</span> on desktop, HTTPS, and allow microphone access.
           </p>
         </div>
       )}
-      {speechError ? (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-          <div className="font-medium">Microphone / speech</div>
-          <p className="mt-1">{speechError}</p>
-          <p className="mt-2 text-xs opacity-90">
-            Use <span className="font-medium">Chrome or Edge</span> on desktop, HTTPS or localhost, and allow microphone
-            for this site. Web Speech sends audio to the browser vendor’s recognition service (not our servers).
-          </p>
+      {listening && !typedAnswersOnly && isServerVoiceMode && !micStreamRef.current?.active && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
+          <span className="font-medium">Microphone disconnected.</span>{" "}
+          Please reconnect it or use the typed answer box below.
         </div>
-      ) : null}
-      {sessionActiveRef.current && micPhase === "listening" &&
-          !typedAnswersOnly &&
-          serverVoiceModeRef.current && !micStreamRef.current?.active && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
-                <div className="font-medium">Microphone disconnected</div>
-
-                <p className="mt-1">
-                  Your microphone appears to be disconnected.
-                  Please reconnect it or use typed answers.
-                </p>
-              </div>
-          )}
-
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-800">
-          <div className="flex items-center gap-3">
-            <div className="font-medium">Voice interview ({interviewMode})</div>
-            {timerStarted && (
-              <div className={`text-sm font-mono font-semibold px-3 py-0.5 rounded-full ${
-                mainTimerPaused
-                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-                  : secondsLeft < 300
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              }`}>
-                {mainTimerPaused ? `Interview ${formatTime(secondsLeft)} (paused)` : formatTime(secondsLeft)}
-              </div>
-            )}
-            {codingTimerActive && (
-              <div className={`text-sm font-mono font-semibold px-3 py-0.5 rounded-full ${
-                codingSecondsLeft < 120
-                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
-                  : "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
-              }`}>
-                Coding {formatTime(codingSecondsLeft)}
-              </div>
-            )}
-            {timeExpired && (
-              <div className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 text-sm font-semibold px-3 py-0.5 rounded-full">
-                Time expired
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {!timeExpired && (
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="text-xs text-red-600 underline hover:text-red-800 dark:text-red-400"
-              >
-                I&apos;m not prepared — end interview
-              </button>
-            )}
-            {!timeExpired && (sessionRecording || sessionRecordingUploaded) && (
-              <span
-                className={`text-xs px-2 py-1 rounded border ${
-                  sessionRecording
-                    ? "bg-red-100 border-red-300 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300"
-                    : "bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300"
-                }`}
-              >
-                {sessionRecording ? "Recording session" : "Session saved"}
-              </span>
-            )}
-            <div
-              className={`shrink-0 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                botSpeaking
-                  ? "bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100"
-                  : listening
-                    ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100"
-                    : timeExpired
-                      ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                      : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              }`}
-              role="status"
-              aria-live="polite"
-            >
-              {botSpeaking
-                ? "Bot speaking…"
-                : listening
-                  ? typedAnswersOnly
-                    ? "Typed mode"
-                    : "Mic on"
-                  : timeExpired
-                    ? "Time expired"
-                    : "Mic off"}
-            </div>
-          </div>
+      )}
+      {usingBrowserVoice && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+          <span className="font-semibold">Browser voice mode active</span> — using your browser&apos;s built-in speech recognition (no Whisper server).
+          Speak clearly; your words appear in real-time below.
         </div>
+      )}
 
-        {showConfirm && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            role="dialog"
-            aria-modal="true"
-            onMouseDown={(e) => {
-              // Clicking the backdrop cancels.
-              if (e.target === e.currentTarget) setShowConfirm(false);
-            }}
-          >
-            <div className="w-full max-w-sm rounded-xl bg-white p-6 dark:bg-zinc-900 shadow-xl space-y-4">
-              <h2 className="text-lg font-semibold">End interview?</h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                This will be recorded. Your partial responses will still be assessed.
-              </p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowConfirm(false)}
-                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => void abandonInterview(utterances, "not_prepared")}
-                  disabled={abandoning}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700 disabled:opacity-50"
-                >
-                  {abandoning ? "Ending..." : "Yes, end interview"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showTabWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-xl border-2 border-red-500 bg-white p-6 shadow-xl dark:bg-zinc-900 space-y-4">
-              <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                {tabSwitchCount === 1 ? "Tab switch detected" : "Interview ending"}
-              </h2>
-
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold">
-                  You switched tabs/windows during the interview. This is not allowed.
-                </p>
-                <p className="text-zinc-600 dark:text-zinc-400">
-                  {tabSwitchCount === 1
-                    ? "This is your first warning. One more tab switch will automatically terminate your interview."
-                    : "You have exceeded the maximum allowed tab switches (2). Your interview is being terminated and marked as WITHDRAWN."}
-                </p>
-                <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                  <p className="text-xs font-mono">
-                    Tab switches: <span className="font-bold text-red-600">{tabSwitchCount}/2</span>
-                  </p>
-                </div>
-              </div>
-
-              {tabSwitchCount === 1 ? (
-                <button
-                  onClick={() => setShowTabWarning(false)}
-                  className="w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700"
-                >
-                  I Understand - Continue Interview
-                </button>
-              ) : (
-                <div className="text-center text-sm text-zinc-500">
-                  Redirecting to dashboard in 3 seconds...
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Using <span className="font-medium text-zinc-700 dark:text-zinc-300">browser speech recognition</span> for
-          live voice transcription. Speak your answer, and it will appear in real-time. Click{" "}
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Send answer</span> when finished speaking.
-          {" "}Session audio records automatically from Start.
-        </p>
-
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-medium text-zinc-700 dark:text-zinc-200">Voice continuity</span>
-            <span className={`rounded-full px-2 py-0.5 font-semibold ${
-              voiceValidation.status === "VERIFIED"
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                : voiceValidation.status === "RISK"
-                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                  : voiceValidation.status === "FAILED"
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+      {/* ── Header bar: title + timers + status ── */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+            Voice interview
+            <span className="ml-1.5 text-xs font-normal text-zinc-500">({interviewMode})</span>
+          </span>
+          {timerStarted && (
+            <span className={`font-mono text-xs font-semibold rounded-full px-2.5 py-0.5 ${
+              mainTimerPaused
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                : secondsLeft < 300
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                  : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
             }`}>
-              {voiceValidation.status.replace(/_/g, " ")}
+              {mainTimerPaused ? `⏸ ${formatTime(secondsLeft)}` : `⏱ ${formatTime(secondsLeft)}`}
             </span>
-          </div>
-          <p className="mt-1 text-zinc-500 dark:text-zinc-400">{voiceValidation.note}</p>
-          {(voiceValidation.averageSimilarity != null || voiceValidation.endSimilarity != null) && (
-            <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-              avg: {voiceValidation.averageSimilarity ?? "-"} | end: {voiceValidation.endSimilarity ?? "-"} | flags: {voiceValidation.flaggedChecks}/{voiceValidation.checks}
-            </p>
+          )}
+          {codingTimerActive && (
+            <span className={`font-mono text-xs font-semibold rounded-full px-2.5 py-0.5 ${
+              codingSecondsLeft < 120
+                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                : "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
+            }`}>
+              💻 {formatTime(codingSecondsLeft)}
+            </span>
+          )}
+          {timeExpired && (
+            <span className="font-mono text-xs font-semibold rounded-full px-2.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+              Time expired
+            </span>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {micPhase === "idle" && !timeExpired ? (
-            <>
-              <button
-                className="rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-                type="button"
-                disabled={!integrityCanStart}
-                onClick={() => void start()}
-              >
-                Start (mic)
-              </button>
-              <button
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
-                type="button"
-                disabled={!integrityCanStart}
-                onClick={() => void startTypedOnly()}
-              >
-                Typed answers only
-              </button>
-            </>
-          ) : timeExpired ? (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
-              <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                Time has expired. Click Mark complete below to submit your responses for assessment.
-              </p>
-            </div>
-          ) : (
+        <div className="flex items-center gap-2">
+          {!timeExpired && (sessionRecording || sessionRecordingUploaded) && (
+            <span className={`text-xs px-2 py-0.5 rounded border ${
+              sessionRecording
+                ? "bg-red-100 border-red-300 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300"
+                : "bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300"
+            }`}>
+              {sessionRecording ? "● Rec" : "✓ Saved"}
+            </span>
+          )}
+          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            botSpeaking ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+              : listening ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
+              : timeExpired ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+              : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+          }`} role="status" aria-live="polite">
+            {botSpeaking ? "Bot speaking…"
+              : listening ? (typedAnswersOnly ? "Typed mode" : "Mic on")
+              : timeExpired ? "Time expired"
+              : "Mic off"}
+          </span>
+          {!timeExpired && (
             <button
-              className="rounded-lg border border-zinc-200 px-4 py-2 text-sm transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-              type="button"
-              onClick={stop}
+              onClick={() => setShowConfirm(true)}
+              className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
             >
-              Stop session
+              End early
             </button>
           )}
         </div>
       </div>
 
-      {usingBrowserVoice && (
-        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-          <span className="font-semibold">Browser voice mode active.</span>{" "}
-          Using your browser&apos;s built-in speech recognition and text-to-speech for real-time interaction.
+      {/* ── Session start buttons ── */}
+      {micPhase === "idle" && !timeExpired && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            disabled={!integrityCanStart}
+            onClick={() => void start()}
+          >
+            Start interview (mic)
+          </button>
+          <button
+            className="rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            disabled={!integrityCanStart}
+            onClick={() => void startTypedOnly()}
+          >
+            Use typed answers only
+          </button>
+          {utterances.length === 0 && (
+            <p className="w-full text-xs text-zinc-500 dark:text-zinc-400">
+              Click <span className="font-medium">Start interview</span> to begin. The first question will be read aloud. Speak your answer, then click <span className="font-medium">Send answer</span>.
+            </p>
+          )}
         </div>
       )}
 
-      {(fetchingNextQuestion || (botSpeaking && utterances.length === 0)) && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          <span>
-            {fetchingNextQuestion
-              ? "Preparing the next question — please wait…"
-              : "The interviewer is asking the question — listen carefully…"}
+      {/* ── Stop button (session running) ── */}
+      {micPhase !== "idle" && !timeExpired && (
+        <div className="flex items-center gap-3">
+          <button
+            className="rounded-lg border border-zinc-300 px-4 py-2 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            type="button"
+            onClick={stop}
+          >
+            Stop session
+          </button>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            {isServerVoiceMode && !typedAnswersOnly
+              ? "Using Whisper STT — speak clearly, then click Send answer"
+              : typedAnswersOnly
+                ? "Typed mode — type below and click Submit typed reply"
+                : "Browser STT — speaks appear live; Send answer or wait 10 s to auto-advance"}
           </span>
         </div>
       )}
 
-      {listening && !timeExpired && (
-        <div className="mt-4 space-y-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/95">
-          <div
-            className={`rounded-xl border-2 p-4 transition-colors ${
-              micPreviewStatus === "hearing"
-                ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-                : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
-                  ? "border-red-300 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
-                  : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
-            }`}
-          >
+      {/* ── Time expired CTA ── */}
+      {timeExpired && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+          <span className="font-medium">Time is up.</span> Your responses have been recorded. Click <span className="font-medium">Mark complete</span> below to get your AI assessment.
+        </div>
+      )}
+
+      {/* ── Fetching / bot speaking loader ── */}
+      {(fetchingNextQuestion || (botSpeaking && utterances.length === 0)) && (
+        <div className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-100">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          <span>
+            {fetchingNextQuestion ? "Preparing the next question…" : "Interviewer is speaking — listen carefully…"}
+          </span>
+        </div>
+      )}
+
+      {/* ── Current question display ── */}
+      {currentBotQuestion && !fetchingNextQuestion && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Current question</p>
+          <p className="text-sm leading-relaxed text-zinc-900 dark:text-zinc-100">{currentBotQuestion}</p>
+        </div>
+      )}
+
+      {/* ── Live listening panel ── */}
+      {listening && !timeExpired && !fetchingNextQuestion && (
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+
+          {/* Mic status + waveform */}
+          <div className={`rounded-lg border-2 p-3 transition-colors ${
+            micPreviewStatus === "hearing"
+              ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+              : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
+                ? "border-red-300 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
+                : "border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
+          }`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                {typedAnswersOnly ? "Your answer (typed)" : "Your answer (live)"}
+              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                {typedAnswersOnly ? "Typed answer" : "Live answer preview"}
               </span>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${micStatusMeta[micPreviewStatus].className}`}
-                role="status"
-                aria-live="polite"
-              >
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${micStatusMeta[micPreviewStatus].className}`}
+                role="status" aria-live="polite">
                 {(micPreviewStatus === "hearing" || micPreviewStatus === "listening") && (
-                  <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
                 )}
                 {micPreviewStatus === "transcribing" && (
-                  <span className="h-2 w-2 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  <span className="h-2 w-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 )}
                 {micStatusMeta[micPreviewStatus].label}
               </span>
             </div>
 
             {!typedAnswersOnly && (
-              <div className="mt-3 flex h-8 items-end gap-1" aria-hidden="true">
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const threshold = (i + 1) * (100 / 12);
+              <div className="mt-2 flex h-7 items-end gap-0.5" aria-hidden="true">
+                {Array.from({ length: 16 }).map((_, i) => {
+                  const threshold = (i + 1) * (100 / 16);
                   const active = micLevel >= threshold - 4;
                   return (
-                    <div
-                      key={i}
-                      className={`w-2 flex-1 rounded-sm transition-all duration-150 ${
-                        active
-                          ? micPreviewStatus === "hearing"
-                            ? "bg-emerald-500"
-                            : "bg-blue-400"
-                          : "bg-zinc-200 dark:bg-zinc-700"
-                      }`}
-                      style={{ height: active ? `${Math.max(30, Math.min(100, micLevel))}%` : "20%" }}
-                    />
+                    <div key={i} className={`flex-1 rounded-sm transition-all duration-100 ${
+                      active
+                        ? micPreviewStatus === "hearing" ? "bg-emerald-500" : "bg-blue-400"
+                        : "bg-zinc-200 dark:bg-zinc-700"
+                    }`}
+                    style={{ height: active ? `${Math.max(25, Math.min(100, micLevel))}%` : "15%" }} />
                   );
                 })}
               </div>
             )}
 
-            <div className="mt-3 min-h-[4.5rem] max-h-32 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-950">
+            <div className="mt-2 min-h-[5rem] max-h-36 overflow-y-auto rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-950">
               {spokenPreviewText ? (
-                <p className="break-words text-zinc-800 dark:text-zinc-100">{spokenPreviewText}</p>
+                <p className="break-words text-zinc-900 dark:text-zinc-100">{spokenPreviewText}</p>
               ) : (
                 <p className="text-zinc-400 dark:text-zinc-500">
-                  {typedAnswersOnly
-                    ? "Type your answer in the box below."
-                    : micPreviewStatus === "transcribing"
-                      ? "Converting your speech to text…"
-                      : micPreviewStatus === "hearing"
-                        ? "Keep speaking — your words appear here as you talk."
-                        : "Start speaking — live preview will show here so you know the mic is working."}
+                  {typedAnswersOnly ? "Type your answer in the box below."
+                    : micPreviewStatus === "transcribing" ? "Converting your speech to text…"
+                    : micPreviewStatus === "hearing" ? "Keep speaking — your words appear here as you talk."
+                    : "Speak now — live preview appears here as you talk."}
                 </p>
               )}
             </div>
 
-            {!typedAnswersOnly && (
-              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                Live transcription using browser speech recognition. Your words appear as you speak.
-                Click <span className="font-medium">Send answer</span> to continue to the next question.
-              </p>
-            )}
             {whisperError && (
-              <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
+              <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
             )}
           </div>
 
-          {!typedAnswersOnly && (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="whisper-lang">
-                Answer language (Whisper STT)
+          {/* Language selector — Whisper mode only */}
+          {!typedAnswersOnly && isServerVoiceMode && (
+            <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <label className="shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-300" htmlFor="whisper-lang">
+                Language
               </label>
               <select
                 id="whisper-lang"
                 value={whisperLang}
                 onChange={(e) => setWhisperLang(e.target.value)}
-                className="mt-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1"
+                className="flex-1 rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
               >
                 {WHISPER_LANGUAGES.map((l) => (
                   <option key={l.id} value={l.id}>{l.label}</option>
@@ -2802,38 +2768,42 @@ export function VoiceInterviewClient({
             </div>
           )}
 
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+          {/* Typed answer box */}
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900">
             <label className="text-xs font-medium text-zinc-700 dark:text-zinc-200" htmlFor="typed-interview-reply">
-              {typedAnswersOnly ? "Your answer (typed)" : "Or type your answer if the mic is flaky"}
+              {typedAnswersOnly ? "Your answer (type here)" : "Type your answer (if mic is unreliable)"}
             </label>
             <textarea
               id="typed-interview-reply"
-              className="input-base mt-1 min-h-[88px]"
+              className="input-base mt-1 min-h-[96px] resize-y"
               value={typedDraft}
               onChange={(e) => setTypedDraft(e.target.value)}
-              placeholder="Write your technical answer here…"
+              placeholder="Write your answer here…"
             />
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-              <p className="text-xs text-zinc-500 sm:mr-auto">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-zinc-500">
                 {typedAnswersOnly
-                  ? <><span className="font-medium">Submit typed reply</span> continues · <span className="font-medium">Stop session</span> ends</>
-                  : <><span className="font-medium">Send answer</span> finalizes mic · <span className="font-medium">Submit typed reply</span> uses text box</>}
+                  ? <><span className="font-medium">Submit typed reply</span> → next question</>
+                  : isServerVoiceMode
+                    ? <><span className="font-medium">Send answer</span> → transcribes your voice · <span className="font-medium">Submit typed reply</span> → uses this box</>
+                    : <><span className="font-medium">Send answer</span> → submits spoken text · <span className="font-medium">Submit typed reply</span> → uses this box</>}
               </p>
               <div className="flex flex-wrap gap-2">
                 {!typedAnswersOnly && (
                   <button
                     type="button"
                     disabled={whisperProcessing || fetchingNextQuestion}
-                    className="shrink-0 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors duration-200 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                     onClick={() => void sendVoiceAnswer()}
                   >
-                    Send answer
+                    {whisperProcessing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {whisperProcessing ? "Transcribing…" : "Send answer"}
                   </button>
                 )}
                 <button
                   type="button"
-                  disabled={fetchingNextQuestion}
-                  className="shrink-0 rounded-lg bg-foreground px-4 py-2 text-sm text-background transition-all duration-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-200"
+                  disabled={fetchingNextQuestion || !typedDraft.trim()}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => void submitTypedReply()}
                 >
                   Submit typed reply
@@ -2844,35 +2814,39 @@ export function VoiceInterviewClient({
         </div>
       )}
 
-      <div
-        ref={transcriptContainerRef}
-        className="mt-4 max-h-[220px] overflow-y-auto overscroll-contain rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900"
-      >
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+      {/* ── Conversation history ── */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           Conversation history
         </p>
-        {utterances.length ? (
-          utterances.map((u, idx) => (
-            <div key={idx} className="mb-2">
-              <span className="font-medium">{u.speaker === "BOT" ? "Bot" : "You"}:</span>{" "}
-              <span className="break-words">{u.text}</span>
-            </div>
-          ))
+        {utterances.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+            The conversation will appear here once the interview starts.
+          </p>
         ) : (
-          <div className="text-zinc-600 dark:text-zinc-400">
-            Press <span className="font-medium">Start (mic)</span> or <span className="font-medium">Use typed answers only</span>
-            : you will hear the first question, then you can speak and/or type your reply.
+          <div
+            ref={transcriptContainerRef}
+            className="max-h-[400px] overflow-y-auto overscroll-contain space-y-2 rounded-lg border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            {utterances.map((u, idx) => (
+              <div key={idx} className={`flex gap-2 ${u.speaker === "CANDIDATE" ? "flex-row-reverse" : ""}`}>
+                <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                  u.speaker === "BOT"
+                    ? "rounded-tl-none bg-white text-zinc-800 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                    : "rounded-tr-none bg-blue-600 text-white"
+                }`}>
+                  <p className={`mb-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    u.speaker === "BOT" ? "text-zinc-400 dark:text-zinc-500" : "text-blue-200"
+                  }`}>
+                    {u.speaker === "BOT" ? "Interviewer" : "You"}
+                  </p>
+                  <p className="break-words">{u.text}</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
-
-      {timeExpired && (
-        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            💡 <span className="font-medium">Ready to submit:</span> Your interview responses have been recorded. Click &quot;Mark complete&quot; below to get your AI assessment and feedback.
-          </p>
-        </div>
-      )}
     </div>
   );
 }
