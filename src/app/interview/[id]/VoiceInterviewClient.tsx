@@ -11,6 +11,7 @@ import {
   isUsingBrowserVoiceFallback,
   MediaServiceTimeoutError,
   MEDIA_SERVICE_TIMEOUT_MS,
+  TTS_TIMEOUT_MS,
   resetVoiceServicePrefs,
   voiceServicePrefs,
 } from "@/lib/mediaTimeout";
@@ -146,7 +147,7 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
       const res = await fetchWithTimeout(
         "/api/ai/tts",
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text.trim() }) },
-        MEDIA_SERVICE_TIMEOUT_MS,
+        TTS_TIMEOUT_MS,
       );
       if (res.ok) {
         const blob = await res.blob();

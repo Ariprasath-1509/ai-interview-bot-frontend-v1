@@ -11,15 +11,15 @@ export class MediaServiceTimeoutError extends Error {
   }
 }
 
-/** Shared session prefs — server Whisper STT is primary for accuracy; browser TTS is primary for speed. */
+/** Shared session prefs — server Whisper STT for accuracy; Kokoro TTS for natural voice. */
 export const voiceServicePrefs = {
   preferServerStt: true,
-  preferServerTts: false,
+  preferServerTts: true,
 };
 
 export function resetVoiceServicePrefs() {
   voiceServicePrefs.preferServerStt = true;
-  voiceServicePrefs.preferServerTts = false;
+  voiceServicePrefs.preferServerTts = true;
 }
 
 export function isUsingBrowserVoiceFallback() {
