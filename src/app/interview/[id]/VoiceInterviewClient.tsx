@@ -2161,20 +2161,32 @@ export function VoiceInterviewClient({
     setSpeechError(null);
     resetVoiceValidationSession();
 
-    // Try server STT (faster-whisper) — more accurate than browser Web Speech API.
-    // ensureMicStream() gets the MediaRecorder stream for audio blob recording.
-    // If it fails (denied / no device), fall back to browser SpeechRecognition.
-    const gotMic = await ensureMicStream();
-    if (gotMic) {
-      serverVoiceModeRef.current = true;
-      startVoiceMonitor(micStreamRef.current!);
+    // Browser STT (Web Speech API) is the default — zero-latency, no server round-trip.
+    // Server Whisper mode is only used when voiceServicePrefs.preferServerStt is explicitly true.
+    if (voiceServicePrefs.preferServerStt) {
+      const gotMic = await ensureMicStream();
+      if (gotMic) {
+        serverVoiceModeRef.current = true;
+        startVoiceMonitor(micStreamRef.current!);
+      } else {
+        // No mic stream — fall back to browser SpeechRecognition
+        serverVoiceModeRef.current = false;
+        voiceServicePrefs.preferServerStt = false;
+        if (!recognitionRef.current) {
+          setSpeechError(
+            "Microphone unavailable and no browser speech support. Switching to typed answers.",
+          );
+          void startTypedOnly();
+          return;
+        }
+        setUsingBrowserVoice(true);
+      }
     } else {
-      // No mic stream — use browser STT preview only
+      // Browser STT mode: SpeechRecognition manages its own mic stream
       serverVoiceModeRef.current = false;
-      voiceServicePrefs.preferServerStt = false;
       if (!recognitionRef.current) {
         setSpeechError(
-          "Microphone unavailable and no browser speech support. Switching to typed answers.",
+          "Browser speech recognition is not supported. Switching to typed answers.",
         );
         void startTypedOnly();
         return;
