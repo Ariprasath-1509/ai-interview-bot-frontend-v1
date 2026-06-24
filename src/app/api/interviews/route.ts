@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionOrRefresh } from "@/lib/session";
+import { proxyError, safeJson } from "@/lib/apiClient";
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
@@ -8,17 +9,17 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const session = await getSessionOrRefresh();
   if (!session) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await req.json();
-    
+
     // Remove undefined fields to avoid backend issues
     const cleanBody = Object.fromEntries(
-      Object.entries(body).filter(([_, value]) => value !== undefined)
+      Object.entries(body).filter(([, value]) => value !== undefined)
     );
-    
+
     const response = await fetch(`${GATEWAY}/interviews`, {
       method: "POST",
       headers: {
@@ -29,13 +30,13 @@ export async function POST(req: Request) {
     });
 
     if (!response.ok) {
-      return new NextResponse("Backend error", { status: response.status });
+      return proxyError(response);
     }
 
-    const data = await response.json();
+    const data = await safeJson(response);
     return NextResponse.json(data);
   } catch (error) {
     console.error("Interview creation error:", error);
-    return new NextResponse("Service unavailable", { status: 503 });
+    return Response.json({ error: "Service unavailable" }, { status: 503 });
   }
 }

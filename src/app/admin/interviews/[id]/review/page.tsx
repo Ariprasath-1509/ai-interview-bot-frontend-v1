@@ -85,10 +85,14 @@ function normalizeFeedbackItemList(value: unknown): string[] {
 
 export default async function InterviewReviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const p = await params;
+  const sp = await searchParams;
+  const signedOff = sp.signedOff === "1";
   const id = z.string().min(1).safeParse(p?.id).data;
   if (!id) return <div className="mx-auto max-w-4xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
 
@@ -209,6 +213,11 @@ export default async function InterviewReviewPage({
   return (
     <AppShell title="Review interview" subtitle={summary?.candidateName ?? "Unknown candidate"}>
     <ReviewPageScrollReset />
+    {signedOff && (
+      <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+        Interview signed off successfully.
+      </div>
+    )}
     <div className="w-full">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
@@ -237,7 +246,7 @@ export default async function InterviewReviewPage({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {(isStaffReadRole(session?.role)) && (
+          {(isStaffAdminRole(session?.role)) && (
             <RerunAssessmentButton interviewId={interview.id} />
           )}
           <Link
@@ -424,9 +433,8 @@ export default async function InterviewReviewPage({
                 </div>
                 <p className="mt-1 font-medium text-zinc-800 dark:text-zinc-200">{q.questionText}</p>
                 {q.candidateAnswer ? (
-                  <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-                    <span className="font-medium">Answer:</span> {q.candidateAnswer.substring(0, 500)}
-                    {q.candidateAnswer.length > 500 ? "…" : ""}
+                  <p className="mt-2 whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">
+                    <span className="font-medium">Answer:</span> {q.candidateAnswer}
                   </p>
                 ) : (
                   <p className="mt-2 text-xs text-zinc-400">No answer recorded for this slot.</p>
@@ -736,10 +744,15 @@ async function signOff(formData: FormData) {
     note: formData.get("note"),
   });
 
-  await apiServer(`/reviews/${parsed.interviewId}/sign-off`, session.token, {
+  const res = await apiServer(`/reviews/${parsed.interviewId}/sign-off`, session.token, {
     method: "POST",
     body: JSON.stringify({ interviewId: parsed.interviewId, verdict: parsed.verdict, note: parsed.note }),
   });
 
-  redirect(`/admin/interviews/${encodeURIComponent(parsed.interviewId)}/review`);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "Unknown error");
+    throw new Error(`Sign-off failed (${res.status}): ${msg}`);
+  }
+
+  redirect(`/admin/interviews/${encodeURIComponent(parsed.interviewId)}/review?signedOff=1`);
 }

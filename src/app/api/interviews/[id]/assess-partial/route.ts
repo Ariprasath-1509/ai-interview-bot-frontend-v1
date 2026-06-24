@@ -63,6 +63,7 @@ export async function POST(
     planId: string | null;
     interviewMode?: string;
     proposedVerdict?: string;
+    status?: string;
   };
 
   let jdTitle = "Target role";
@@ -174,13 +175,14 @@ export async function POST(
     },
   });
 
+  const isWithdrawn = interview.status === "WITHDRAWN";
   await fetch(`${GATEWAY}/interviews/${id}/complete`, {
     method: "PATCH",
     headers,
     body: JSON.stringify({
       transcriptJson: mergedTranscript,
-      proposedVerdict: interview.proposedVerdict ?? assessment.proposedVerdict ?? "WITHDRAWN",
-      status: "REVIEW_PENDING",
+      proposedVerdict: isWithdrawn ? "WITHDRAWN" : (interview.proposedVerdict ?? assessment.proposedVerdict ?? "WITHDRAWN"),
+      ...(isWithdrawn ? {} : { status: "REVIEW_PENDING" }),
     }),
   }).catch(() => null);
 

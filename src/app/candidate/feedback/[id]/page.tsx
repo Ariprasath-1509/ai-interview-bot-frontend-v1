@@ -206,7 +206,7 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
                         </span>
                       )}
                       <span className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-semibold dark:bg-zinc-800">
-                        {s.value}<span className="font-normal text-zinc-400">/5</span>
+                        {s.value}<span className="font-normal text-zinc-400">/10</span>
                       </span>
                     </div>
                   </div>

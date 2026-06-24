@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { outputsMatch } from "./outputMatcher";
 
 export const runtime = "nodejs";
+export const maxDuration = 120; // 2-minute hard cap on the entire route
 
 const PISTON_API_URL = process.env.PISTON_API_URL || "https://emkc.org/api/v2/piston";
 
@@ -307,8 +308,9 @@ export async function POST(req: Request) {
     test_cases?: { name?: string; input?: string; expected?: string; contains?: string[] }[];
   };
 
+  const MAX_TEST_CASES = 10;
   const { language = "python", code = "", stdin = "", timeout_ms = 10000, test_cases = [] } = body;
-  const timeoutMs = Math.min(Math.max(Number(timeout_ms) || 10000, 500), 60000);
+  const timeoutMs = Math.min(Math.max(Number(timeout_ms) || 10000, 500), 30000);
 
   let lang = String(language).toLowerCase().trim();
   lang = ALIASES[lang] ?? lang;
@@ -317,6 +319,9 @@ export async function POST(req: Request) {
     return Response.json({ error: "unsupported_language", language: lang, languages: languageAvailability() }, { status: 400 });
   }
 
+  if (test_cases.length > MAX_TEST_CASES) {
+    return Response.json({ error: `Too many test cases (max ${MAX_TEST_CASES})` }, { status: 400 });
+  }
   const cases = test_cases.length > 0 ? test_cases : [{ name: "run", input: stdin, expected: undefined }];
   const results = [];
 

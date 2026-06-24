@@ -36,3 +36,25 @@ export async function apiServer(
 ): Promise<Response> {
   return apiFetch(path, { ...options, token });
 }
+
+/**
+ * Safe JSON parse for API responses.
+ * Returns parsed data or null if the body is not valid JSON (e.g., HTML error pages).
+ */
+export async function safeJson<T = unknown>(res: Response): Promise<T | null> {
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json") && !ct.includes("text/json")) {
+    return null;
+  }
+  return res.json().catch(() => null) as Promise<T | null>;
+}
+
+/**
+ * Proxy an API error response as a JSON error reply.
+ * Reads the upstream body as JSON if possible, otherwise wraps the status text.
+ */
+export async function proxyError(upstream: Response): Promise<Response> {
+  const body = await safeJson<{ error?: string; message?: string }>(upstream);
+  const msg = body?.error ?? body?.message ?? upstream.statusText ?? "Backend error";
+  return Response.json({ error: msg }, { status: upstream.status });
+}

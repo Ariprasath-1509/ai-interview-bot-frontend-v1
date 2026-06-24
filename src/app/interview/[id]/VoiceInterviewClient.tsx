@@ -115,12 +115,15 @@ function normalizeVector(v: number[]): number[] {
 }
 
 let activeTtsAudio: HTMLAudioElement | null = null;
+let activeTtsAbort: AbortController | null = null;
 
 function cancelActiveTts() {
   if (activeTtsAudio) {
     activeTtsAudio.pause();
     activeTtsAudio = null;
   }
+  activeTtsAbort?.abort();
+  activeTtsAbort = null;
   if (typeof window !== "undefined") {
     try {
       window.speechSynthesis?.cancel();
@@ -130,10 +133,59 @@ function cancelActiveTts() {
   }
 }
 
+function splitIntoSentences(text: string): string[] {
+  // Split at sentence boundaries while keeping the delimiter
+  const parts = text.split(/(?<=[.!?])\s+/);
+  const result: string[] = [];
+  for (const p of parts) {
+    const trimmed = p.trim();
+    if (trimmed.length > 0) result.push(trimmed);
+  }
+  return result.length > 0 ? result : [text.trim()];
+}
+
+async function fetchTtsBlob(text: string, signal: AbortSignal): Promise<{ url: string; type: string } | null> {
+  try {
+    const res = await fetch("/api/ai/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return { url: URL.createObjectURL(blob), type: blob.type || "audio/mpeg" };
+  } catch {
+    return null;
+  }
+}
+
+async function playTtsUrl(url: string, signal: AbortSignal, onStart?: () => void): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (signal.aborted) { URL.revokeObjectURL(url); resolve(); return; }
+    const audio = new Audio(url);
+    activeTtsAudio = audio;
+    let resolved = false;
+    const done = () => {
+      if (!resolved) { resolved = true; URL.revokeObjectURL(url); activeTtsAudio = null; resolve(); }
+    };
+    const timer = setTimeout(done, 30_000);
+    const abortHandler = () => { audio.pause(); clearTimeout(timer); done(); };
+    signal.addEventListener("abort", abortHandler, { once: true });
+    audio.onplay = () => onStart?.();
+    audio.onended = () => { clearTimeout(timer); signal.removeEventListener("abort", abortHandler); done(); };
+    audio.onerror = () => { clearTimeout(timer); signal.removeEventListener("abort", abortHandler); done(); };
+    audio.play().then(() => onStart?.()).catch(() => { clearTimeout(timer); done(); });
+  });
+}
+
 async function speakWhenDone(text: string, onStart?: () => void): Promise<void> {
   if (typeof window === "undefined") return;
 
   cancelActiveTts();
+  const abort = new AbortController();
+  activeTtsAbort = abort;
+
   let started = false;
   const notifyStart = () => {
     if (started) return;
@@ -141,37 +193,40 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
     onStart?.();
   };
 
-  // Try Kokoro TTS (server) first — much more natural voice than browser speech
+  // Pipelined Kokoro TTS: split into sentences, fetch N+1 while N plays
   if (voiceServicePrefs.preferServerTts && text.trim().length > 0) {
     try {
-      const res = await fetchWithTimeout(
-        "/api/ai/tts",
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text.trim() }) },
-        TTS_SPEAK_TIMEOUT_MS,
+      const sentences = splitIntoSentences(text.trim());
+
+      // Pre-fetch the first sentence immediately; start fetching second in parallel
+      const prefetched: Array<Promise<{ url: string; type: string } | null>> = sentences.map(
+        (_, i) => (i === 0 || i === 1 ? fetchTtsBlob(sentences[i], abort.signal) : Promise.resolve(null))
       );
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        activeTtsAudio = audio;
-        await new Promise<void>((resolve) => {
-          let resolved = false;
-          const done = () => {
-            if (!resolved) { resolved = true; URL.revokeObjectURL(url); activeTtsAudio = null; resolve(); }
-          };
-          const timer = setTimeout(done, Math.max(text.length * 100, 6000));
-          audio.onplay = () => notifyStart();
-          audio.onended = () => { clearTimeout(timer); done(); };
-          audio.onerror = () => { clearTimeout(timer); done(); };
-          audio.play().then(() => notifyStart()).catch(() => { clearTimeout(timer); done(); });
-        });
-        return;
+
+      let allSucceeded = true;
+      for (let i = 0; i < sentences.length; i++) {
+        if (abort.signal.aborted) break;
+
+        // Kick off next+1 fetch while current is playing (already done for 0 and 1)
+        if (i + 2 < sentences.length) {
+          prefetched[i + 2] = fetchTtsBlob(sentences[i + 2], abort.signal);
+        }
+
+        const result = await prefetched[i];
+        if (!result) { allSucceeded = false; break; }
+
+        await playTtsUrl(result.url, abort.signal, i === 0 ? notifyStart : undefined);
       }
+
+      if (allSucceeded) return;
+      // If any sentence failed, mark server TTS unavailable and fall through to browser
+      voiceServicePrefs.preferServerTts = false;
     } catch {
-      // Server TTS unavailable this session — fall back to browser speech
       voiceServicePrefs.preferServerTts = false;
     }
   }
+
+  if (abort.signal.aborted) return;
 
   // Browser speech fallback
   const synth = window.speechSynthesis;
@@ -191,10 +246,12 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
         resolve();
       }
     };
+    const abortHandler = () => { synth.cancel(); done(); };
+    abort.signal.addEventListener("abort", abortHandler, { once: true });
     const timer = setTimeout(done, Math.max(text.length * 80, 4000) + 5000);
     u.onstart = () => notifyStart();
-    u.onend = () => { clearTimeout(timer); done(); };
-    u.onerror = () => { clearTimeout(timer); done(); };
+    u.onend = () => { clearTimeout(timer); abort.signal.removeEventListener("abort", abortHandler); done(); };
+    u.onerror = () => { clearTimeout(timer); abort.signal.removeEventListener("abort", abortHandler); done(); };
     try {
       synth.speak(u);
       notifyStart();
@@ -288,6 +345,7 @@ export function VoiceInterviewClient({
   const [mainTimerPaused, setMainTimerPaused] = useState(false);
   const [codingTimeExpired, setCodingTimeExpired] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false);
+  const timeExpiredRef = useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [manipulationCount, setManipulationCount] = useState(0);
@@ -483,6 +541,7 @@ export function VoiceInterviewClient({
       if (mainTimerPausedRef.current) return;
       setSecondsLeft((prev) => {
         if (prev <= 1) {
+          timeExpiredRef.current = true;
           setTimeExpired(true);
           return 0;
         }
@@ -592,16 +651,25 @@ export function VoiceInterviewClient({
   useEffect(() => {
     if (!timeExpired) return;
     onTimeExpired?.();
+
+    // Flush any partial answer the candidate was speaking when time ran out
+    const partialAnswer = `${finalBufferRef.current} ${interimRef.current}`.trim();
+    finalBufferRef.current = "";
+    interimRef.current = "";
+
     const timeUpMessage: Utterance = {
       speaker: "BOT",
       text: `Your ${durationMinutes} minutes are up — we're stopping the interview here. Thank you for your time, your responses have been recorded.`,
       at: nowIso(),
     };
-    const finalUtterances = [...utterancesRef.current, timeUpMessage];
-    
-    // Update utterances to include the time-up message
-    syncUtterances(finalUtterances);
-    
+
+    const base = [...utterancesRef.current];
+    if (partialAnswer) {
+      base.push({ speaker: "CANDIDATE", text: partialAnswer, at: nowIso() });
+    }
+    base.push(timeUpMessage);
+    syncUtterances(base);
+
     // Stop the session but don't abandon - let user complete normally
     finalizeVoiceSession();
 
@@ -647,6 +715,8 @@ export function VoiceInterviewClient({
   const hardFailedRef = useRef(false);
   /** Latest “user left view” cleanup (avoids stale closures in document listeners). */
   const silentEndBecauseUserLeftRef = useRef<() => void>(() => {});
+  const interviewChannelRef = useRef<BroadcastChannel | null>(null);
+  const [blockedByOtherTab, setBlockedByOtherTab] = useState(false);
 
   const updateVoiceValidation = useCallback((patch: Partial<VoiceValidationSnapshot>) => {
     setVoiceValidation((prev) => ({ ...prev, ...patch }));
@@ -781,7 +851,17 @@ export function VoiceInterviewClient({
       return;
     }
 
-    const ctx = new Ctx();
+    let ctx: AudioContext;
+    try {
+      ctx = new Ctx();
+    } catch (e) {
+      console.warn("[Voice] AudioContext creation failed:", e);
+      updateVoiceValidation({
+        status: "NOT_VERIFIED",
+        note: "Audio monitoring unavailable in this browser.",
+      });
+      return;
+    }
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
 
@@ -999,16 +1079,30 @@ export function VoiceInterviewClient({
   }
 
   async function uploadRecordingChunk(blob: Blob, chunkIndex: number, isFinal: boolean) {
-    const fd = new FormData();
-    fd.append("chunk", blob, `chunk-${chunkIndex}.webm`);
-    fd.append("chunkIndex", String(chunkIndex));
-    fd.append("isFinal", String(isFinal));
-    const res = await fetch(
-      `/api/interviews/${encodeURIComponent(interviewId)}/recording/chunk`,
-      { method: "POST", body: fd },
-    );
-    if (res.ok) sessionChunkedUploadRef.current = true;
-    return res.ok;
+    const CHUNK_MAX_RETRIES = 3;
+    const CHUNK_BACKOFF_MS = [0, 1000, 3000];
+    for (let attempt = 0; attempt < CHUNK_MAX_RETRIES; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, CHUNK_BACKOFF_MS[attempt]));
+      try {
+        const fd = new FormData();
+        fd.append("chunk", blob, `chunk-${chunkIndex}.webm`);
+        fd.append("chunkIndex", String(chunkIndex));
+        fd.append("isFinal", String(isFinal));
+        const res = await fetch(
+          `/api/interviews/${encodeURIComponent(interviewId)}/recording/chunk`,
+          { method: "POST", body: fd },
+        );
+        if (res.ok) {
+          sessionChunkedUploadRef.current = true;
+          return true;
+        }
+        if (attempt < CHUNK_MAX_RETRIES - 1) continue;
+      } catch (err) {
+        console.warn(`[Recording] Chunk ${chunkIndex} upload attempt ${attempt + 1} failed:`, err);
+        if (attempt < CHUNK_MAX_RETRIES - 1) continue;
+      }
+    }
+    return false;
   }
 
   async function startSessionRecording() {
@@ -1115,6 +1209,9 @@ export function VoiceInterviewClient({
   }, []);
 
   async function transcribeAnswerBlob(blob: Blob): Promise<string> {
+    if (blob.size > 4_000_000) {
+      throw new Error(`audio_too_large:${blob.size}`);
+    }
     const fd = new FormData();
     fd.append("audio", blob, "answer.webm");
     if (whisperLang !== "auto") fd.append("language", whisperLang);
@@ -1123,7 +1220,11 @@ export function VoiceInterviewClient({
       const err = await res.json().catch(() => ({})) as { detail?: string; error?: string };
       throw new Error(err.detail ?? err.error ?? "Transcription failed");
     }
-    const data = await res.json() as { text?: string };
+    const data = await res.json() as { text?: string; language?: string };
+    const detectedLang = data.language;
+    if (whisperLang !== "auto" && detectedLang && detectedLang !== whisperLang) {
+      setWhisperError(`Speech detected as "${detectedLang}" but language is set to "${whisperLang}" — change the Language selector if you're speaking a different language.`);
+    }
     return data.text?.trim() ?? "";
   }
 
@@ -1138,7 +1239,7 @@ export function VoiceInterviewClient({
     serverVoiceModeRef.current = false;
     setIsServerVoiceMode(false);
     setUsingBrowserVoice(true);
-    setWhisperError(null);
+    setWhisperError("Switched to browser speech recognition — accuracy may be lower than normal.");
     console.warn("[STT] Switching to browser speech:", reason);
     resetAnswerCaptureState();
     void stopAnswerRecordingBlob().catch(() => null);
@@ -1171,7 +1272,7 @@ export function VoiceInterviewClient({
     try {
       answerChunksRef.current = [];
       answerRecordingStartTimeRef.current = Date.now();
-      const rec = new MediaRecorder(stream);
+      const rec = new MediaRecorder(stream, { audioBitsPerSecond: 24000 });
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) answerChunksRef.current.push(e.data);
       };
@@ -1264,7 +1365,9 @@ export function VoiceInterviewClient({
       await submitVoiceAnswerText(text);
     } catch (e) {
       const timedOut = e instanceof MediaServiceTimeoutError;
-      const reason = timedOut ? "Whisper timed out (>10s)" : (e instanceof Error ? e.message : "Transcription failed");
+      const errMsg = e instanceof Error ? e.message : "Transcription failed";
+      const tooLarge = errMsg.startsWith("audio_too_large:");
+      const reason = timedOut ? "Whisper timed out (>10s)" : errMsg;
       if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
         enableBrowserSttFallback(reason);
         return;
@@ -1273,6 +1376,8 @@ export function VoiceInterviewClient({
       setWhisperError(
         timedOut
           ? "Whisper timed out. Switched to browser speech — speak and click Send answer again."
+          : tooLarge
+          ? "Recording too large for upload. Switched to browser speech — speak and click Send answer again."
           : "Whisper unavailable. Switched to browser speech — speak and click Send answer again.",
       );
     } finally {
@@ -1441,6 +1546,10 @@ export function VoiceInterviewClient({
         tabSwitchCount: tabSwitchCountRef.current,
         tabSwitchViolation: tabSwitchCountRef.current >= 2,
         fullscreenExitCount: fullscreen.exitCount,
+        manipulationCount: manipulationCountRef.current,
+        proctoringTotalEvents: proctoring.snapshot.totalEvents,
+        proctoringViolationLevel: proctoring.snapshot.violationLevel,
+        proctoringStrikes: proctoring.snapshot.strikes,
       },
       utterances,
     };
@@ -1478,6 +1587,10 @@ export function VoiceInterviewClient({
   function finalizeVoiceSession() {
     if (sessionFinalizedRef.current) return;
     sessionFinalizedRef.current = true;
+
+    // Release multi-tab lock
+    interviewChannelRef.current?.close();
+    interviewChannelRef.current = null;
 
     sessionActiveRef.current = false;
     previewActiveRef.current = false;
@@ -1559,7 +1672,14 @@ export function VoiceInterviewClient({
       micStreamRef.current = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
-      // Don't start voice monitor - voice validation disabled in browser mode
+      // Detect mic hardware disconnect — track fires 'ended' when device is unplugged
+      micStreamRef.current.getAudioTracks().forEach((track) => {
+        track.onended = () => {
+          if (sessionActiveRef.current && !sessionFinalizedRef.current) {
+            setWhisperError("Microphone disconnected — reconnect your mic and click Send answer to resume.");
+          }
+        };
+      });
       return true;
     }  catch (e) {
       const err = e as { name?: string; message?: string };
@@ -1716,6 +1836,18 @@ export function VoiceInterviewClient({
     };
 
     attempt(80);
+
+    // If there's already accumulated text and the silence timer was cleared by the
+    // recognition restart, re-arm it so the answer still gets auto-submitted.
+    if (!serverVoiceModeRef.current && finalBufferRef.current.trim() && !speechTimeoutRef.current) {
+      speechTimeoutRef.current = setTimeout(() => {
+        if (!sessionActiveRef.current || pausedForTtsRef.current || timeExpiredRef.current) return;
+        const accumulated = finalBufferRef.current.trim();
+        if (accumulated && Date.now() - lastSpeechTimeRef.current >= SPEECH_TIMEOUT_MS) {
+          flushSpokenAnswer();
+        }
+      }, SPEECH_TIMEOUT_MS);
+    }
   }
 
   function addCandidate(text: string) {
@@ -1782,16 +1914,42 @@ export function VoiceInterviewClient({
       }
     }
 
+    if (!nextQ) {
+      setWhisperError("Could not fetch the next question from the server — using a fallback prompt.");
+    }
+
+    // Detect duplicate question: check if the server returned a question already asked
+    let resolvedQ = nextQ;
+    if (resolvedQ?.question) {
+      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 80);
+      const normalizedNew = normalize(resolvedQ.question);
+      const alreadyAsked = utterancesRef.current
+        .filter((u) => u.speaker === "BOT")
+        .some((u) => normalize(u.text) === normalizedNew);
+      if (alreadyAsked) {
+        // Re-fetch once with an explicit hint not to repeat
+        const retry = await fetchNextQuestion({
+          slot: nextSlot,
+          lastAnswer: `[The previous question was already asked earlier. Please ask a different question.] ${clean}`,
+          transcript: utterancesRef.current,
+          manipulationCount: manipulationCountRef.current,
+        });
+        if (retry?.question && normalize(retry.question) !== normalizedNew) {
+          resolvedQ = retry;
+        }
+      }
+    }
+
     const q =
-      nextQ?.question ??
+      resolvedQ?.question ??
       "I didn’t quite catch the next prompt from the server—staying on what you just said, could you give me one concrete example and what made it tricky?";
 
     botPromptIdxRef.current = nextSlot;
     setBotPromptIdx(nextSlot);
     await addBot(q, {
-      isCoding: nextQ?.isCoding,
-      preferredLanguage: nextQ?.preferredLanguage,
-      starterCode: nextQ?.starterCode,
+      isCoding: resolvedQ?.isCoding,
+      preferredLanguage: resolvedQ?.preferredLanguage,
+      starterCode: resolvedQ?.starterCode,
     });
     } finally {
       setFetchingNextQuestion(false);
@@ -1835,8 +1993,8 @@ export function VoiceInterviewClient({
 
   function flushSpokenAnswer() {
 
-    if (pausedForTtsRef.current || !sessionActiveRef.current || advancingRef.current) {
-      console.log('[Speech] Flush blocked - session inactive, TTS active, or already advancing');
+    if (pausedForTtsRef.current || !sessionActiveRef.current || advancingRef.current || timeExpiredRef.current) {
+      console.log('[Speech] Flush blocked - session inactive, TTS active, advancing, or time expired');
       return;
     }
 
@@ -2158,6 +2316,25 @@ export function VoiceInterviewClient({
       setSpeechError("Complete face enrollment before starting the interview.");
       return;
     }
+    // Claim interview lock via BroadcastChannel — block if another tab is already running this interview
+    if (typeof BroadcastChannel !== "undefined") {
+      let conflictDetected = false;
+      const ch = new BroadcastChannel(`br-interview-${interviewId}`);
+      interviewChannelRef.current = ch;
+      ch.onmessage = (ev) => {
+        if (ev.data === "active" && sessionActiveRef.current) {
+          ch.postMessage("taken");
+        } else if (ev.data === "taken") {
+          conflictDetected = true;
+          setBlockedByOtherTab(true);
+          ch.close();
+          interviewChannelRef.current = null;
+        }
+      };
+      ch.postMessage("active");
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
+      if (conflictDetected) return;
+    }
     resetVoiceServicePrefs(); // preferServerStt=true, preferServerTts=true
     sessionFinalizedRef.current = false;
     typedOnlyRef.current = false;
@@ -2371,8 +2548,8 @@ export function VoiceInterviewClient({
         // Show warning when user returns
         setShowTabWarning(true);
 
-        // If 2nd switch, terminate interview after showing warning
-        if (newCount >= 2) {
+        // If 3rd switch, terminate interview after showing warning
+        if (newCount >= 3) {
           setTimeout(() => {
             void abandonInterview(utterancesRef.current, "tab_switch_violation");
           }, 3000); // 3s delay to show final warning
@@ -2433,6 +2610,17 @@ export function VoiceInterviewClient({
     return (
       <div className="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
         Voice interview is not supported in this browser. Please use Chrome or Edge on desktop.
+      </div>
+    );
+  }
+
+  if (blockedByOtherTab) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm dark:border-amber-800 dark:bg-amber-900/20">
+        <p className="font-semibold text-amber-800 dark:text-amber-200">Interview already open in another tab</p>
+        <p className="mt-1 text-amber-700 dark:text-amber-300">
+          This interview is currently running in another browser tab. Close the other tab and refresh this page to continue here.
+        </p>
       </div>
     );
   }
@@ -2779,7 +2967,11 @@ export function VoiceInterviewClient({
               value={typedDraft}
               onChange={(e) => setTypedDraft(e.target.value)}
               placeholder="Write your answer here…"
+              maxLength={5000}
             />
+            {typedDraft.length > 4500 && (
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{5000 - typedDraft.length} characters remaining</p>
+            )}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-zinc-500">
                 {typedAnswersOnly

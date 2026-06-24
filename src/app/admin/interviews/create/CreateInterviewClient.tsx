@@ -203,7 +203,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         setAutoFilledFields(fieldsPopulated);
         
         // Determine confidence
-        const confidence = fieldsPopulated.length >= 5 ? 'high' : fieldsPopulated.length >= 3 ? 'medium' : 'low';
+        const confidence = (fieldsPopulated.includes('engineerEmail') && fieldsPopulated.length >= 4) ? 'high' : (fieldsPopulated.includes('engineerEmail') || fieldsPopulated.includes('engineerName')) ? 'medium' : 'low';
         setAutoFillConfidence(confidence);
         
         toast('Form auto-filled with candidate data', 'success');
@@ -469,7 +469,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
       setAutoFillApplied(true);
       setAutoFilledFields(fieldsPopulated);
       // Determine confidence based on number of fields populated
-      const confidence = fieldsPopulated.length >= 5 ? 'high' : fieldsPopulated.length >= 3 ? 'medium' : 'low';
+      const confidence = (fieldsPopulated.includes('engineerEmail') && fieldsPopulated.length >= 4) ? 'high' : (fieldsPopulated.includes('engineerEmail') || fieldsPopulated.includes('engineerName')) ? 'medium' : 'low';
       setAutoFillConfidence(confidence);
       toast('Form auto-filled with candidate and client data', 'success');
     } else if (formData.candidateId || formData.clientId) {
@@ -556,10 +556,12 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
           ? { customQuestions: manualQuestions }
           : {}),
       };
+      const idempotencyKey = crypto.randomUUID();
       const response = await fetch('/api/recruiter/interviews', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': idempotencyKey,
         },
         credentials: 'include',
         body: JSON.stringify(payload)
@@ -614,7 +616,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         setAutoFilledFields(fieldsPopulated);
         
         // Determine confidence
-        const confidence = fieldsPopulated.length >= 5 ? 'high' : fieldsPopulated.length >= 3 ? 'medium' : 'low';
+        const confidence = (fieldsPopulated.includes('engineerEmail') && fieldsPopulated.length >= 4) ? 'high' : (fieldsPopulated.includes('engineerEmail') || fieldsPopulated.includes('engineerName')) ? 'medium' : 'low';
         setAutoFillConfidence(confidence);
         
         toast('Form auto-filled successfully', 'success');

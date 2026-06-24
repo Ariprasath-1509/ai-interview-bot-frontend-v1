@@ -65,6 +65,11 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
 
   const interview = (await interviewRes.json()) as Interview;
 
+  // Block candidates from re-entering a finished interview
+  if (isCandidate && ["COMPLETED", "REVIEW_PENDING", "SIGNED_OFF"].includes(interview.status)) {
+    redirect(`/candidate/feedback/${id}`);
+  }
+
   // Calculate interview duration based on mode or custom duration
   const getInterviewDurationMinutes = (mode: string, customDuration: number | null): number => {
     if (customDuration) return customDuration;
