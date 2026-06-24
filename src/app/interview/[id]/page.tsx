@@ -232,17 +232,57 @@ async function completeInterview(formData: FormData) {
   let assessmentMeta: Record<string, unknown> = {};
   let assessment: AssessmentPayload | null = null;
 
+  // Build shared transcript doc and voice-validation meta now — used in both the early save and the final save.
+  let transcriptDoc: Record<string, unknown> = {};
+  try { transcriptDoc = JSON.parse(transcriptJson) as Record<string, unknown>; } catch { /* ignore */ }
+  let voiceValidationMeta: Record<string, unknown> | null = null;
+  try {
+    if (parsed.voiceValidationJson?.trim()) {
+      voiceValidationMeta = JSON.parse(parsed.voiceValidationJson) as Record<string, unknown>;
+    }
+  } catch { voiceValidationMeta = null; }
+
+  const buildTranscript = (aiAssessment: Record<string, unknown>) => JSON.stringify({
+    ...transcriptDoc,
+    meta: {
+      ...(transcriptDoc.meta as object ?? {}),
+      aiAssessment,
+      ...(voiceValidationMeta ? { voiceValidation: voiceValidationMeta } : {}),
+      ...(codeSubmissionPayload ? {
+        codeSubmissions: codeSubmissionPayload,
+        codeSubmission: Array.isArray(codeSubmissionPayload)
+          ? codeSubmissionPayload[codeSubmissionPayload.length - 1]
+          : codeSubmissionPayload,
+      } : {}),
+    },
+  });
+
+  // STEP 1 — Save the interview immediately so data is never lost even if the
+  // HTTP connection is dropped mid-assessment (cloud proxies time out at ~60–100 s).
+  await apiServer(`/interviews/${parsed.interviewId}/complete`, session.token, {
+    method: "PATCH",
+    body: JSON.stringify({
+      transcriptJson: buildTranscript({ assessFailed: true, assessError: "pending", scoredAt: new Date().toISOString(), summary: "AI assessment is running in the background — refresh or re-run from the review page." }),
+      proposedVerdict: "",
+      status: "REVIEW_PENDING",
+    }),
+    timeoutMs: 30_000,
+  }).catch(() => null);
+
+  // STEP 2 — Kick off async assessment.
   const asyncStart = await apiServer("/ai/assess-async", session.token, {
     method: "POST",
     body: JSON.stringify(assessBody),
     timeoutMs: 30_000,
-  });
+  }).catch(() => null);
 
-  if (asyncStart.ok) {
+  // STEP 3 — Poll for up to 90 s (18 × 5 s).  Stays well inside the typical
+  // 100-second cloud-proxy idle timeout so the connection never drops mid-poll.
+  if (asyncStart?.ok) {
     const asyncPayload = (await asyncStart.json().catch(() => ({}))) as { runId?: string };
     const assessRunId = asyncPayload.runId;
 
-    for (let attempt = 0; attempt < 150; attempt++) {
+    for (let attempt = 0; attempt < 18; attempt++) {
       if (attempt > 0) {
         await new Promise((r) => setTimeout(r, 5000));
       }
@@ -251,9 +291,9 @@ async function completeInterview(formData: FormData) {
         : `/ai/assess-status/${parsed.interviewId}`;
       const statusRes = await apiServer(statusPath, session.token, {
         timeoutMs: 15_000,
-      });
-      if (!statusRes.ok) continue;
-      const status = (await statusRes.json()) as {
+      }).catch(() => null);
+      if (!statusRes?.ok) continue;
+      const status = (await statusRes.json().catch(() => ({}))) as {
         status?: string;
         result?: AssessmentPayload;
         error?: string;
@@ -287,6 +327,7 @@ async function completeInterview(formData: FormData) {
     };
   }
 
+  // STEP 4 — Assessment completed within the poll window — update interview with results.
   if (assessment) {
     proposedVerdict = assessment.proposedVerdict ?? "";
     assessmentMeta = { ...assessment, scoredAt: new Date().toISOString(), assessMode: "async" };
@@ -309,30 +350,10 @@ async function completeInterview(formData: FormData) {
     }).catch(() => null);
   }
 
-  // Merge assessment into transcript and update interview
-  let transcriptDoc: Record<string, unknown> = {};
-  try { transcriptDoc = JSON.parse(transcriptJson) as Record<string, unknown>; } catch { /* ignore */ }
-  let voiceValidationMeta: Record<string, unknown> | null = null;
-  try {
-    if (parsed.voiceValidationJson?.trim()) {
-      voiceValidationMeta = JSON.parse(parsed.voiceValidationJson) as Record<string, unknown>;
-    }
-  } catch {
-    voiceValidationMeta = null;
-  }
-  const mergedTranscript = JSON.stringify({
-    ...transcriptDoc,
-    meta: {
-      ...(transcriptDoc.meta as object ?? {}),
-      aiAssessment: assessmentMeta,
-      ...(voiceValidationMeta ? { voiceValidation: voiceValidationMeta } : {}),
-      ...(codeSubmissionPayload ? { codeSubmissions: codeSubmissionPayload, codeSubmission: Array.isArray(codeSubmissionPayload) ? codeSubmissionPayload[codeSubmissionPayload.length - 1] : codeSubmissionPayload } : {}),
-    },
-  });
-
+  // Update with final assessment state (replaces the pending state written in STEP 1).
   await apiServer(`/interviews/${parsed.interviewId}/complete`, session.token, {
     method: "PATCH",
-    body: JSON.stringify({ transcriptJson: mergedTranscript, proposedVerdict, status: "REVIEW_PENDING" }),
+    body: JSON.stringify({ transcriptJson: buildTranscript(assessmentMeta), proposedVerdict, status: "REVIEW_PENDING" }),
     timeoutMs: 30_000,
   }).catch(() => null);
 

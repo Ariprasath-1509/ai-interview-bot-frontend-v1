@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Building2, Briefcase, Users, Target, Edit2, Trash2, X, TrendingUp, Upload, Download, ChevronRight, ChevronLeft, Minus, Loader2, CheckCircle, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageHero, StatCard } from '@/components/common/AppUi';
 import { Badge } from '@/components/ui/badge';
-import { entityBranchLabel, defaultStaffBranch, entityBranchBadgeClass, isStaffReadRole, resolveFormBranch } from '@/lib/staffRoles';
+import { entityBranchLabel, defaultStaffBranch, entityBranchBadgeClass, isStaffReadRole, isStaffAdminRole, resolveFormBranch } from '@/lib/staffRoles';
 
 interface Client {
   id: string;
@@ -96,9 +96,13 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [masterListCollapsed, setMasterListCollapsed] = useState(false);
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const isAdminRole = isStaffAdminRole(userRole);
   const showEntityBranch = isStaffReadRole(userRole);
   const staffDefaultBranch = defaultStaffBranch(userRole, userBranch);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
 
   const skillLabels = Object.fromEntries(skillOptions.map((s) => [s.value, s.label]));
 
@@ -128,8 +132,7 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
       if (res.ok) {
         const data = await res.json();
         setClients(data);
-        // Auto-select first client if none selected
-        if (data.length > 0 && !selectedId) {
+        if (data.length > 0 && !selectedIdRef.current) {
           setSelectedId(data[0].id);
         }
       }
@@ -138,7 +141,7 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
     } finally {
       setLoading(false);
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
     fetchClients();
@@ -219,6 +222,8 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     const payload = {
       ...formData,
       branch: resolveFormBranch(userRole, userBranch, formData.branch),
@@ -258,17 +263,28 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
     } catch (e) {
       console.error('Failed to save client:', e);
       setToast({ message: 'Save failed. Network error.', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this client?')) return;
+    // Collect all duplicate IDs sharing the same clientName so grouped duplicates are fully removed.
+    const target = clients.find(c => c.id === id);
+    const idsToDelete = target
+      ? clients.filter(c => c.clientName === target.clientName && c.status === target.status).map(c => c.id)
+      : [id];
+
+    const label = target?.clientName ?? 'this client';
+    const plural = idsToDelete.length > 1 ? ` (${idsToDelete.length} duplicate records)` : '';
+    if (!confirm(`Delete ${label}${plural}?`)) return;
+
     try {
-      const res = await fetch(`/api/recruiter/clients/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (selectedId === id) setSelectedId(null);
-        await fetchClients();
-      }
+      await Promise.all(
+        idsToDelete.map(did => fetch(`/api/recruiter/clients/${did}`, { method: 'DELETE' }))
+      );
+      if (idsToDelete.includes(selectedId ?? '')) setSelectedId(null);
+      await fetchClients();
     } catch (e) { console.error('Failed to delete client:', e); }
   };
 
@@ -717,9 +733,11 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
                     <button onClick={() => openEditForm(selectedClient)} className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-blue-600 dark:hover:bg-zinc-800">
                       <Edit2 className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDelete(selectedClient.id)} className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {isAdminRole && (
+                      <button onClick={() => handleDelete(selectedClient.id)} className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1076,8 +1094,9 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
                 </div>
               )}
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-700">
-                  {editingClient ? 'Update Client' : 'Create Client'}
+                <button type="submit" disabled={submitting} className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {submitting ? 'Saving…' : editingClient ? 'Update Client' : 'Create Client'}
                 </button>
                 <button type="button" onClick={resetForm} className="rounded-lg border border-zinc-200 px-5 py-2.5 text-sm font-medium text-zinc-700 transition-colors duration-200 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
                   Cancel

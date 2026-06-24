@@ -4,6 +4,9 @@ export const MEDIA_SERVICE_TIMEOUT_MS = 30_000;
 /** Max wait for Kokoro TTS — longer because first request triggers model warmup. */
 export const TTS_TIMEOUT_MS = 45_000;
 
+/** Client-side TTS fetch timeout — fall back to browser speech if Kokoro doesn't start within this window. */
+export const TTS_SPEAK_TIMEOUT_MS = 12_000;
+
 export class MediaServiceTimeoutError extends Error {
   constructor(message = "Media service timed out") {
     super(message);

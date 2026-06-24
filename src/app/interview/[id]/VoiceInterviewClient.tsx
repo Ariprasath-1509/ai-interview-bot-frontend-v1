@@ -11,7 +11,7 @@ import {
   isUsingBrowserVoiceFallback,
   MediaServiceTimeoutError,
   MEDIA_SERVICE_TIMEOUT_MS,
-  TTS_TIMEOUT_MS,
+  TTS_SPEAK_TIMEOUT_MS,
   resetVoiceServicePrefs,
   voiceServicePrefs,
 } from "@/lib/mediaTimeout";
@@ -147,7 +147,7 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
       const res = await fetchWithTimeout(
         "/api/ai/tts",
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text.trim() }) },
-        TTS_TIMEOUT_MS,
+        TTS_SPEAK_TIMEOUT_MS,
       );
       if (res.ok) {
         const blob = await res.blob();
@@ -2414,10 +2414,11 @@ export function VoiceInterviewClient({
     mic_off: { label: "Mic disconnected", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200" },
   };
 
-  const browserSttActive = true; // Force browser mode always
   const spokenPreviewText = typedAnswersOnly
     ? typedDraft
-    : interimText; // Always use interimText for live preview
+    : serverVoiceModeRef.current
+      ? (livePreviewText || interimText)
+      : interimText;
 
   if (!supported) {
     return (
@@ -2705,7 +2706,7 @@ export function VoiceInterviewClient({
       )}
 
       {listening && !timeExpired && (
-        <div className="sticky top-0 z-10 mt-4 space-y-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
+        <div className="mt-4 space-y-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/95">
           <div
             className={`rounded-xl border-2 p-4 transition-colors ${
               micPreviewStatus === "hearing"
