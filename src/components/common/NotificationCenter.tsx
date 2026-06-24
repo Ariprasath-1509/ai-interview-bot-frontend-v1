@@ -31,11 +31,14 @@ export function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [lastFetched, setLastFetched] = useState(0);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
-    if (isOpen && notifications.length === 0) {
+    if (!isOpen) return;
+    const stale = Date.now() - lastFetched > 60_000;
+    if (notifications.length === 0 || stale) {
       fetchNotifications();
     }
   }, [isOpen]);
@@ -47,6 +50,7 @@ export function NotificationCenter() {
       if (res.ok) {
         const data = await res.json();
         setNotifications(data);
+        setLastFetched(Date.now());
       }
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -102,7 +106,7 @@ export function NotificationCenter() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="absolute right-0 top-full z-50 mt-2 w-[min(320px,calc(100vw-1.5rem))] rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
               <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Notifications</h3>

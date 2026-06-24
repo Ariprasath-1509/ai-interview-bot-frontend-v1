@@ -307,7 +307,7 @@ export function SidebarLayout({
           <div className="flex items-center gap-3">
             <NotificationCenter />
             {username && (
-              <span className="hidden items-center gap-2 text-xs font-semibold text-zinc-500 lg:inline">
+              <span className="hidden items-center gap-2 text-xs font-semibold text-zinc-500 lg:inline-flex">
                 {username} · <span className="text-zinc-400">{role}</span>
                 {branch && (
                   <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
