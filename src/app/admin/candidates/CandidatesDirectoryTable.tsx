@@ -8,7 +8,7 @@ import { FileText, Upload, Download, Sparkles, Eye, FileDown } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
-import { entityBranchBadgeClass, entityBranchLabel } from "@/lib/staffRoles";
+import { entityBranchBadgeClass, entityBranchLabel, isStaffAdminRole } from "@/lib/staffRoles";
 import type { Candidate } from "./CandidatesClient";
 
 const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + SB", JFSR: "JFSR", REACT_JS: "React JS", ANGULAR: "Angular", PYTHON: "Python", QA_ENGINEER: "QA Engineer", PLAYWRIGHT_AUTOMATION: "Playwright" };
@@ -615,13 +615,15 @@ export function CandidatesMainTable({
           const c = row.original;
           return (
             <div className="flex justify-end gap-1">
-              <button
-                type="button"
-                onClick={() => handlersRef.current.onStartEdit(c)}
-                className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
-              >
-                Edit
-              </button>
+              {isStaffAdminRole(role) && (
+                <button
+                  type="button"
+                  onClick={() => handlersRef.current.onStartEdit(c)}
+                  className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  Edit
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => handlersRef.current.onViewHistory(c.id)}
