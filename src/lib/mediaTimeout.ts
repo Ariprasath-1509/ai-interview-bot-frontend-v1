@@ -11,15 +11,15 @@ export class MediaServiceTimeoutError extends Error {
   }
 }
 
-/** Shared session prefs — updated when server STT/TTS times out or fails. */
+/** Shared session prefs — browser is primary; server STT/TTS is opt-in via env. */
 export const voiceServicePrefs = {
-  preferServerStt: true,
-  preferServerTts: true,
+  preferServerStt: false,
+  preferServerTts: false,
 };
 
 export function resetVoiceServicePrefs() {
-  voiceServicePrefs.preferServerStt = true;
-  voiceServicePrefs.preferServerTts = true;
+  voiceServicePrefs.preferServerStt = false;
+  voiceServicePrefs.preferServerTts = false;
 }
 
 export function isUsingBrowserVoiceFallback() {
