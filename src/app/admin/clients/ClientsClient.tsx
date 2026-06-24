@@ -38,6 +38,11 @@ interface PositionRequirement {
   id?: string;
 }
 
+// A position augmented with the client record that actually owns it.
+// Needed because same-name clients are merged in the tree, so a position
+// shown under a name may belong to any of the merged client records.
+type PositionWithOwner = PositionRequirement & { _ownerClient: Client };
+
 interface ClientFormData {
   clientName: string;
   jdRole: string;
@@ -1147,69 +1152,77 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
   const hasSkillRequirements = allSkillRequirements.length > 0;
   const needsSkillSetup = !hasSkillRequirements && clients.some(c => c.benchB2bCandidatesNeeded > 0 || c.marketCandidatesNeeded > 0);
 
-  // Group positions by skill set - merge from all client records
-  const groupedSkills = hasSkillRequirements ? 
-    allSkillRequirements.reduce((acc, skillReq) => {
-      const skillKey = skillReq.skillSet;
-      if (!acc[skillKey]) {
-        acc[skillKey] = [];
+  // Group positions by skill set - merge from all client records.
+  // Each position keeps a reference to the client that actually owns it so
+  // delete/edit operations target the correct client id (not just clients[0]).
+  const groupedSkills: Record<string, PositionWithOwner[]> = {};
+  if (hasSkillRequirements) {
+    for (const ownerClient of clients) {
+      for (const skillReq of (ownerClient.skillRequirements || [])) {
+        const skillKey = skillReq.skillSet;
+        if (!groupedSkills[skillKey]) {
+          groupedSkills[skillKey] = [];
+        }
+        for (const pos of skillReq.positions) {
+          groupedSkills[skillKey].push({ ...pos, _ownerClient: ownerClient });
+        }
       }
-      acc[skillKey].push(...skillReq.positions);
-      return acc;
-    }, {} as Record<string, PositionRequirement[]>) : {};
+    }
+  }
 
   const handleDeleteSkill = async (skillSet: string) => {
     const skillLabel = skillLabels[skillSet] || skillSet;
-    if (!confirm(`Remove "${skillLabel}" skill requirement from ${client.clientName}?`)) return;
-    
+    // A skill set may be owned by any of the merged same-name client records
+    // (and may have no positions), so resolve the owners by skill set rather
+    // than assuming clients[0].
+    const owners = clients.filter(c => (c.skillRequirements || []).some(sr => sr.skillSet === skillSet));
+    if (owners.length === 0) return;
+    if (!confirm(`Remove "${skillLabel}" skill requirement from ${owners[0].clientName}?`)) return;
+
     try {
-      // Remove all instances of this skill (in case of duplicates)
-      const updatedSkillRequirements = (client.skillRequirements || []).filter(sr => sr.skillSet !== skillSet);
-      
-      console.log('Original skills:', client.skillRequirements);
-      console.log('Updated skills:', updatedSkillRequirements);
-      
-      const updatedClient = {
-        clientName: client.clientName,
-        jdRole: client.jdRole,
-        jdDescription: client.jdDescription,
-        positionsVacant: client.positionsVacant,
-        marketCandidatesNeeded: client.marketCandidatesNeeded,
-        benchB2bCandidatesNeeded: client.benchB2bCandidatesNeeded,
-        status: client.status,
-        skillRequirements: updatedSkillRequirements
-      };
-      
-      console.log('Sending update request for client:', client.id);
-      
-      const response = await fetch(`/api/recruiter/clients/${client.id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(updatedClient)
-      });
-      
-      console.log('Response status:', response.status);
-      
-      if (response.ok) {
-        console.log('Successfully deleted skill');
-        // Trigger a refresh of the clients list
-        if (onRefresh) {
-          await onRefresh();
-        } else {
-          window.location.reload();
+      // Update each owning client, removing this skill set. The backend
+      // replaces the skillRequirements collection, so orphanRemoval deletes it.
+      for (const owner of owners) {
+        const updatedSkillRequirements = (owner.skillRequirements || []).filter(sr => sr.skillSet !== skillSet);
+
+        const updatedClient = {
+          clientName: owner.clientName,
+          jdRole: owner.jdRole,
+          jdDescription: owner.jdDescription,
+          positionsVacant: owner.positionsVacant,
+          marketCandidatesNeeded: owner.marketCandidatesNeeded,
+          benchB2bCandidatesNeeded: owner.benchB2bCandidatesNeeded,
+          status: owner.status,
+          skillRequirements: updatedSkillRequirements
+        };
+
+        const response = await fetch(`/api/recruiter/clients/${owner.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify(updatedClient)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Delete failed:', response.status, errorText);
+
+          if (response.status === 401) {
+            alert('Unauthorized: You need ADMIN privileges to modify clients');
+          } else {
+            alert(`Failed to remove skill requirement: ${response.status} - ${errorText}`);
+          }
+          return;
         }
+      }
+
+      // Trigger a refresh of the clients list
+      if (onRefresh) {
+        await onRefresh();
       } else {
-        const errorText = await response.text();
-        console.error('Delete failed:', response.status, errorText);
-        
-        if (response.status === 401) {
-          alert('Unauthorized: You need ADMIN privileges to modify clients');
-        } else {
-          alert(`Failed to remove skill requirement: ${response.status} - ${errorText}`);
-        }
+        window.location.reload();
       }
     } catch (error) {
       console.error('Error removing skill:', error);
@@ -1274,6 +1287,7 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
           selectedPositionId={selectedPositionId}
           onSelect={onSelect}
           onDeleteSkill={handleDeleteSkill}
+          onRefresh={onRefresh}
           skillLabels={skillLabels}
         />
       ))}
@@ -1298,13 +1312,14 @@ function ClientTreeNode({ clients, selectedClientId, selectedPositionId, onSelec
 }
 
 /* Distinct Skill Tree Node - Groups positions by YOE and source */
-function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId, onSelect, onDeleteSkill, skillLabels = {} }: {
+function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId, onSelect, onDeleteSkill, onRefresh, skillLabels = {} }: {
   client: Client;
   skillSet: string;
-  positions: PositionRequirement[];
+  positions: PositionWithOwner[];
   selectedPositionId: string | null;
   onSelect: (clientId: string, positionId?: string) => void;
   onDeleteSkill: (skillSet: string) => void;
+  onRefresh?: () => void;
   skillLabels?: Record<string, string>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -1326,37 +1341,42 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
     if (!editValues) return;
     
     try {
-      // Find the position in the client's skill requirements
-      const skillReq = client.skillRequirements?.find(sr => sr.skillSet === skillSet);
+      // Resolve the client that actually owns this position (positions may be
+      // merged from several same-name client records).
+      const target = positions.find(p => p.id === posId);
+      const ownerClient = target?._ownerClient ?? client;
+
+      // Find the position in the owning client's skill requirements
+      const skillReq = ownerClient.skillRequirements?.find(sr => sr.skillSet === skillSet);
       if (!skillReq) return;
-      
+
       const updatedPositions = skillReq.positions.map(p => {
-        const currentPosId = p.id || `${client.id}-${skillSet}-${p.minYoeRequired}-${p.source}`;
+        const currentPosId = p.id || `${ownerClient.id}-${skillSet}-${p.minYoeRequired}-${p.source}`;
         if (currentPosId === posId) {
           return { ...p, ...editValues };
         }
         return p;
       });
-      
-      const updatedSkillRequirements = (client.skillRequirements || []).map(sr => {
+
+      const updatedSkillRequirements = (ownerClient.skillRequirements || []).map(sr => {
         if (sr.skillSet === skillSet) {
           return { ...sr, positions: updatedPositions };
         }
         return sr;
       });
-      
+
       const updatedClient = {
-        clientName: client.clientName,
-        jdRole: client.jdRole,
-        jdDescription: client.jdDescription,
-        positionsVacant: client.positionsVacant,
-        marketCandidatesNeeded: client.marketCandidatesNeeded,
-        benchB2bCandidatesNeeded: client.benchB2bCandidatesNeeded,
-        status: client.status,
+        clientName: ownerClient.clientName,
+        jdRole: ownerClient.jdRole,
+        jdDescription: ownerClient.jdDescription,
+        positionsVacant: ownerClient.positionsVacant,
+        marketCandidatesNeeded: ownerClient.marketCandidatesNeeded,
+        benchB2bCandidatesNeeded: ownerClient.benchB2bCandidatesNeeded,
+        status: ownerClient.status,
         skillRequirements: updatedSkillRequirements
       };
-      
-      const response = await fetch(`/api/recruiter/clients/${client.id}`, {
+
+      const response = await fetch(`/api/recruiter/clients/${ownerClient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1379,6 +1399,29 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
   const handleCancelEdit = () => {
     setEditingPosition(null);
     setEditValues(null);
+  };
+
+  const handleDeletePosition = async (pos: PositionWithOwner) => {
+    const positionId = pos.id;
+    if (!positionId) return;
+    if (!confirm('Delete this position requirement?')) return;
+    try {
+      // Delete against the client that actually owns this position, not clients[0].
+      const ownerClientId = pos._ownerClient.id;
+      const response = await fetch(`/api/recruiter/clients/${ownerClientId}/positions/${positionId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (response.ok || response.status === 204) {
+        if (onRefresh) await onRefresh();
+        else window.location.reload();
+      } else {
+        alert('Failed to delete position');
+      }
+    } catch (error) {
+      console.error('Error deleting position:', error);
+      alert('Network error: Failed to delete position');
+    }
   };
 
   return (
@@ -1411,7 +1454,7 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
 
       {/* Individual Position Requirements (when expanded) */}
       {expanded && positions.map((pos, idx) => {
-        const posId = pos.id || `${client.id}-${skillSet}-${pos.minYoeRequired}-${pos.source}-${idx}`;
+        const posId = pos.id || `${pos._ownerClient.id}-${skillSet}-${pos.minYoeRequired}-${pos.source}-${idx}`;
         const isSelected = selectedPositionId === posId;
         const isEditing = editingPosition === posId;
         
@@ -1469,7 +1512,7 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
             ) : (
               <>
                 <button
-                  onClick={() => onSelect(client.id, posId)}
+                  onClick={() => onSelect(pos._ownerClient.id, posId)}
                   className="flex-1 min-w-0"
                 >
                   <div className={`text-xs truncate ${isSelected ? 'text-blue-700 dark:text-blue-300 font-medium' : 'text-zinc-700 dark:text-zinc-300'}`}>
@@ -1488,6 +1531,16 @@ function DistinctSkillTreeNode({ client, skillSet, positions, selectedPositionId
                   title="Edit position"
                 >
                   <Edit2 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeletePosition(pos);
+                  }}
+                  className="p-1 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                  title="Delete position"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </>
             )}

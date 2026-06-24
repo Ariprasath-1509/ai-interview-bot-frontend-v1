@@ -156,6 +156,9 @@ export default function CandidatesClient({ role }: Props) {
   const [addForm, setAddForm] = useState<AddCandidateForm>(emptyAddForm);
   const [creatingCandidate, setCreatingCandidate] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ username: string; password: string } | null>(null);
+  // Skill sets are sourced from master data so the dropdowns reflect the DB,
+  // not a hardcoded list that goes stale when skill sets change.
+  const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const { confirm } = useConfirm();
 
   const { toast } = useToast();
@@ -192,6 +195,18 @@ export default function CandidatesClient({ role }: Props) {
     }, 0);
     return () => clearTimeout(t);
   }, [selectedParent]);
+
+  useEffect(() => {
+    fetch('/api/admin/master-data/lookups/SKILL_SET')
+      .then((r) => r.json())
+      .then((json) => {
+        const entries: { code: string; label: string }[] = json?.data ?? json ?? [];
+        if (Array.isArray(entries) && entries.length > 0) {
+          setSkillOptions(entries.map((e) => ({ value: e.code, label: e.label })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleResumeUpload = (candidateId: string) => {
     const candidate = candidates.find(c => c.id === candidateId);
@@ -747,13 +762,9 @@ export default function CandidatesClient({ role }: Props) {
                     </div>
                     <select className={inputCls} value={filterSkill} onChange={(e) => setFilterSkill(e.target.value)}>
                       <option value="">All Skills</option>
-                      <option value="JAVA_SB">Java + SB</option>
-                      <option value="JFSR">JFSR</option>
-                      <option value="REACT_JS">React JS</option>
-                      <option value="ANGULAR">Angular</option>
-                      <option value="PYTHON">Python</option>
-                      <option value="QA_ENGINEER">QA Engineer</option>
-                      <option value="PLAYWRIGHT_AUTOMATION">Playwright</option>
+                      {skillOptions.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
                     </select>
                     <select className={inputCls} value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
                       <option value="">All Sources</option>
@@ -1184,13 +1195,9 @@ export default function CandidatesClient({ role }: Props) {
                   <span className="font-medium">Skill set *</span>
                   <select className={inputCls} value={addForm.skillSet} onChange={(e) => setAddForm((f) => ({ ...f, skillSet: e.target.value }))}>
                     <option value="">Select skill</option>
-                    <option value="JAVA_SB">Java + SB</option>
-                    <option value="JFSR">JFSR</option>
-                    <option value="REACT_JS">React JS</option>
-                    <option value="ANGULAR">Angular</option>
-                    <option value="PYTHON">Python</option>
-                    <option value="QA_ENGINEER">QA Engineer</option>
-                    <option value="PLAYWRIGHT_AUTOMATION">Playwright</option>
+                    {skillOptions.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
                   </select>
                 </label>
                 <label className="grid gap-1 text-sm">
