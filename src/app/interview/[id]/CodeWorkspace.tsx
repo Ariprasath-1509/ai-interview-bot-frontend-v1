@@ -221,6 +221,7 @@ export function CodeWorkspace({
 
   const handleRunAndSubmit = useCallback(async () => {
     if (!onSubmitAsAnswer || !code.trim()) return;
+    if (codingTimerActive && codingSecondsLeft !== null && codingSecondsLeft <= 0) return;
     setSubmitting(true);
     setStatusMsg("Running tests…");
     try {
@@ -466,7 +467,7 @@ export function CodeWorkspace({
         {onSubmitAsAnswer && (
           <button
             type="button"
-            disabled={busy || !code.trim()}
+            disabled={busy || !code.trim() || (codingTimerActive && codingSecondsLeft !== null && codingSecondsLeft <= 0)}
             onClick={() => void handleRunAndSubmit()}
             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
           >

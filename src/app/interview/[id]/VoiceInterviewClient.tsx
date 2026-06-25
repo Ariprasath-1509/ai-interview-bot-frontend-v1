@@ -1285,6 +1285,7 @@ export function VoiceInterviewClient({
       clearLivePreview();
       startLiveSpeechPreview();
     } catch {
+      answerMediaRef.current = null;
       setWhisperError("Could not start answer recording.");
     }
   }
@@ -1335,6 +1336,10 @@ export function VoiceInterviewClient({
       return;
     }
 
+    // Guard against double-click during the async transcription window
+    if (advancingRef.current) return;
+    advancingRef.current = true;
+
     const browserFallbackText = getBrowserSttPreviewText();
     setWhisperProcessing(true);
     setWhisperError(null);
@@ -1344,11 +1349,15 @@ export function VoiceInterviewClient({
     } catch {
       /* ignore */
     }
-    // Single try/finally so whisperProcessing is always reset — even on early returns from blob checks
+    // Single try/finally so whisperProcessing and advancingRef are always reset.
+    // didHandOff tracks whether we successfully handed off to advanceAfterAnswer —
+    // if so, that function's own finally resets advancingRef when the advance completes.
+    let didHandOff = false;
     try {
       const blob = await stopAnswerRecordingBlob();
       if (!blob || blob.size < 2000) {
         if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+          didHandOff = true;
           return;
         }
         setWhisperError(`Recording too small (${blob?.size ?? 0} bytes). Speak louder or longer, then try again.`);
@@ -1359,6 +1368,7 @@ export function VoiceInterviewClient({
       if (!text || text.length < 3) {
         if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
           enableBrowserSttFallback("Whisper returned insufficient text");
+          didHandOff = true;
           return;
         }
         setWhisperError("Transcription too short. Speak a complete sentence and try again.");
@@ -1366,6 +1376,7 @@ export function VoiceInterviewClient({
         return;
       }
       await submitVoiceAnswerText(text);
+      didHandOff = true;
     } catch (e) {
       const timedOut = e instanceof MediaServiceTimeoutError;
       const errMsg = e instanceof Error ? e.message : "Transcription failed";
@@ -1373,6 +1384,7 @@ export function VoiceInterviewClient({
       const reason = timedOut ? "Whisper timed out (>10s)" : errMsg;
       if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
         enableBrowserSttFallback(reason);
+        didHandOff = true;
         return;
       }
       enableBrowserSttFallback(reason);
@@ -1385,6 +1397,7 @@ export function VoiceInterviewClient({
       );
     } finally {
       setWhisperProcessing(false);
+      if (!didHandOff) advancingRef.current = false;
     }
   }
 
@@ -1678,9 +1691,12 @@ export function VoiceInterviewClient({
       // Detect mic hardware disconnect — track fires 'ended' when device is unplugged
       micStreamRef.current.getAudioTracks().forEach((track) => {
         track.onended = () => {
-          if (sessionActiveRef.current && !sessionFinalizedRef.current) {
-            setWhisperError("Microphone disconnected — reconnect your mic and click Send answer to resume.");
-          }
+          if (!sessionActiveRef.current || sessionFinalizedRef.current) return;
+          // Clear the dead stream so startAnswerRecording doesn't reuse it
+          micStreamRef.current = null;
+          void stopAnswerRecordingBlob();
+          enableBrowserSttFallback("mic_disconnected");
+          setWhisperError("Microphone disconnected — browser speech recognition is now active. Reconnect your mic and refresh for best quality.");
         };
       });
       return true;
