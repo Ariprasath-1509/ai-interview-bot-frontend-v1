@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
+    const branch = (typeof body.branch === 'string' && body.branch) ? body.branch : (session.branch ?? 'DEVELOPMENT');
 
     const response = await fetch(`${GATEWAY}/auth/candidates`, {
       method: 'POST',
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
         'X-User-Id': session.userId ?? '',
         'X-User-Role': session.role,
         'X-User-Email': session.username ?? '',
+        'X-User-Branch': branch,
       },
       body: JSON.stringify(body),
     });

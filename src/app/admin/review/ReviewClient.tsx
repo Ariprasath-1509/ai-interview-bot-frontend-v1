@@ -20,7 +20,23 @@ interface InterviewSummary {
   candidateEmail: string;
   jdTitle: string;
   createdAt: string;
+  endedAt: string | null;
+  scheduledAt: string | null;
+  expiresAt: string | null;
   interviewMode: string;
+}
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString();
+}
+
+function fmtDatetime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
 function getStatusBadge(status: string) {
@@ -31,6 +47,7 @@ function getStatusBadge(status: string) {
     REVIEW_PENDING: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800/50",
     COMPLETED: "bg-green-100 text-green-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-green-200 dark:border-emerald-800/50",
     SIGNED_OFF: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800/50",
+    EXPIRED: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800/50",
   };
   return colors[status] || "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700";
 }
@@ -198,13 +215,31 @@ export default function InterviewReviewClient() {
       {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => (
-          <span
-            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full border ${getStatusBadge(row.original.status)}`}
-          >
-            {row.original.status.replace(/_/g, " ")}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const { status, scheduledAt, expiresAt } = row.original;
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span
+                className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full border w-fit ${getStatusBadge(status)}`}
+              >
+                {status.replace(/_/g, " ")}
+              </span>
+              {scheduledAt && (
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400" title={`Available from: ${fmtDatetime(scheduledAt)}`}>
+                  From: {fmtDate(scheduledAt)}
+                </span>
+              )}
+              {expiresAt && (
+                <span
+                  className={`text-[10px] ${status === 'EXPIRED' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-zinc-500 dark:text-zinc-400'}`}
+                  title={`Expires: ${fmtDatetime(expiresAt)}`}
+                >
+                  Exp: {fmtDate(expiresAt)}
+                </span>
+              )}
+            </div>
+          );
+        },
       },
       {
         accessorKey: "finalVerdict",
@@ -227,9 +262,22 @@ export default function InterviewReviewClient() {
         sortingFn: (a, b) =>
           new Date(a.original.createdAt).getTime() - new Date(b.original.createdAt).getTime(),
         cell: ({ row }) => (
-          <span className="text-zinc-600 dark:text-zinc-400">
-            {new Date(row.original.createdAt).toLocaleDateString()}
-          </span>
+          <span className="text-zinc-600 dark:text-zinc-400 text-xs">{fmtDate(row.original.createdAt)}</span>
+        ),
+      },
+      {
+        accessorKey: "endedAt",
+        header: "Ended",
+        sortingFn: (a, b) =>
+          new Date(a.original.endedAt ?? 0).getTime() - new Date(b.original.endedAt ?? 0).getTime(),
+        cell: ({ row }) => (
+          row.original.endedAt ? (
+            <span className="text-zinc-600 dark:text-zinc-400 text-xs" title={fmtDatetime(row.original.endedAt)}>
+              {fmtDate(row.original.endedAt)}
+            </span>
+          ) : (
+            <span className="text-zinc-400 dark:text-zinc-600 text-xs italic">—</span>
+          )
         ),
       },
       {
@@ -342,6 +390,7 @@ export default function InterviewReviewClient() {
               <option value="REVIEW_PENDING">Review Pending</option>
               <option value="COMPLETED">Completed</option>
               <option value="SIGNED_OFF">Signed Off</option>
+              <option value="EXPIRED">Expired</option>
             </select>
           </div>
           

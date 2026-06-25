@@ -27,6 +27,8 @@ interface InterviewFormData {
   candidateId?: string;
   clientId?: string;
   selectedQuestionIds?: string;
+  scheduledAt?: string | null;
+  expiresAt?: string | null;
 }
 
 interface BankQuestion {
@@ -555,6 +557,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         ...(useManualQuestions && manualQuestions.length > 0
           ? { customQuestions: manualQuestions }
           : {}),
+        ...(formData.scheduledAt ? { scheduledAt: new Date(formData.scheduledAt).toISOString() } : {}),
+        ...(formData.expiresAt ? { expiresAt: new Date(formData.expiresAt).toISOString() } : {}),
       };
       const idempotencyKey = crypto.randomUUID();
       const response = await fetch('/api/recruiter/interviews', {
@@ -1126,6 +1130,29 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 </span>
               </span>
             </label>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="scheduledAt">Available from (optional)</Label>
+                <Input
+                  id="scheduledAt"
+                  type="datetime-local"
+                  value={formData.scheduledAt ?? ''}
+                  onChange={(e) => handleInputChange('scheduledAt', e.target.value || null)}
+                />
+                <p className="text-xs text-zinc-500">Candidate cannot access before this time</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="expiresAt">Expires at (optional)</Label>
+                <Input
+                  id="expiresAt"
+                  type="datetime-local"
+                  value={formData.expiresAt ?? ''}
+                  onChange={(e) => handleInputChange('expiresAt', e.target.value || null)}
+                />
+                <p className="text-xs text-zinc-500">Link becomes inaccessible after this time</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

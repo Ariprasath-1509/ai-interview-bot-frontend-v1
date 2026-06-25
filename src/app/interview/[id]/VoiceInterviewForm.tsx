@@ -58,6 +58,8 @@ function SubmitButton({
   );
 }
 
+type ResumeUtterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
+
 export function VoiceInterviewForm({
   interviewId,
   jdTitle,
@@ -68,6 +70,9 @@ export function VoiceInterviewForm({
   proctoringMode,
   candidateSource,
   includeProgrammingQuestions,
+  initialUtterances,
+  initialSlot,
+  initialQuestionMeta,
   completeInterview,
 }: {
   interviewId: string;
@@ -79,6 +84,9 @@ export function VoiceInterviewForm({
   proctoringMode: ProctoringMode;
   candidateSource: string | null;
   includeProgrammingQuestions: boolean;
+  initialUtterances?: ResumeUtterance[] | null;
+  initialSlot?: number | null;
+  initialQuestionMeta?: { isCoding: boolean; preferredLanguage: string } | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
@@ -217,6 +225,9 @@ export function VoiceInterviewForm({
         interviewMode={interviewMode}
         proctoringMode={proctoringMode}
         candidateSource={candidateSource}
+        initialUtterances={initialUtterances}
+        initialSlot={initialSlot}
+        initialQuestionMeta={initialQuestionMeta}
         onTranscriptChange={onTranscriptChange}
         onVoiceValidationChange={onVoiceValidationChange}
         onTimeExpired={() => setTimeExpired(true)}

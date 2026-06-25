@@ -275,6 +275,9 @@ export function useVideoProctoring({
   const reportExternalEvent = useCallback(
     (type: ProctorEventType, reasons: string[], severity: "hard" | "soft" = "hard") => {
       if (terminatedRef.current || !active) return;
+      // External events are discrete incidents (not sustained detections), so each call
+      // should be treated as a new episode rather than a continuation of an ongoing one.
+      activeViolationsRef.current.delete(type);
       recordEvent(type, reasons, severity);
     },
     [active, recordEvent],

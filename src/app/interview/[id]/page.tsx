@@ -28,6 +28,13 @@ type Interview = {
   includeProgrammingQuestions?: boolean;
   candidateSource?: string | null;
   proctoringMode?: ProctoringMode | string | null;
+  checkpointJson?: string | null;
+};
+
+type CheckpointData = {
+  slot: number;
+  utterances: { speaker: "BOT" | "CANDIDATE"; text: string; at: string }[];
+  questionMeta?: { isCoding: boolean; preferredLanguage: string } | null;
 };
 
 export default async function InterviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -118,6 +125,16 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
       ? interview.proctoringMode
       : resolveProctoringMode(candidateSource);
 
+  // Parse checkpoint for IN_PROGRESS interviews so we can resume from where the candidate left off
+  let checkpoint: CheckpointData | null = null;
+  if (interview.status === "IN_PROGRESS" && interview.checkpointJson) {
+    try {
+      checkpoint = JSON.parse(interview.checkpointJson) as CheckpointData;
+    } catch {
+      checkpoint = null;
+    }
+  }
+
   return (
       <div className="min-h-screen bg-zinc-50 dark:bg-[#050505]">
         <div className="mx-auto max-w-4xl px-4 py-4 sm:px-6 sm:py-6">
@@ -145,6 +162,9 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
               proctoringMode={proctoringMode}
               candidateSource={candidateSource}
               includeProgrammingQuestions={interview.includeProgrammingQuestions !== false}
+              initialUtterances={checkpoint?.utterances ?? null}
+              initialSlot={checkpoint?.slot ?? null}
+              initialQuestionMeta={checkpoint?.questionMeta ?? null}
               completeInterview={completeInterview}
           />
         </div>

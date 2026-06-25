@@ -1,4 +1,5 @@
 import * as React from "react"
+import { cn } from "@/lib/utils"
 
 interface DialogProps {
   open?: boolean
@@ -71,7 +72,10 @@ const DialogContent: React.FC<{ children: React.ReactNode; className?: string }>
         aria-hidden="true"
       />
       <div
-        className={`relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95 ${className}`}
+        className={cn(
+          "relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95",
+          className
+        )}
       >
         {children}
       </div>

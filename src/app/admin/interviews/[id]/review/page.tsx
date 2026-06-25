@@ -36,7 +36,19 @@ type Interview = {
   finalVerdict: string | null;
   transcriptJson: string | null;
   recordingPath?: string | null;
+  createdAt?: string | null;
+  endedAt?: string | null;
+  scheduledAt?: string | null;
+  expiresAt?: string | null;
 };
+
+function fmtDatetime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
 
 function parseTranscript(transcriptJson: string | null): { speaker: string; text: string; at: string }[] {
   if (!transcriptJson) return [];
@@ -244,10 +256,34 @@ export default async function InterviewReviewPage({
               </span>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+            {interview.createdAt && (
+              <span>Created: <span className="text-zinc-700 dark:text-zinc-300">{fmtDatetime(interview.createdAt)}</span></span>
+            )}
+            {interview.scheduledAt && (
+              <span>Available from: <span className="text-zinc-700 dark:text-zinc-300">{fmtDatetime(interview.scheduledAt)}</span></span>
+            )}
+            {interview.expiresAt && (
+              <span className={interview.status === "EXPIRED" ? "text-red-600 dark:text-red-400 font-medium" : ""}>
+                Expires: <span className={interview.status === "EXPIRED" ? "text-red-700 dark:text-red-300 font-semibold" : "text-zinc-700 dark:text-zinc-300"}>{fmtDatetime(interview.expiresAt)}</span>
+              </span>
+            )}
+            {interview.endedAt && (
+              <span>Ended: <span className="text-zinc-700 dark:text-zinc-300">{fmtDatetime(interview.endedAt)}</span></span>
+            )}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {(isStaffAdminRole(session?.role)) && (
             <RerunAssessmentButton interviewId={interview.id} />
+          )}
+          {isStaffAdminRole(session?.role) && (interview.status === "DRAFT" || interview.status === "SCHEDULED" || interview.status === "EXPIRED") && (
+            <Link
+              href={`/admin/interviews/${interview.id}/edit`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
+            >
+              Edit interview
+            </Link>
           )}
           <Link
             href="/admin/review"

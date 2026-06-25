@@ -6,6 +6,32 @@ export const dynamic = "force-dynamic";
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const session = await getSessionOrRefresh();
+  if (!session || !isStaffAdminRole(session.role)) {
+    return new NextResponse("Unauthorized", { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+    const response = await fetch(`${GATEWAY}/interviews/${id}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${session.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error("Interview update error:", error);
+    return new NextResponse("Service unavailable", { status: 503 });
+  }
+}
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSessionOrRefresh();

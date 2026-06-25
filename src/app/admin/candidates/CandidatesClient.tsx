@@ -82,6 +82,7 @@ type AddCandidateForm = {
   yop: string;
   interviewMentorName: string;
   clientName: string;
+  branch: string;
 };
 
 const emptyAddForm = (): AddCandidateForm => ({
@@ -100,6 +101,7 @@ const emptyAddForm = (): AddCandidateForm => ({
   yop: '',
   interviewMentorName: '',
   clientName: '',
+  branch: 'DEVELOPMENT',
 });
 
 function getEffectiveInterviewCount(candidate: Candidate): number {
@@ -155,6 +157,10 @@ export default function CandidatesClient({ role }: Props) {
   const [addForm, setAddForm] = useState<AddCandidateForm>(emptyAddForm);
   const [creatingCandidate, setCreatingCandidate] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [showMarketCandidateDialog, setShowMarketCandidateDialog] = useState(false);
+  const [marketForm, setMarketForm] = useState({ name: '', email: '', contactNumber: '', branch: 'DEVELOPMENT' });
+  const [creatingMarket, setCreatingMarket] = useState(false);
+  const [marketCreated, setMarketCreated] = useState<{ email: string; generatedPassword: string } | null>(null);
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const { confirm } = useConfirm();
   const { toast } = useToast();
@@ -170,6 +176,34 @@ export default function CandidatesClient({ role }: Props) {
       console.error('Failed to fetch candidates:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateMarketCandidate = async () => {
+    if (!marketForm.name.trim() || !marketForm.email.trim()) {
+      toast('Name and email are required', 'error');
+      return;
+    }
+    setCreatingMarket(true);
+    try {
+      const res = await fetch('/api/candidates/market', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(marketForm),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMarketCreated({ email: data.email, generatedPassword: data.generatedPassword });
+        fetchCandidates();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error ?? 'Failed to create market candidate', 'error');
+      }
+    } catch {
+      toast('Error creating market candidate', 'error');
+    } finally {
+      setCreatingMarket(false);
     }
   };
 
@@ -405,6 +439,7 @@ export default function CandidatesClient({ role }: Props) {
         yop: addForm.yop ? parseInt(addForm.yop, 10) : null,
         interviewMentorName: addForm.interviewMentorName.trim() || null,
         clientName: addForm.clientName.trim() || null,
+        branch: addForm.branch || 'DEVELOPMENT',
       };
 
       const res = await fetch('/api/auth/candidates', {
@@ -771,6 +806,7 @@ export default function CandidatesClient({ role }: Props) {
                 </div>
                 <div className="flex items-center gap-2">
                   {canAddCandidate && selectedParent !== 'deployed' && (
+                    <>
                       <Button
                           onClick={() => setShowAddDialog(true)}
                           className="h-8 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
@@ -778,6 +814,14 @@ export default function CandidatesClient({ role }: Props) {
                         <UserPlus className="mr-1 h-3.5 w-3.5" />
                         Add Candidate
                       </Button>
+                      <Button
+                          onClick={() => { setShowMarketCandidateDialog(true); setMarketCreated(null); setMarketForm({ name: '', email: '', contactNumber: '', branch: 'DEVELOPMENT' }); }}
+                          className="h-8 bg-violet-600 text-white shadow-sm hover:bg-violet-700"
+                      >
+                        <UserPlus className="mr-1 h-3.5 w-3.5" />
+                        Market Candidate
+                      </Button>
+                    </>
                   )}
                   {selectedParent === "deployed" && (
                       <Button
@@ -1073,275 +1117,274 @@ export default function CandidatesClient({ role }: Props) {
 
         {/* Add Candidate Dialog */}
         <Dialog open={showAddDialog} onOpenChange={(open) => { if (!open) closeAddDialog(); else setShowAddDialog(true); }}>
-          <DialogContent className="max-w-[95vw] w-[1400px] max-h-[95vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl w-full max-h-[92vh] overflow-y-auto">
             <DialogHeader className="pb-4 border-b border-zinc-200 dark:border-zinc-800">
-              <DialogTitle className="text-3xl font-bold flex items-center gap-3">
-                <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-lg">
-                  <UserPlus className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+              <DialogTitle className="flex items-center gap-2.5 text-xl font-bold">
+                <div className="bg-emerald-100 dark:bg-emerald-900/30 p-1.5 rounded-lg">
+                  <UserPlus className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 Add New Candidate
               </DialogTitle>
-              <p className="text-base text-zinc-600 dark:text-zinc-400 mt-3 ml-16">
-                Create a comprehensive candidate profile with auto-generated login credentials. A welcome email will be sent if an email address is provided.
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                Fields marked <span className="text-red-500 font-semibold">*</span> are required. At least one email must be provided.
               </p>
             </DialogHeader>
+
             {createdCredentials ? (
-                <div className="space-y-6 p-2">
-                  <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/20 p-8 text-emerald-900 dark:border-emerald-900 dark:text-emerald-100">
-                    <div className="flex items-start gap-4">
-                      <div className="bg-emerald-600 text-white rounded-full p-3">
-                        <UserCheck className="h-7 w-7" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-2xl mb-2">Candidate Account Created Successfully!</p>
-                        <p className="text-base text-emerald-800 dark:text-emerald-200">
-                          Login credentials have been generated and emailed to the candidate (if email was provided). You can also share these credentials manually.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-6 rounded-xl border-2 border-zinc-300 dark:border-zinc-700 p-8 bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900/50 dark:to-zinc-800/30">
-                    <div className="flex items-center justify-between gap-6 p-5 bg-white dark:bg-zinc-950 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 shadow-sm">
-                      <span className="text-zinc-600 dark:text-zinc-400 font-semibold text-lg">Username (Email)</span>
-                      <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100 text-2xl">{createdCredentials.username}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-6 p-5 bg-white dark:bg-zinc-950 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 shadow-sm">
-                      <span className="text-zinc-600 dark:text-zinc-400 font-semibold text-lg">Temporary Password</span>
-                      <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100 text-2xl">{createdCredentials.password}</span>
-                    </div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-2 p-5 bg-amber-50 dark:bg-amber-900/20 rounded-xl border-2 border-amber-300 dark:border-amber-800">
-                      <strong className="text-amber-900 dark:text-amber-200 text-base">⚠️ Important:</strong>
-                      <span className="ml-2">Please save these credentials securely. The password cannot be retrieved later and must be shared with the candidate.</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-end pt-4">
-                    <Button onClick={closeAddDialog} className="bg-emerald-600 hover:bg-emerald-700 h-12 px-8 text-lg">Done</Button>
+              <div className="space-y-4 p-1">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 p-4 flex items-start gap-3">
+                  <UserCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-200">Candidate created successfully</p>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-0.5">Credentials emailed if an address was provided. Save them below.</p>
                   </div>
                 </div>
+                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-700">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Username (Email)</span>
+                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{createdCredentials.username}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Temporary Password</span>
+                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{createdCredentials.password}</span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Note:</strong> The password cannot be retrieved later — share it with the candidate now.
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button onClick={closeAddDialog} className="bg-emerald-600 hover:bg-emerald-700">Done</Button>
+                </div>
+              </div>
             ) : (
-                <div className="space-y-8 p-2">
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="bg-blue-600 text-white rounded-full p-2.5">
-                        <Sparkles className="h-6 w-6" />
-                      </div>
-                      <div className="text-base text-blue-900 dark:text-blue-100 flex-1">
-                        <p className="font-bold text-lg mb-2">Quick Tips for Adding Candidates</p>
-                        <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1.5">
-                          <li className="flex items-center gap-2">
-                            <span className="text-blue-600 dark:text-blue-400">•</span>
-                            <span>Fields marked with <span className="text-red-600 font-semibold">*</span> are required</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <span className="text-blue-600 dark:text-blue-400">•</span>
-                            <span>At least one email address (official or personal) must be provided</span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-8">
-                    {/* Basic Information Section */}
-                    <div className="bg-white dark:bg-zinc-900/50 border-2 border-zinc-200 dark:border-zinc-800 rounded-xl p-8">
-                      <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-6 flex items-center gap-3">
-                        <div className="h-8 w-2 bg-blue-600 rounded-full"></div>
-                        Basic Information
-                      </h3>
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                        <label className="grid gap-3 md:col-span-3">
-                      <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">
-                        Full Name <span className="text-red-500">*</span>
-                      </span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              placeholder="Enter candidate's full name"
-                              value={addForm.name}
-                              onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Official Email</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              type="email"
-                              placeholder="official@company.com"
-                              value={addForm.officialEmail}
-                              onChange={(e) => setAddForm((f) => ({ ...f, officialEmail: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Personal Email</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              type="email"
-                              placeholder="personal@email.com"
-                              value={addForm.personalEmail}
-                              onChange={(e) => setAddForm((f) => ({ ...f, personalEmail: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                      <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">
-                        Contact Number <span className="text-red-500">*</span>
-                      </span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              placeholder="+1 234 567 8900"
-                              value={addForm.contactNumber}
-                              onChange={(e) => setAddForm((f) => ({ ...f, contactNumber: e.target.value }))}
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Organization Details Section */}
-                    <div className="bg-white dark:bg-zinc-900/50 border-2 border-zinc-200 dark:border-zinc-800 rounded-xl p-8">
-                      <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-6 flex items-center gap-3">
-                        <div className="h-8 w-2 bg-emerald-600 rounded-full"></div>
-                        Organization Details
-                      </h3>
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                        <label className="grid gap-3">
-                      <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">
-                        Batch (DOH) <span className="text-red-500">*</span>
-                      </span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              placeholder="e.g., 2024-01"
-                              value={addForm.batch}
-                              onChange={(e) => setAddForm((f) => ({ ...f, batch: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Batch Mentor</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              placeholder="Mentor name"
-                              value={addForm.batchMentor}
-                              onChange={(e) => setAddForm((f) => ({ ...f, batchMentor: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Interview Mentor</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              placeholder="Mentor name"
-                              value={addForm.interviewMentorName}
-                              onChange={(e) => setAddForm((f) => ({ ...f, interviewMentorName: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                      <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">
-                        Source <span className="text-red-500">*</span>
-                      </span>
-                          <select className={`${inputCls} h-12 text-base`} value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))}>
-                            <option value="">Select source</option>
-                            <option value="B2B">B2B</option>
-                            <option value="BENCH">Bench</option>
-                            <option value="MARKET">Market</option>
-                          </select>
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Status</span>
-                          <select className={`${inputCls} h-12 text-base`} value={addForm.candidateStatus} onChange={(e) => setAddForm((f) => ({ ...f, candidateStatus: e.target.value }))}>
-                            <option value="TRAINING">Training</option>
-                            <option value="RFD">RFD</option>
-                            <option value="WFD">WFD</option>
-                            <option value="DOB">DOB</option>
-                          </select>
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Rating</span>
-                          <select className={`${inputCls} h-12 text-base`} value={addForm.rating} onChange={(e) => setAddForm((f) => ({ ...f, rating: e.target.value }))}>
-                            <option value="">None</option>
-                            <option value="ASSET">Asset</option>
-                            <option value="MEDIUM">Medium</option>
-                            <option value="LIABILITY">Liability</option>
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Skills & Experience Section */}
-                    <div className="bg-white dark:bg-zinc-900/50 border-2 border-zinc-200 dark:border-zinc-800 rounded-xl p-8">
-                      <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-6 flex items-center gap-3">
-                        <div className="h-8 w-2 bg-purple-600 rounded-full"></div>
-                        Skills & Experience
-                      </h3>
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                        <label className="grid gap-3">
-                      <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">
-                        Skill Set <span className="text-red-500">*</span>
-                      </span>
-                          <select className={`${inputCls} h-12 text-base`} value={addForm.skillSet} onChange={(e) => setAddForm((f) => ({ ...f, skillSet: e.target.value }))}>
-                            <option value="">Select skill</option>
-                            {skillOptions.map((s) => (
-                                <option key={s.value} value={s.value}>{s.label}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">YOE Actual</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              type="number"
-                              step="0.1"
-                              placeholder="e.g., 3.5"
-                              value={addForm.yoeActual}
-                              onChange={(e) => setAddForm((f) => ({ ...f, yoeActual: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">YOE Portrayed</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              type="number"
-                              step="0.1"
-                              placeholder="e.g., 5.0"
-                              value={addForm.yoePortrayed}
-                              onChange={(e) => setAddForm((f) => ({ ...f, yoePortrayed: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Year of Passing</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              type="number"
-                              placeholder="e.g., 2020"
-                              value={addForm.yop}
-                              onChange={(e) => setAddForm((f) => ({ ...f, yop: e.target.value }))}
-                          />
-                        </label>
-                        <label className="grid gap-3 md:col-span-2">
-                          <span className="font-semibold text-base text-zinc-700 dark:text-zinc-300">Client Name</span>
-                          <input
-                              className={`${inputCls} h-12 text-base`}
-                              placeholder="Current/target client name"
-                              value={addForm.clientName}
-                              onChange={(e) => setAddForm((f) => ({ ...f, clientName: e.target.value }))}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-4 pt-6 border-t-2 border-zinc-200 dark:border-zinc-800">
-                    <Button variant="outline" onClick={closeAddDialog} disabled={creatingCandidate} className="min-w-32 h-12 text-base">Cancel</Button>
-                    <Button onClick={handleAddCandidate} disabled={creatingCandidate} className="bg-emerald-600 hover:bg-emerald-700 min-w-40 h-12 text-base font-semibold">
-                      {creatingCandidate ? (
-                          <>
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                            Creating...
-                          </>
-                      ) : (
-                          <>
-                            <UserPlus className="mr-2 h-5 w-5" />
-                            Create Candidate
-                          </>
-                      )}
-                    </Button>
+              <div className="space-y-5 p-1">
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <div className="h-3 w-1 bg-blue-500 rounded-full"></div>
+                    Basic Information
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="col-span-2 grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Full Name <span className="text-red-500">*</span></span>
+                      <input className={`${inputCls}`} placeholder="Enter candidate's full name" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Official Email</span>
+                      <input className={inputCls} type="email" placeholder="official@company.com" value={addForm.officialEmail} onChange={(e) => setAddForm((f) => ({ ...f, officialEmail: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Personal Email</span>
+                      <input className={inputCls} type="email" placeholder="personal@email.com" value={addForm.personalEmail} onChange={(e) => setAddForm((f) => ({ ...f, personalEmail: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Contact Number <span className="text-red-500">*</span></span>
+                      <input className={inputCls} placeholder="+91 98765 43210" value={addForm.contactNumber} onChange={(e) => setAddForm((f) => ({ ...f, contactNumber: e.target.value }))} />
+                    </label>
                   </div>
                 </div>
+
+                {/* Organization Details */}
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <div className="h-3 w-1 bg-emerald-500 rounded-full"></div>
+                    Organization Details
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Batch (DOH) <span className="text-red-500">*</span></span>
+                      <input className={inputCls} placeholder="e.g., 2024-01" value={addForm.batch} onChange={(e) => setAddForm((f) => ({ ...f, batch: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Batch Mentor</span>
+                      <input className={inputCls} placeholder="Mentor name" value={addForm.batchMentor} onChange={(e) => setAddForm((f) => ({ ...f, batchMentor: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Interview Mentor</span>
+                      <input className={inputCls} placeholder="Mentor name" value={addForm.interviewMentorName} onChange={(e) => setAddForm((f) => ({ ...f, interviewMentorName: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Source <span className="text-red-500">*</span></span>
+                      <select className={inputCls} value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))}>
+                        <option value="">Select source</option>
+                        <option value="B2B">B2B</option>
+                        <option value="BENCH">Bench</option>
+                        <option value="MARKET">Market</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Status</span>
+                      <select className={inputCls} value={addForm.candidateStatus} onChange={(e) => setAddForm((f) => ({ ...f, candidateStatus: e.target.value }))}>
+                        <option value="TRAINING">Training</option>
+                        <option value="RFD">RFD</option>
+                        <option value="WFD">WFD</option>
+                        <option value="DOB">DOB</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Rating</span>
+                      <select className={inputCls} value={addForm.rating} onChange={(e) => setAddForm((f) => ({ ...f, rating: e.target.value }))}>
+                        <option value="">None</option>
+                        <option value="ASSET">Asset</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LIABILITY">Liability</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Branch <span className="text-red-500">*</span></span>
+                      <select className={inputCls} value={addForm.branch} onChange={(e) => setAddForm((f) => ({ ...f, branch: e.target.value }))}>
+                        <option value="DEVELOPMENT">Development</option>
+                        <option value="TESTING">Testing</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Skills & Experience */}
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <div className="h-3 w-1 bg-purple-500 rounded-full"></div>
+                    Skills &amp; Experience
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Skill Set <span className="text-red-500">*</span></span>
+                      <select className={inputCls} value={addForm.skillSet} onChange={(e) => setAddForm((f) => ({ ...f, skillSet: e.target.value }))}>
+                        <option value="">Select skill</option>
+                        {skillOptions.map((s) => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Client Name</span>
+                      <input className={inputCls} placeholder="Current/target client name" value={addForm.clientName} onChange={(e) => setAddForm((f) => ({ ...f, clientName: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">YOE Actual</span>
+                      <input className={inputCls} type="number" step="0.1" placeholder="e.g., 3.5" value={addForm.yoeActual} onChange={(e) => setAddForm((f) => ({ ...f, yoeActual: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">YOE Portrayed</span>
+                      <input className={inputCls} type="number" step="0.1" placeholder="e.g., 5.0" value={addForm.yoePortrayed} onChange={(e) => setAddForm((f) => ({ ...f, yoePortrayed: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Year of Passing</span>
+                      <input className={inputCls} type="number" placeholder="e.g., 2020" value={addForm.yop} onChange={(e) => setAddForm((f) => ({ ...f, yop: e.target.value }))} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                  <Button variant="outline" onClick={closeAddDialog} disabled={creatingCandidate}>Cancel</Button>
+                  <Button onClick={handleAddCandidate} disabled={creatingCandidate} className="bg-emerald-600 hover:bg-emerald-700">
+                    {creatingCandidate ? (
+                      <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>Creating…</>
+                    ) : (
+                      <><UserPlus className="mr-2 h-4 w-4" />Create Candidate</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Market Candidate Dialog */}
+        <Dialog open={showMarketCandidateDialog} onOpenChange={(open) => { if (!open) { setShowMarketCandidateDialog(false); setMarketCreated(null); } else setShowMarketCandidateDialog(true); }}>
+          <DialogContent className="max-w-lg w-full">
+            <DialogHeader className="pb-4 border-b border-zinc-200 dark:border-zinc-800">
+              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold">
+                <div className="bg-violet-100 dark:bg-violet-900/30 p-1.5 rounded-lg">
+                  <UserPlus className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                </div>
+                Add Market Candidate
+              </DialogTitle>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                External candidate — credentials are inactive until an interview is scheduled.
+              </p>
+            </DialogHeader>
+
+            {marketCreated ? (
+              <div className="space-y-4 p-1">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 p-4 flex items-start gap-3">
+                  <UserCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-200">Market candidate created</p>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-0.5">Login credentials will be activated when an interview is scheduled.</p>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-700">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Email</span>
+                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{marketCreated.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Password</span>
+                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{marketCreated.generatedPassword}</span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Note:</strong> Credentials have been emailed. Save the password — it cannot be retrieved later.
+                </div>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700" onClick={() => { setShowMarketCandidateDialog(false); setMarketCreated(null); }}>Done</Button>
+              </div>
+            ) : (
+              <div className="space-y-4 p-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="col-span-2 grid gap-1.5">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Name <span className="text-red-500">*</span></span>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      value={marketForm.name}
+                      onChange={e => setMarketForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Full name"
+                    />
+                  </label>
+                  <label className="col-span-2 grid gap-1.5">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Email <span className="text-red-500">*</span></span>
+                    <input
+                      type="email"
+                      className={inputCls}
+                      value={marketForm.email}
+                      onChange={e => setMarketForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="candidate@example.com"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Phone</span>
+                    <input
+                      type="tel"
+                      className={inputCls}
+                      value={marketForm.contactNumber}
+                      onChange={e => setMarketForm(f => ({ ...f, contactNumber: e.target.value }))}
+                      placeholder="+91 98765 43210"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Branch <span className="text-red-500">*</span></span>
+                    <select
+                      className={inputCls}
+                      value={marketForm.branch}
+                      onChange={e => setMarketForm(f => ({ ...f, branch: e.target.value }))}
+                    >
+                      <option value="DEVELOPMENT">Development</option>
+                      <option value="TESTING">Testing</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowMarketCandidateDialog(false)}>Cancel</Button>
+                  <Button
+                    className="flex-1 bg-violet-600 hover:bg-violet-700"
+                    onClick={() => void handleCreateMarketCandidate()}
+                    disabled={creatingMarket || !marketForm.name.trim() || !marketForm.email.trim()}
+                  >
+                    {creatingMarket ? <><span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent inline-block" />Creating…</> : 'Create Candidate'}
+                  </Button>
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>

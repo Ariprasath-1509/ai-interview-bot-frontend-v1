@@ -46,6 +46,9 @@ type Props = {
   interviewMode: string;
   proctoringMode: ProctoringMode;
   candidateSource?: string | null;
+  initialUtterances?: Utterance[] | null;
+  initialSlot?: number | null;
+  initialQuestionMeta?: { isCoding: boolean; preferredLanguage: string } | null;
   onTranscriptChange: (json: string) => void;
   onVoiceValidationChange?: (snapshot: VoiceValidationSnapshot) => void;
   onTimeExpired?: () => void;
@@ -302,6 +305,9 @@ export function VoiceInterviewClient({
   interviewMode,
   proctoringMode,
   candidateSource = null,
+  initialUtterances = null,
+  initialSlot = null,
+  initialQuestionMeta = null,
   onTranscriptChange,
   onVoiceValidationChange,
   onTimeExpired,
@@ -332,8 +338,8 @@ export function VoiceInterviewClient({
     recognitionRef.current = rec;
   }, []);
   const [micPhase, setMicPhase] = useState<MicPhase>("idle");
-  const [utterances, setUtterances] = useState<Utterance[]>([]);
-  const [botPromptIdx, setBotPromptIdx] = useState(0);
+  const [utterances, setUtterances] = useState<Utterance[]>(() => initialUtterances ?? []);
+  const [botPromptIdx, setBotPromptIdx] = useState(() => initialSlot ?? 0);
   const [interimText, setInterimText] = useState("");
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [typedDraft, setTypedDraft] = useState("");
@@ -421,13 +427,11 @@ export function VoiceInterviewClient({
   const fullscreen = useFullscreenEnforcement({
     active: proctorSessionActive && !timeExpired && !abandoning,
     onExit: (count) => {
-      if (videoProctoringRequired) {
-        proctoring.reportExternalEvent(
-          "fullscreen_exit",
-          [`Exited fullscreen mode (${count} time${count === 1 ? "" : "s"})`],
-          count >= 2 ? "hard" : "soft",
-        );
-      }
+      proctoring.reportExternalEvent(
+        "fullscreen_exit",
+        [`Exited fullscreen mode (${count} time${count === 1 ? "" : "s"})`],
+        count >= 2 ? "hard" : "soft",
+      );
     },
   });
 
@@ -435,6 +439,13 @@ export function VoiceInterviewClient({
 
   useEffect(() => {
     if (!isCodingSlotActive || !proctorSessionActive) return;
+    // Clear any buffered speech so pre-coding chatter isn't mistakenly flushed later
+    finalBufferRef.current = "";
+    interimRef.current = "";
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
     const blockClipboard = (e: ClipboardEvent) => {
       e.preventDefault();
     };
@@ -683,12 +694,34 @@ export function VoiceInterviewClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeExpired, durationMinutes]);
 
+  // Refs so speech callbacks always read current coding state (closures would otherwise capture stale props/state)
+  const isCodingSlotActiveRef = useRef(isCodingSlotActive);
+  const codingSlotSatisfiedRef = useRef(codingSlotSatisfied);
+  useEffect(() => { isCodingSlotActiveRef.current = isCodingSlotActive; }, [isCodingSlotActive]);
+  useEffect(() => { codingSlotSatisfiedRef.current = codingSlotSatisfied; }, [codingSlotSatisfied]);
+
+  // On resume: emit question meta for the last bot question so the code editor activates correctly
+  useEffect(() => {
+    if (!initialUtterances || initialUtterances.length === 0 || !initialSlot) return;
+    const lastBot = [...initialUtterances].reverse().find((u) => u.speaker === "BOT");
+    if (!lastBot) return;
+    onQuestionMetaChange?.({
+      question: lastBot.text,
+      slot: initialSlot,
+      isCoding: initialQuestionMeta?.isCoding ?? false,
+      preferredLanguage: initialQuestionMeta?.preferredLanguage ?? "python",
+      starterCode: null,
+    });
+    onQuestionChange?.(lastBot.text);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const utterancesRef = useRef<Utterance[]>([]);
+  const utterancesRef = useRef<Utterance[]>(initialUtterances ?? []);
   const finalBufferRef = useRef("");
   /** Latest interim phrase (not always finalized by engine when user clicks Send). */
   const interimRef = useRef("");
-  const botPromptIdxRef = useRef(0);
+  const botPromptIdxRef = useRef(initialSlot ?? 0);
   /** User wants an active interview session (Start … until Stop). */
   const sessionActiveRef = useRef(false);
   /** Recognition was stopped only so the bot can speak (do not flush / do not treat as user Stop). */
@@ -1261,8 +1294,8 @@ export function VoiceInterviewClient({
     resetAnswerCaptureState();
 
     advancingRef.current = true;
-    // Don't add to transcript — skip is silent
-    void advanceAfterAnswer("[SKIP]");
+    addCandidate("[SKIPPED]");
+    void advanceAfterAnswer("[SKIPPED]");
   }
 
   async function submitVoiceAnswerText(text: string) {
@@ -1906,6 +1939,7 @@ export function VoiceInterviewClient({
     if (!serverVoiceModeRef.current && finalBufferRef.current.trim() && !speechTimeoutRef.current) {
       speechTimeoutRef.current = setTimeout(() => {
         if (!sessionActiveRef.current || pausedForTtsRef.current || timeExpiredRef.current) return;
+        if (isCodingSlotActiveRef.current && !codingSlotSatisfiedRef.current) return;
         const accumulated = finalBufferRef.current.trim();
         if (accumulated && Date.now() - lastSpeechTimeRef.current >= SPEECH_TIMEOUT_MS) {
           flushSpokenAnswer();
@@ -1917,6 +1951,27 @@ export function VoiceInterviewClient({
   function addCandidate(text: string) {
     const row: Utterance = { speaker: "CANDIDATE", text, at: nowIso() };
     syncUtterances([...utterancesRef.current, row]);
+  }
+
+  function saveCheckpoint(
+    slot: number,
+    currentUtterances: Utterance[],
+    questionMeta?: { isCoding?: boolean; preferredLanguage?: string },
+  ) {
+    void fetch(`/api/interviews/${encodeURIComponent(interviewId)}/checkpoint`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        checkpointJson: JSON.stringify({
+          slot,
+          utterances: currentUtterances,
+          questionMeta: {
+            isCoding: questionMeta?.isCoding ?? false,
+            preferredLanguage: questionMeta?.preferredLanguage ?? "python",
+          },
+        }),
+      }),
+    }).catch(() => null);
   }
 
   async function advanceAfterAnswer(answer: string) {
@@ -2015,6 +2070,10 @@ export function VoiceInterviewClient({
       preferredLanguage: resolvedQ?.preferredLanguage,
       starterCode: resolvedQ?.starterCode,
     });
+    saveCheckpoint(nextSlot, utterancesRef.current, {
+      isCoding: resolvedQ?.isCoding,
+      preferredLanguage: resolvedQ?.preferredLanguage,
+    });
     } finally {
       setFetchingNextQuestion(false);
       advancingRef.current = false;
@@ -2057,7 +2116,7 @@ export function VoiceInterviewClient({
 
   function flushSpokenAnswer() {
 
-    if (pausedForTtsRef.current || !sessionActiveRef.current || advancingRef.current || timeExpiredRef.current || (isCodingSlotActive && !codingSlotSatisfied)) {
+    if (pausedForTtsRef.current || !sessionActiveRef.current || advancingRef.current || timeExpiredRef.current || (isCodingSlotActiveRef.current && !codingSlotSatisfiedRef.current)) {
       console.log('[Speech] Flush blocked - session inactive, TTS active, advancing, time expired, or coding slot pending');
       return;
     }
@@ -2107,6 +2166,8 @@ export function VoiceInterviewClient({
 
     rec.onresult = (event) => {
       if (pausedForTtsRef.current) return;
+      // Ignore all speech while a coding question is awaiting submission
+      if (isCodingSlotActiveRef.current && !codingSlotSatisfiedRef.current) return;
       const e = event as {
         resultIndex: number;
         results: ArrayLike<{ isFinal: boolean; 0: { transcript?: string } }>;
@@ -2771,9 +2832,20 @@ export function VoiceInterviewClient({
           onCancelStuck={() => proctoring.resetCameraSetup()}
         />
       ) : (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-          <span className="font-medium text-zinc-800 dark:text-zinc-200">Interview integrity</span>
-          <span className="ml-2">Fullscreen mode and tab-switch monitoring are active.</span>
+        <div className="space-y-2">
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+            <span className="font-medium text-zinc-800 dark:text-zinc-200">Interview integrity</span>
+            <span className="ml-2">Fullscreen mode and tab-switch monitoring are active.</span>
+          </div>
+          {fullscreen.exitCount > 0 && proctorSessionActive && !timeExpired && (
+            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-100">
+              <span className="font-semibold">Integrity violation:</span>{" "}
+              You have exited fullscreen {fullscreen.exitCount} time{fullscreen.exitCount === 1 ? "" : "s"}.
+              {fullscreen.exitCount >= 2
+                ? " This is a serious integrity flag and will be reported to the reviewer."
+                : " Please stay in fullscreen for the duration of the interview."}
+            </div>
+          )}
         </div>
       )}
 
@@ -2869,13 +2941,19 @@ export function VoiceInterviewClient({
       {/* ── Session start buttons ── */}
       {micPhase === "idle" && !timeExpired && (
         <div className="flex flex-wrap items-center gap-3">
+          {utterances.length > 0 && (
+            <div className="w-full rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+              <span className="font-semibold">Resuming from where you left off.</span>{" "}
+              Your previous answers have been restored. Click <span className="font-medium">Resume interview</span> to continue from question {botPromptIdx}.
+            </div>
+          )}
           <button
             className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             disabled={!integrityCanStart}
             onClick={() => void start()}
           >
-            Start interview (mic)
+            {utterances.length > 0 ? "Resume interview (mic)" : "Start interview (mic)"}
           </button>
           <button
             className="rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2883,7 +2961,7 @@ export function VoiceInterviewClient({
             disabled={!integrityCanStart}
             onClick={() => void startTypedOnly()}
           >
-            Use typed answers only
+            {utterances.length > 0 ? "Resume (typed only)" : "Use typed answers only"}
           </button>
           {utterances.length === 0 && (
             <p className="w-full text-xs text-zinc-500 dark:text-zinc-400">

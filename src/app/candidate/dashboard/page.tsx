@@ -15,6 +15,7 @@ type Interview = {
   id: string;
   status: string;
   scheduledAt: string | null;
+  expiresAt: string | null;
   endedAt: string | null;
   jdId: string;
   proposedVerdict: string | null;
@@ -40,7 +41,7 @@ type CandidateProfile = {
 };
 
 function isPast(i: Interview): boolean {
-  if (["COMPLETED", "REVIEW_PENDING", "SIGNED_OFF"].includes(i.status)) return true;
+  if (["COMPLETED", "REVIEW_PENDING", "SIGNED_OFF", "EXPIRED", "WITHDRAWN"].includes(i.status)) return true;
   if (i.status === "SCHEDULED" && i.scheduledAt) {
     return (Date.now() - new Date(i.scheduledAt).getTime()) / 36e5 > 24;
   }
@@ -53,6 +54,13 @@ function isUpcoming(i: Interview): boolean {
     i.status === "IN_PROGRESS" ||
     (i.status === "SCHEDULED" && !isPast(i))
   );
+}
+
+function getScheduleStatus(i: Interview): 'not_yet' | 'expired' | 'available' {
+  const now = Date.now();
+  if (i.scheduledAt && now < new Date(i.scheduledAt).getTime()) return 'not_yet';
+  if (i.expiresAt && now > new Date(i.expiresAt).getTime()) return 'expired';
+  return 'available';
 }
 
 async function parseJsonSafe<T>(res: Response | null | undefined, fallback: T): Promise<T> {
@@ -211,12 +219,31 @@ export default async function CandidateDashboard() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/interview/${i.id}`}
-                          className="btn-primary px-4 py-1.5 text-xs"
-                        >
-                          Attend
-                        </Link>
+                        {(() => {
+                          const schedSt = getScheduleStatus(i);
+                          if (schedSt === 'not_yet') {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                                Not yet available
+                              </span>
+                            );
+                          }
+                          if (schedSt === 'expired' || i.status === 'EXPIRED') {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                                Expired
+                              </span>
+                            );
+                          }
+                          return (
+                            <Link
+                              href={`/interview/${i.id}`}
+                              className="btn-primary px-4 py-1.5 text-xs"
+                            >
+                              Attend
+                            </Link>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -250,7 +277,9 @@ export default async function CandidateDashboard() {
                       <td className="px-4 py-3 font-medium">{jdMap[i.jdId]}</td>
                       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{formatDate(i.endedAt ?? i.scheduledAt)}</td>
                       <td className="px-4 py-3">
-                        {i.finalVerdict === "WITHDRAWN" || (!i.finalVerdict && i.proposedVerdict === "WITHDRAWN") ? (
+                        {i.status === "EXPIRED" ? (
+                          <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">Expired</span>
+                        ) : i.finalVerdict === "WITHDRAWN" || (!i.finalVerdict && i.proposedVerdict === "WITHDRAWN") ? (
                           <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">Not Prepared</span>
                         ) : i.status === "REVIEW_PENDING" ? (
                           <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Under Review</span>
