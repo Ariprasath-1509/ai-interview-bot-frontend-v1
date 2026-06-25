@@ -362,6 +362,7 @@ export function VoiceInterviewClient({
   const [answerRecording, setAnswerRecording] = useState(false);
   const [whisperProcessing, setWhisperProcessing] = useState(false);
   const [fetchingNextQuestion, setFetchingNextQuestion] = useState(false);
+  const [ttsLoading, setTtsLoading] = useState(false);
   const [usingBrowserVoice, setUsingBrowserVoice] = useState(false);
   /** Mirrors serverVoiceModeRef so JSX can react to mode switches. */
   const [isServerVoiceMode, setIsServerVoiceMode] = useState(true);
@@ -1761,15 +1762,46 @@ export function VoiceInterviewClient({
       }
     }
 
-    // Show question immediately before TTS starts
     const row: Utterance = { speaker: "BOT", text, at: nowIso() };
-    syncUtterances([...utterancesRef.current, row]);
-    emitQuestionMeta(text, botPromptIdxRef.current, meta);
+
+    // Delay revealing the question text until TTS audio actually starts playing.
+    // This prevents the text from appearing silently for several seconds before speech begins.
+    // For typed-only mode or browser-TTS fallback: reveal immediately (no audio to wait for).
+    const delayReveal = !typedOnlyRef.current && voiceServicePrefs.preferServerTts;
+
+    if (!delayReveal) {
+      syncUtterances([...utterancesRef.current, row]);
+      emitQuestionMeta(text, botPromptIdxRef.current, meta);
+    } else {
+      setTtsLoading(true);
+    }
 
     setMicPhase("bot_speaking");
 
-    // Speak the question
-    await speakWhenDone(text);
+    if (delayReveal) {
+      let revealed = false;
+      const revealQuestion = () => {
+        if (revealed) return;
+        revealed = true;
+        syncUtterances([...utterancesRef.current, row]);
+        emitQuestionMeta(text, botPromptIdxRef.current, meta);
+        setTtsLoading(false);
+      };
+
+      // Safety: reveal after 8s even if TTS never fires onStart (e.g. network hiccup)
+      const safetyTimeout = setTimeout(revealQuestion, 8_000);
+
+      await speakWhenDone(text, () => {
+        clearTimeout(safetyTimeout);
+        revealQuestion();
+      });
+
+      clearTimeout(safetyTimeout);
+      revealQuestion(); // ensure revealed if speakWhenDone ends before onStart fired
+    } else {
+      await speakWhenDone(text);
+    }
+
     if (isUsingBrowserVoiceFallback()) setUsingBrowserVoice(true);
 
     pausedForTtsRef.current = false;
@@ -2875,8 +2907,8 @@ export function VoiceInterviewClient({
         </div>
       )}
 
-      {/* ── Fetching / bot speaking loader ── */}
-      {(fetchingNextQuestion || (botSpeaking && utterances.length === 0)) && (
+      {/* ── Fetching / TTS loading / bot speaking loader ── */}
+      {(fetchingNextQuestion || ttsLoading || (botSpeaking && utterances.length === 0)) && (
         <div className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-100">
           <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
           <span>
@@ -2886,7 +2918,7 @@ export function VoiceInterviewClient({
       )}
 
       {/* ── Current question display ── */}
-      {currentBotQuestion && !fetchingNextQuestion && (
+      {currentBotQuestion && !fetchingNextQuestion && !ttsLoading && (
         <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Current question</p>
           <p className="text-sm leading-relaxed text-zinc-900 dark:text-zinc-100">{currentBotQuestion}</p>
@@ -2894,7 +2926,7 @@ export function VoiceInterviewClient({
       )}
 
       {/* ── Live listening panel ── */}
-      {listening && !timeExpired && !fetchingNextQuestion && (
+      {listening && !timeExpired && !fetchingNextQuestion && !ttsLoading && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
 
           {/* Mic status + waveform */}
@@ -3003,7 +3035,7 @@ export function VoiceInterviewClient({
                 {!typedAnswersOnly && (
                   <button
                     type="button"
-                    disabled={whisperProcessing || fetchingNextQuestion}
+                    disabled={whisperProcessing || fetchingNextQuestion || ttsLoading}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                     onClick={() => void sendVoiceAnswer()}
                   >
@@ -3013,7 +3045,7 @@ export function VoiceInterviewClient({
                 )}
                 <button
                   type="button"
-                  disabled={fetchingNextQuestion || !typedDraft.trim()}
+                  disabled={fetchingNextQuestion || ttsLoading || !typedDraft.trim()}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => void submitTypedReply()}
                 >
