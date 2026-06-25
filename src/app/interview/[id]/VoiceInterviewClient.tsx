@@ -1344,16 +1344,17 @@ export function VoiceInterviewClient({
     } catch {
       /* ignore */
     }
-    const blob = await stopAnswerRecordingBlob();
-    if (!blob || blob.size < 2000) {
-      if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+    // Single try/finally so whisperProcessing is always reset — even on early returns from blob checks
+    try {
+      const blob = await stopAnswerRecordingBlob();
+      if (!blob || blob.size < 2000) {
+        if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
+          return;
+        }
+        setWhisperError(`Recording too small (${blob?.size ?? 0} bytes). Speak louder or longer, then try again.`);
+        startAnswerRecording();
         return;
       }
-      setWhisperError(`Recording too small (${blob?.size ?? 0} bytes). Speak louder or longer, then try again.`);
-      startAnswerRecording();
-      return;
-    }
-    try {
       const text = await transcribeAnswerBlob(blob);
       if (!text || text.length < 3) {
         if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
@@ -1995,8 +1996,8 @@ export function VoiceInterviewClient({
 
   function flushSpokenAnswer() {
 
-    if (pausedForTtsRef.current || !sessionActiveRef.current || advancingRef.current || timeExpiredRef.current) {
-      console.log('[Speech] Flush blocked - session inactive, TTS active, advancing, or time expired');
+    if (pausedForTtsRef.current || !sessionActiveRef.current || advancingRef.current || timeExpiredRef.current || (isCodingSlotActive && !codingSlotSatisfied)) {
+      console.log('[Speech] Flush blocked - session inactive, TTS active, advancing, time expired, or coding slot pending');
       return;
     }
 

@@ -10,6 +10,8 @@ export const runtime = "nodejs";
 export const maxDuration = 120; // 2-minute hard cap on the entire route
 
 const PISTON_API_URL = process.env.PISTON_API_URL || "https://emkc.org/api/v2/piston";
+// Must not exceed Piston's MAX_TIMEOUT env var (default 3000). Match it or set PISTON_MAX_RUN_TIMEOUT_MS env var.
+const PISTON_MAX_RUN_TIMEOUT_MS = parseInt(process.env.PISTON_MAX_RUN_TIMEOUT_MS ?? "10000", 10);
 
 async function isAuthed(): Promise<boolean> {
   const jar = await cookies();
@@ -199,7 +201,7 @@ async function executeViaPiston(language: string, code: string, stdin: string, t
         version: "*",
         files: [{ name: PISTON_FILE[language] ?? "main.txt", content: code }],
         stdin,
-        run_timeout: Math.min(timeoutMs, 60000),
+        run_timeout: Math.min(timeoutMs, PISTON_MAX_RUN_TIMEOUT_MS),
       }),
       signal: AbortSignal.timeout(timeoutMs + 5000),
     });

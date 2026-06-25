@@ -104,7 +104,11 @@ export function resolveStarterCode(lang: string, starterCode?: string | null): s
   return STARTERS[lang] ?? "// Write your solution here\n";
 }
 
-/** Explicit coding-task phrasing only — avoids false positives on general technical questions. */
+/**
+ * Matches only questions that explicitly ask the candidate to WRITE code.
+ * Deliberately excludes topic words ("data structure", "time complexity", "given an array")
+ * that appear in theory questions — those are handled by the backend isCoding flag.
+ */
 export function isCodingKeywords(question: string): boolean {
   const lower = question.toLowerCase();
   const keywords = [
@@ -115,23 +119,12 @@ export function isCodingKeywords(question: string): boolean {
     "write an algorithm",
     "implement a function",
     "implement the function",
-    "implement a ",
     "complete the following function",
     "create a function",
     "create a method",
     "coding challenge",
     "code a solution",
     "code the solution",
-    "solve this problem",
-    "time complexity",
-    "space complexity",
-    "given an array",
-    "given a string",
-    "given a list",
-    "given a linked list",
-    "given a binary tree",
-    "design an algorithm",
-    "data structure",
     "leetcode",
     "hackerrank",
   ];
