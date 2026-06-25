@@ -1,5 +1,5 @@
 /** Max wait for Whisper STT before falling back to browser speech. */
-export const MEDIA_SERVICE_TIMEOUT_MS = 30_000;
+export const MEDIA_SERVICE_TIMEOUT_MS = 15_000;
 
 /** Max wait for Kokoro TTS — longer because first request triggers model warmup. */
 export const TTS_TIMEOUT_MS = 45_000;

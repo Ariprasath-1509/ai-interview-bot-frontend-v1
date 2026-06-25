@@ -146,11 +146,13 @@ function splitIntoSentences(text: string): string[] {
 
 async function fetchTtsBlob(text: string, signal: AbortSignal): Promise<{ url: string; type: string } | null> {
   try {
+    // 7-second per-sentence timeout — don't wait for the NGINX gateway to time out (10s 504)
+    const combined = AbortSignal.any([signal, AbortSignal.timeout(7_000)]);
     const res = await fetch("/api/ai/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
-      signal,
+      signal: combined,
     });
     if (!res.ok) return null;
     const blob = await res.blob();
