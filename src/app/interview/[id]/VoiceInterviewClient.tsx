@@ -1252,6 +1252,19 @@ export function VoiceInterviewClient({
     }
   }
 
+  async function skipCurrentQuestion() {
+    if (!sessionActiveRef.current || advancingRef.current) return;
+    if (isCodingSlotActive && !codingSlotSatisfied) return;
+
+    // Stop any in-progress recording and discard — no transcription needed
+    void stopAnswerRecordingBlob();
+    resetAnswerCaptureState();
+
+    advancingRef.current = true;
+    // Don't add to transcript — skip is silent
+    void advanceAfterAnswer("[SKIP]");
+  }
+
   async function submitVoiceAnswerText(text: string) {
     const clean = text.trim();
     if (!clean) return false;
@@ -3050,6 +3063,15 @@ export function VoiceInterviewClient({
                   onClick={() => void submitTypedReply()}
                 >
                   Submit typed reply
+                </button>
+                <button
+                  type="button"
+                  disabled={fetchingNextQuestion || ttsLoading || whisperProcessing || (isCodingSlotActive && !codingSlotSatisfied)}
+                  title={isCodingSlotActive && !codingSlotSatisfied ? "Submit your code first before skipping" : "Skip this question"}
+                  className="rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                  onClick={() => void skipCurrentQuestion()}
+                >
+                  Skip question
                 </button>
               </div>
             </div>
