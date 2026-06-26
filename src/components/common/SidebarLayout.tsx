@@ -9,6 +9,8 @@ import { NotificationCenter } from "@/components/common/NotificationCenter";
 import { entityBranchBadgeClass, entityBranchLabel } from "@/lib/staffRoles";
 import type { SidebarItem } from "@/config/roleConfig";
 import * as LucideIcons from "lucide-react";
+import { TourRunner } from "@/components/tour/TourRunner";
+import { TourButton } from "@/components/tour/TourButton";
 
 const NAV_GROUP_LABEL: Record<string, string> = {
   candidates: "Candidates",
@@ -222,6 +224,8 @@ export function SidebarLayout({
               {!collapsed && (
                 <button
                   type="button"
+                  data-navgroup-toggle={chunk.id}
+                  data-navgroup-open={open ? "true" : "false"}
                   onClick={() => toggleNavGroup(chunk.id)}
                   className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 >
@@ -263,8 +267,10 @@ export function SidebarLayout({
 
   return (
     <div className="app-shell flex h-screen overflow-hidden">
+      <TourRunner role={role ?? ""} />
       {/* Desktop sidebar */}
       <aside
+        data-tour="sidebar"
         className={`hidden lg:flex flex-col border-r border-white/10 dark:border-zinc-900/20 bg-white/40 dark:bg-zinc-950/40 shadow-lg shadow-violet-500/5 backdrop-blur-xl transition-all duration-300 ${
           collapsed ? "w-16" : "w-56"
         }`}
@@ -305,7 +311,10 @@ export function SidebarLayout({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <NotificationCenter />
+            <span data-tour="notification-bell">
+              <NotificationCenter />
+            </span>
+            <TourButton role={role ?? ""} />
             {username && (
               <span className="hidden items-center gap-2 text-xs font-semibold text-zinc-500 lg:inline-flex">
                 {username} · <span className="text-zinc-400">{role}</span>
