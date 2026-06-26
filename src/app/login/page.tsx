@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 const inputCls = "input-base";
@@ -30,7 +30,8 @@ function StaffLogin() {
     return new URL(window.location.href).searchParams.get("next") ?? "";
   }, []);
 
-  async function onLogin() {
+  async function onLogin(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -47,7 +48,7 @@ function StaffLogin() {
   }
 
   return (
-    <div className="grid gap-4">
+    <form className="grid gap-4" onSubmit={onLogin}>
       <label className="grid gap-1.5 text-sm font-semibold">
         Email
         <input className={inputCls} type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -67,10 +68,10 @@ function StaffLogin() {
         </Link>
       </div>
       {error && <p className="rounded-lg border border-red-200 bg-red-50/50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">{error}</p>}
-      <button className="btn-primary mt-2 w-full" type="button" onClick={onLogin}>
+      <button className="btn-primary mt-2 w-full" type="submit">
         Sign in
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -80,7 +81,8 @@ function CandidateLogin() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onLogin() {
+  async function onLogin(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -99,7 +101,7 @@ function CandidateLogin() {
   const isNotRegistered = error?.toLowerCase().includes("not registered") || error?.toLowerCase().includes("not found");
 
   return (
-    <div className="grid gap-4">
+    <form className="grid gap-4" onSubmit={onLogin}>
       <label className="grid gap-1.5 text-sm font-semibold">
         Email
         <input className={inputCls} type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -125,14 +127,14 @@ function CandidateLogin() {
           ) : error}
         </p>
       )}
-      <button className="btn-primary mt-2 w-full" type="button" onClick={onLogin}>
+      <button className="btn-primary mt-2 w-full" type="submit">
         Sign in
       </button>
       <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-2">
         Don&apos;t have an account?{" "}
         <Link href="/register" className="font-semibold text-zinc-700 dark:text-zinc-200 underline transition-colors hover:text-indigo-500 dark:hover:text-indigo-400">Register</Link>
       </p>
-    </div>
+    </form>
   );
 }
 
