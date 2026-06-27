@@ -557,6 +557,11 @@ export function VoiceInterviewClient({
         if (prev <= 1) {
           timeExpiredRef.current = true;
           setTimeExpired(true);
+          // Stop the interval — timer is done
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
           return 0;
         }
         return prev - 1;
@@ -1772,6 +1777,13 @@ export function VoiceInterviewClient({
 
   /** One bot line + TTS without restarting the recognition loop (session already over or pausing). */
   async function playClosingLine(botText: string) {
+    // Stop the countdown timer — interview is over
+    setTimerStarted(false);
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
     const row: Utterance = { speaker: "BOT", text: botText, at: nowIso() };
     syncUtterances([...utterancesRef.current, row]);
     setMicPhase("bot_speaking");

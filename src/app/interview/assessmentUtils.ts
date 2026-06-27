@@ -144,7 +144,8 @@ export function inferAssessmentScoreMax(
   const values = scores.map((s) => s.value).filter((v) => Number.isFinite(v));
   if (values.some((v) => v > 5)) return 10;
   if (values.length > 0 && values.every((v) => v >= 1 && v <= 5)) {
-    return ai?.source === "ollama-four-stage" ? 10 : 5;
+    // Claude uses 1-10 scale; all-low scores are genuinely low, not a scale artifact
+    return ai?.source === "heuristic" ? 5 : 10;
   }
   return 10;
 }
