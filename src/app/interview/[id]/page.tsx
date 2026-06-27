@@ -6,6 +6,7 @@ import { VoiceInterviewForm } from "./VoiceInterviewForm";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { resolveProctoringMode, type ProctoringMode } from "@/lib/proctoring/mode";
+import { CODING_SLOT_MINUTES } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -35,6 +36,7 @@ type CheckpointData = {
   slot: number;
   utterances: { speaker: "BOT" | "CANDIDATE"; text: string; at: string }[];
   questionMeta?: { isCoding: boolean; preferredLanguage: string } | null;
+  codingStartedAt?: string | null;
 };
 
 export default async function InterviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -127,9 +129,15 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
 
   // Parse checkpoint for IN_PROGRESS interviews so we can resume from where the candidate left off
   let checkpoint: CheckpointData | null = null;
+  let initialCodingSecondsLeft: number | null = null;
   if (interview.status === "IN_PROGRESS" && interview.checkpointJson) {
     try {
       checkpoint = JSON.parse(interview.checkpointJson) as CheckpointData;
+      if (checkpoint.codingStartedAt && checkpoint.questionMeta?.isCoding) {
+        const elapsed = Math.floor((Date.now() - new Date(checkpoint.codingStartedAt).getTime()) / 1000);
+        const remaining = CODING_SLOT_MINUTES * 60 - elapsed;
+        initialCodingSecondsLeft = Math.max(0, remaining);
+      }
     } catch {
       checkpoint = null;
     }
@@ -165,6 +173,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
               initialUtterances={checkpoint?.utterances ?? null}
               initialSlot={checkpoint?.slot ?? null}
               initialQuestionMeta={checkpoint?.questionMeta ?? null}
+              initialCodingSecondsLeft={initialCodingSecondsLeft}
               completeInterview={completeInterview}
           />
         </div>

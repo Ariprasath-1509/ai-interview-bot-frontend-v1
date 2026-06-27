@@ -74,6 +74,7 @@ export function VoiceInterviewForm({
   initialUtterances,
   initialSlot,
   initialQuestionMeta,
+  initialCodingSecondsLeft,
   completeInterview,
 }: {
   interviewId: string;
@@ -88,6 +89,7 @@ export function VoiceInterviewForm({
   initialUtterances?: ResumeUtterance[] | null;
   initialSlot?: number | null;
   initialQuestionMeta?: { isCoding: boolean; preferredLanguage: string } | null;
+  initialCodingSecondsLeft?: number | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
@@ -254,6 +256,7 @@ export function VoiceInterviewForm({
         codeSubmissionJson={codeSubmissions.length > 0 ? JSON.stringify(codeSubmissions) : ""}
         onCodingTimerChange={setCodingTimer}
         onQuestionMetaChange={onQuestionMetaChange}
+        initialCodingSecondsLeft={initialCodingSecondsLeft}
       />
 
       {isCodingSlotActive && !codingSlotSatisfied && (
@@ -278,6 +281,7 @@ export function VoiceInterviewForm({
         onSubmitAsAnswer={onSubmitAsAnswer}
         codingSecondsLeft={codingTimer.active ? codingTimer.secondsLeft : null}
         codingTimerActive={codingTimer.active}
+        interviewId={interviewId}
       />
 
       {voiceValidation && (

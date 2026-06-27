@@ -111,11 +111,11 @@ export function buildHeuristicTestCases(question: string): GeneratedTestCase[] |
 
   if (questionMentionsSecondMin(question) || /\bstreams?\b.*\b(min|minimum|smallest)\b/i.test(question)) {
     return [
-      { id: "1", name: "Happy path", input: "3\n5\n8\n1\n2\n7\n", expected: "2" },
-      { id: "2", name: "Duplicates", input: "4\n4\n4\n4\n4\n", expected: "4" },
-      { id: "3", name: "Negative numbers", input: "-5\n-10\n-3\n-8\n-2\n", expected: "-8" },
-      { id: "4", name: "Single element", input: "5\n", expected: "at least two elements" },
-      { id: "5", name: "Mixed numbers", input: "10\n-5\n3\n7\n-2\n9\n", expected: "-2" },
+      { id: "1", name: "Happy path",      input: "3 5 8 1 2 7",      expected: "2" },
+      { id: "2", name: "Duplicates",      input: "4 4 2 4 4",         expected: "4" },
+      { id: "3", name: "Negative numbers",input: "-5 -10 -3 -8 -2",   expected: "-8" },
+      { id: "4", name: "Two elements",    input: "3 1",               expected: "3" },
+      { id: "5", name: "Mixed numbers",   input: "10 -5 3 7 -2 9",    expected: "-2" },
     ];
   }
 

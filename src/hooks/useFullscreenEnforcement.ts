@@ -30,6 +30,9 @@ export function useFullscreenEnforcement({ active, onExit }: Options) {
   useEffect(() => {
     if (!active) {
       requestedRef.current = false;
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => null);
+      }
       return;
     }
 

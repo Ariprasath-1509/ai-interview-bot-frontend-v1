@@ -56,6 +56,14 @@ export interface TestCase {
   expected: string;
 }
 
+export type ErrorType =
+  | "compile_error"
+  | "runtime_error"
+  | "timeout"
+  | "output_mismatch"
+  | "execution_unavailable"
+  | null;
+
 export interface RunResult {
   name: string;
   passed: boolean;
@@ -65,6 +73,8 @@ export interface RunResult {
   stderr: string;
   exit_code: number;
   timed_out: boolean;
+  error_type?: ErrorType;
+  friendly_error?: string;
 }
 
 export interface AiReview {

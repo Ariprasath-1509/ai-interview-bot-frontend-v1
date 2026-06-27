@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import crypto from "crypto";
 import { cookies } from "next/headers";
-import { outputsMatch } from "./outputMatcher";
+import { outputsMatch, explainMismatch } from "./outputMatcher";
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // 2-minute hard cap on the entire route
@@ -31,7 +31,7 @@ function hasCmd(cmd: string): boolean {
   }
 }
 
-interface ProcResult { code: number; signal: string | null; stdout: string; stderr: string; }
+interface ProcResult { code: number; signal: string | null; stdout: string; stderr: string; _isCompileError?: boolean; }
 
 function runProcess(cmd: string, args: string[], opts: object, timeoutMs: number, stdin = ""): Promise<ProcResult> {
   return new Promise((resolve) => {
@@ -174,10 +174,12 @@ const ALIASES: Record<string, string> = {
   kt: "kotlin", rb: "ruby", sh: "bash", shell: "bash",
 };
 
+// Language names must match Piston's /runtimes endpoint exactly.
+// Verified against https://emkc.org/api/v2/piston/runtimes
 const PISTON_LANG: Record<string, string> = {
-  python: "python", javascript: "node", typescript: "typescript",
-  java: "java", cpp: "gcc", c: "gcc", go: "go", rust: "rust",
-  csharp: "mono", kotlin: "kotlin", ruby: "ruby", php: "php",
+  python: "python", javascript: "javascript", typescript: "typescript",
+  java: "java", cpp: "c++", c: "c", go: "go", rust: "rust",
+  csharp: "csharp", kotlin: "kotlin", ruby: "ruby", php: "php",
   swift: "swift", bash: "bash",
 };
 
@@ -220,6 +222,7 @@ async function executeViaPiston(language: string, code: string, stdin: string, t
         signal: null,
         stdout: data.compile.stdout ?? "",
         stderr: compileErr || "Compilation failed",
+        _isCompileError: true,
       };
     }
 
@@ -240,6 +243,54 @@ async function executeViaPiston(language: string, code: string, stdin: string, t
 function localRunnerMissing(proc: ProcResult): boolean {
   const err = proc.stderr.toLowerCase();
   return err.includes("enoent") || err.includes("spawn ") || err.includes("not found");
+}
+
+type ErrorType = "compile_error" | "runtime_error" | "timeout" | "output_mismatch" | "execution_unavailable" | null;
+
+
+function extractFriendlyError(stderr: string, lang: string, errorType: ErrorType): string | undefined {
+  if (!errorType || errorType === "execution_unavailable") return undefined;
+  const lines = stderr.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return undefined;
+
+  if (errorType === "timeout") return "Your code exceeded the time limit. Check for infinite loops or very slow algorithms.";
+
+  if (errorType === "compile_error") {
+    // Python SyntaxError
+    const pyMatch = stderr.match(/(?:SyntaxError|IndentationError|NameError|TypeError)[^\n]*/);
+    if (pyMatch) return `Syntax error: ${pyMatch[0].trim()}`;
+    // Java/Kotlin compile error  — "file.java:line: error: message"
+    const javaMatch = stderr.match(/\w+\.(?:java|kt):\d+: error: ([^\n]+)/);
+    if (javaMatch) return `Compilation error: ${javaMatch[1].trim()}`;
+    // GCC/G++ — "file.c:line:col: error: message"
+    const gccMatch = stderr.match(/\w+\.[ch](?:pp)?:\d+:\d+: error: ([^\n]+)/);
+    if (gccMatch) return `Compilation error: ${gccMatch[1].trim()}`;
+    // Rust
+    const rustMatch = stderr.match(/error(?:\[E\d+\])?: ([^\n]+)/);
+    if (rustMatch) return `Compilation error: ${rustMatch[1].trim()}`;
+    // Generic — first line that contains "error"
+    const errLine = lines.find((l) => /error/i.test(l));
+    return errLine ? `Compilation error: ${errLine.slice(0, 200)}` : "Compilation failed — check your syntax.";
+  }
+
+  if (errorType === "runtime_error") {
+    if (lang === "python") {
+      // Last two lines of a Python traceback are usually the most useful
+      const tbIdx = stderr.lastIndexOf("Traceback");
+      const relevant = tbIdx >= 0 ? stderr.slice(tbIdx) : stderr;
+      const errLines = relevant.split("\n").filter(Boolean);
+      const errorLine = errLines.slice(-2).join(" — ").trim();
+      return errorLine ? `Runtime error: ${errorLine.slice(0, 200)}` : undefined;
+    }
+    if (lang === "java") {
+      const exc = stderr.match(/Exception in thread "main" (\S+): ([^\n]+)/);
+      if (exc) return `Runtime error: ${exc[1].split(".").pop()}: ${exc[2].trim().slice(0, 160)}`;
+    }
+    const errLine = lines.find((l) => /error|exception|panic|fatal/i.test(l));
+    return errLine ? `Runtime error: ${errLine.slice(0, 200)}` : `Program exited with error (code ${lang}).`;
+  }
+
+  return undefined;
 }
 
 async function executeCode(language: string, code: string, stdin: string, timeoutMs: number): Promise<ProcResult> {
@@ -332,34 +383,69 @@ export async function POST(req: Request) {
     const proc = await executeCode(lang, code, tcInput, timeoutMs);
 
     const timedOut = proc.signal === "SIGKILL";
+    const isCompileStep = !!proc._isCompileError;
     const out = proc.stdout.replace(/\r\n/g, "\n").trimEnd();
     const err = proc.stderr.replace(/\r\n/g, "\n").trimEnd();
 
-    let passed = proc.code === 0 && !timedOut;
+    // If execution service is completely unavailable (ENOENT both local and Piston), show a clear message
+    const unavailable = localRunnerMissing(proc);
+
+    let passed = proc.code === 0 && !timedOut && !unavailable;
     if (passed && tc.expected != null) {
       passed = outputsMatch(out, String(tc.expected));
     }
     if (passed && tc.contains?.length) passed = tc.contains.every((c) => out.includes(c));
 
     const hasExpected = tc.expected != null && String(tc.expected).trim() !== "";
-    const actualOutput = out || (err ? err : "(no output)");
+    const actualOutput = out || (err && !unavailable ? err : "(no output)");
+
+    let errorType: ErrorType = null;
+    if (unavailable) {
+      errorType = "execution_unavailable";
+    } else if (timedOut) {
+      errorType = "timeout";
+    } else if (isCompileStep && proc.code !== 0) {
+      errorType = "compile_error";
+    } else if (proc.code !== 0) {
+      errorType = "runtime_error";
+    } else if (!passed && tc.expected != null) {
+      errorType = "output_mismatch";
+    }
+
+    const friendlyError = unavailable
+      ? "Code execution is temporarily unavailable. Please try again in a moment."
+      : errorType === "output_mismatch"
+        ? (explainMismatch(out, String(tc.expected)) ?? "Your output didn't match the expected result — check your logic and output format.")
+        : extractFriendlyError(err, lang, errorType);
+
+    const displayStderr = unavailable
+      ? ""
+      : timedOut
+        ? `${err}\n[timed out after ${timeoutMs / 1000}s]`.trim()
+        : err;
 
     results.push({
       name: tc.name ?? "run",
       passed,
       expected: hasExpected ? String(tc.expected) : undefined,
-      actual: actualOutput,
+      actual: unavailable ? undefined : actualOutput,
       stdout: out,
-      stderr: timedOut ? `${err}\n[timeout after ${timeoutMs}ms]`.trim() : err,
+      stderr: displayStderr,
       exit_code: proc.code,
       timed_out: timedOut,
+      error_type: errorType,
+      friendly_error: friendlyError,
     });
   }
 
+  const passedCount = results.filter((r) => r.passed).length;
   return Response.json({
     id: crypto.randomUUID(),
     language: lang,
     results,
     ok: results.every((r) => r.passed),
+    passed: passedCount,
+    total: results.length,
+    score: results.length > 0 ? Math.round((passedCount / results.length) * 100) : 0,
   });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Volume2 } from "lucide-react";
 import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
 import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
 import { useVideoProctoring } from "@/hooks/useVideoProctoring";
@@ -62,6 +62,7 @@ type Props = {
   onCodingTimerChange?: (state: { active: boolean; secondsLeft: number; expired: boolean }) => void;
   onQuestionChange?: (question: string) => void;
   onQuestionMetaChange?: (meta: QuestionMeta) => void;
+  initialCodingSecondsLeft?: number | null;
 };
 
 type MicPhase = "idle" | "listening" | "bot_speaking";
@@ -321,21 +322,27 @@ export function VoiceInterviewClient({
   onCodingTimerChange,
   onQuestionChange,
   onQuestionMetaChange,
+  initialCodingSecondsLeft = null,
 }: Props) {
   const [supported, setSupported] = useState(false);
 
-  useEffect(() => {
-    const hasMic = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
-    if (hasMic) setSupported(true);
+  function createRecognitionInstance(): SpeechRecognitionLike | null {
     const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
     const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | undefined;
-    if (!Ctor) return;
+    if (!Ctor) return null;
     const rec = new Ctor();
     rec.continuous = true;
     rec.interimResults = true;
     rec.lang = "en-IN";
     (rec as unknown as { maxAlternatives?: number }).maxAlternatives = 3;
-    recognitionRef.current = rec;
+    return rec;
+  }
+
+  useEffect(() => {
+    const hasMic = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+    if (hasMic) setSupported(true);
+    recognitionRef.current = createRecognitionInstance();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [micPhase, setMicPhase] = useState<MicPhase>("idle");
   const [utterances, setUtterances] = useState<Utterance[]>(() => initialUtterances ?? []);
@@ -348,7 +355,7 @@ export function VoiceInterviewClient({
 
   const [timerStarted, setTimerStarted] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
-  const [codingSecondsLeft, setCodingSecondsLeft] = useState(CODING_SLOT_MINUTES * 60);
+  const [codingSecondsLeft, setCodingSecondsLeft] = useState(initialCodingSecondsLeft ?? CODING_SLOT_MINUTES * 60);
   const [codingTimerActive, setCodingTimerActive] = useState(false);
   const [mainTimerPaused, setMainTimerPaused] = useState(false);
   const [codingTimeExpired, setCodingTimeExpired] = useState(false);
@@ -509,9 +516,14 @@ export function VoiceInterviewClient({
     if (hasBotQuestion && !timerStarted) setTimerStarted(true);
   }, [utterances, timerStarted]);
 
+  const isResumedCodingRef = useRef(initialCodingSecondsLeft != null);
+
   useEffect(() => {
     if (codingPending && !wasCodingPendingRef.current) {
-      setCodingSecondsLeft(CODING_SLOT_MINUTES * 60);
+      if (!isResumedCodingRef.current) {
+        setCodingSecondsLeft(CODING_SLOT_MINUTES * 60);
+      }
+      isResumedCodingRef.current = false;
       setCodingTimerActive(true);
       setCodingTimeExpired(false);
       mainTimerPausedRef.current = true;
@@ -1284,6 +1296,8 @@ export function VoiceInterviewClient({
     console.warn("[STT] Switching to browser speech:", reason);
     resetAnswerCaptureState();
     void stopAnswerRecordingBlob().catch(() => null);
+    // recognitionRef may be null if the session was previously finalized — recreate it
+    if (!recognitionRef.current) recognitionRef.current = createRecognitionInstance();
     attachRecognitionHandlers();
     if (sessionActiveRef.current && !sessionFinalizedRef.current) {
       scheduleRecognitionStart("browser stt fallback");
@@ -1592,7 +1606,11 @@ export function VoiceInterviewClient({
   // Register the code-submit-as-answer bridge so CodeWorkspace can inject answers into the voice flow
   useEffect(() => {
     onRegisterSubmitAnswer?.((answer: string) => {
-      if (!sessionActiveRef.current || advancingRef.current) return;
+      // Code submissions must always advance the interview regardless of voice session state.
+      // The main timer may have expired (sessionActiveRef = false) while the candidate was
+      // writing code. We still need to hide the coding workspace and move to the next slot.
+      // Force-clear any stuck advancing state from prior STT/voice operations.
+      advancingRef.current = false;
       addCandidate(answer);
       void advanceAfterAnswer(answer);
     });
@@ -1964,11 +1982,19 @@ export function VoiceInterviewClient({
     syncUtterances([...utterancesRef.current, row]);
   }
 
+  const codingStartedAtRef = useRef<string | null>(null);
+
   function saveCheckpoint(
     slot: number,
     currentUtterances: Utterance[],
     questionMeta?: { isCoding?: boolean; preferredLanguage?: string },
   ) {
+    const isCoding = questionMeta?.isCoding ?? false;
+    if (isCoding && !codingStartedAtRef.current) {
+      codingStartedAtRef.current = new Date().toISOString();
+    } else if (!isCoding) {
+      codingStartedAtRef.current = null;
+    }
     void fetch(`/api/interviews/${encodeURIComponent(interviewId)}/checkpoint`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1977,9 +2003,10 @@ export function VoiceInterviewClient({
           slot,
           utterances: currentUtterances,
           questionMeta: {
-            isCoding: questionMeta?.isCoding ?? false,
+            isCoding,
             preferredLanguage: questionMeta?.preferredLanguage ?? "python",
           },
+          codingStartedAt: codingStartedAtRef.current,
         }),
       }),
     }).catch(() => null);
@@ -2017,8 +2044,11 @@ export function VoiceInterviewClient({
         return;
       }
       if (nextQ.interviewComplete) {
-        // Interview has reached its natural end
+        // Interview has reached its natural end — fully finalize the session
+        sessionFinalizedRef.current = true;
         sessionActiveRef.current = false;
+        interviewChannelRef.current?.close();
+        interviewChannelRef.current = null;
         typedOnlyRef.current = false;
         setTypedAnswersOnly(false);
         pausedForTtsRef.current = false;
@@ -2031,6 +2061,11 @@ export function VoiceInterviewClient({
           clearTimeout(restartTimerRef.current);
           restartTimerRef.current = null;
         }
+        if (speechTimeoutRef.current) {
+          clearTimeout(speechTimeoutRef.current);
+          speechTimeoutRef.current = null;
+        }
+        cancelActiveTts();
         try {
           recognitionRef.current?.stop();
         } catch { /* ignore */ }
@@ -2092,7 +2127,10 @@ export function VoiceInterviewClient({
   }
 
   async function endInterviewFromVoice(userLine: string) {
+    sessionFinalizedRef.current = true;
     sessionActiveRef.current = false;
+    interviewChannelRef.current?.close();
+    interviewChannelRef.current = null;
     typedOnlyRef.current = false;
     setTypedAnswersOnly(false);
     commitAfterEndRef.current = false;
@@ -2497,6 +2535,8 @@ export function VoiceInterviewClient({
         serverVoiceModeRef.current = false;
         setIsServerVoiceMode(false);
         voiceServicePrefs.preferServerStt = false;
+        // recognitionRef may be null if a prior session was finalized — recreate it
+        if (!recognitionRef.current) recognitionRef.current = createRecognitionInstance();
         if (!recognitionRef.current) {
           setSpeechError(
             "Microphone unavailable and no browser speech support. Switching to typed answers.",
@@ -2510,6 +2550,8 @@ export function VoiceInterviewClient({
       // Browser STT mode: SpeechRecognition manages its own mic stream
       serverVoiceModeRef.current = false;
       setIsServerVoiceMode(false);
+      // recognitionRef may be null if a prior session was finalized — recreate it
+      if (!recognitionRef.current) recognitionRef.current = createRecognitionInstance();
       if (!recognitionRef.current) {
         setSpeechError(
           "Browser speech recognition is not supported. Switching to typed answers.",
@@ -2746,6 +2788,22 @@ export function VoiceInterviewClient({
       : interimText;
 
   const currentBotQuestion = utterances.filter((u) => u.speaker === "BOT").at(-1)?.text ?? "";
+
+  const [replaying, setReplaying] = useState(false);
+  const replayQuestion = useCallback(async () => {
+    if (!currentBotQuestion || replaying || micPhase === "bot_speaking" || fetchingNextQuestion) return;
+    setReplaying(true);
+    setMicPhase("bot_speaking");
+    pausedForTtsRef.current = true;
+    try {
+      await speakWhenDone(currentBotQuestion);
+    } finally {
+      pausedForTtsRef.current = false;
+      setReplaying(false);
+      setMicPhase(sessionActiveRef.current && !sessionFinalizedRef.current ? "listening" : "idle");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBotQuestion, replaying, micPhase, fetchingNextQuestion]);
 
   if (!supported) {
     return (
@@ -3027,7 +3085,21 @@ export function VoiceInterviewClient({
       {/* ── Current question display ── */}
       {currentBotQuestion && !fetchingNextQuestion && !ttsLoading && (
         <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Current question</p>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Current question</p>
+            <button
+              type="button"
+              onClick={() => void replayQuestion()}
+              disabled={replaying || micPhase === "bot_speaking" || fetchingNextQuestion}
+              title="Replay question"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 disabled:opacity-40 dark:text-blue-400 dark:hover:bg-blue-900/40"
+            >
+              {replaying
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Volume2 className="h-3.5 w-3.5" />}
+              Replay
+            </button>
+          </div>
           <p className="text-sm leading-relaxed text-zinc-900 dark:text-zinc-100">{currentBotQuestion}</p>
         </div>
       )}
