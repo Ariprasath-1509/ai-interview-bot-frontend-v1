@@ -6,6 +6,7 @@ import { apiServer } from "@/lib/apiClient";
 import { AssessmentBanners } from "@/app/interview/AssessmentBanners";
 import {
   buildAssessmentBanners,
+  isInsufficientResponses,
   mergeAssessmentScores,
   parseAiAssessment,
   type ScoreRow,
@@ -141,7 +142,8 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
     scores = interview.categoryScores;
   }
   scores = mergeAssessmentScores(scores, ai, storedAssessment);
-  const assessFailed = Boolean((ai as { assessFailed?: boolean } | null)?.assessFailed);
+  const assessFailed = Boolean(ai?.assessFailed);
+  const insufficientResponses = isInsufficientResponses(ai, interview.transcriptJson);
   const banners = buildAssessmentBanners({
     ai,
     transcriptJson: interview.transcriptJson,
@@ -184,7 +186,21 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
         {/* Scores */}
         <section className="mt-6">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Scores</h2>
-          {scores.length ? (
+          {insufficientResponses ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 dark:border-amber-900 dark:bg-amber-950/20">
+              <p className="text-base font-semibold text-amber-900 dark:text-amber-100">Not enough responses to assess</p>
+              <p className="mt-2 text-sm leading-relaxed text-amber-800 dark:text-amber-200">
+                Your interview session did not include enough spoken or typed answers for the AI to generate a meaningful score.
+                This can happen if questions were skipped, the session ended early, or answers were very brief.
+              </p>
+              <p className="mt-3 text-sm font-medium text-amber-900 dark:text-amber-100">What to do next:</p>
+              <ul className="mt-1.5 space-y-1 text-sm text-amber-800 dark:text-amber-200">
+                <li>• Attempt to answer every question — even a short answer is better than skipping</li>
+                <li>• Speak clearly and at full length; the AI scores depth and clarity of responses</li>
+                <li>• If the session was interrupted, contact your recruiter to request a re-attempt</li>
+              </ul>
+            </div>
+          ) : scores.length ? (
             <div className="grid gap-3">
               {scores.map((s, i) => (
                 <div key={i} className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">

@@ -56,6 +56,8 @@ export type AiAssessment = {
   source?: string;
   scoreMax?: number;
   scoredAt?: string;
+  assessFailed?: boolean;
+  assessError?: string;
   summary?: string;
   strengths?: string[];
   gaps?: string[];
@@ -84,6 +86,18 @@ export function parseAiAssessment(transcriptJson: string | null | undefined): Ai
   } catch {
     return null;
   }
+}
+
+/** Returns true when there was not enough candidate dialogue to produce a meaningful assessment. */
+export function isInsufficientResponses(
+  ai: AiAssessment | null,
+  transcriptJson: string | null | undefined,
+): boolean {
+  if (!ai?.assessFailed) return false;
+  const errMsg = (ai.assessError ?? "").toLowerCase();
+  if (errMsg.includes("insufficient")) return true;
+  // Fallback: few turns + failed assessment = not enough content
+  return countCandidateTurns(transcriptJson) < 3;
 }
 
 export function countCandidateTurns(transcriptJson: string | null | undefined): number {
@@ -160,7 +174,7 @@ export function buildAssessmentBanners(opts: {
   const banners: AssessmentBanner[] = [];
   const { ai, transcriptJson, recordingPath, hasCodeSubmissions, assessFailed } = opts;
 
-  if (assessFailed) {
+  if (assessFailed && !isInsufficientResponses(ai, transcriptJson)) {
     banners.push({
       tone: "warning",
       title: "Assessment incomplete",
