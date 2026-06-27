@@ -1330,7 +1330,6 @@ export function VoiceInterviewClient({
       setAnswerRecording(true);
       setWhisperError(null);
       clearLivePreview();
-      startLiveSpeechPreview();
     } catch {
       answerMediaRef.current = null;
       setWhisperError("Could not start answer recording.");
