@@ -53,7 +53,7 @@ interface EmailLog {
   sentAt: string;
 }
 
-const ROUNDS = ["L1", "L2", "L3", "L4", "HR"];
+import { QB_ROUNDS as ROUNDS } from "@/lib/questionbank-constants";
 const ROUND_LABELS: Record<string, string> = {
   L1: "L1 - Technical",
   L2: "L2 - Technical",

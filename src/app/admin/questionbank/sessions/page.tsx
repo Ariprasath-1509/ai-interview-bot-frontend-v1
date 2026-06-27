@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/app/components/AppShell";
@@ -15,7 +16,9 @@ export default function QuestionBankSessionsPage() {
           Back to Dashboard
         </Link>
       </div>
-      <QuestionBankSessionsClient />
+      <Suspense>
+        <QuestionBankSessionsClient />
+      </Suspense>
     </AppShell>
   );
 }

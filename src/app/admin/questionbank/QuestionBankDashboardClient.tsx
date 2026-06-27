@@ -11,6 +11,7 @@ import {
   Mail,
   Users,
   Database,
+  BarChart2,
 } from "lucide-react";
 import { SkeletonCard } from "@/components/common/Skeleton";
 import { PageHero, QuickLinkCard, SectionHeader, StatCard } from "@/components/common/AppUi";
@@ -38,6 +39,7 @@ const modules = [
   { href: "/admin/questionbank/manage", label: "Manage Questions", icon: Settings, desc: "Search, edit, and curate individual questions.", accent: "emerald" as const },
   { href: "/admin/questionbank/emails", label: "Email Notifications", icon: Mail, desc: "Send hand-picked questions to candidates.", accent: "rose" as const },
   { href: "/admin/questionbank/users", label: "Users", icon: Users, desc: "View registered candidate details.", accent: "indigo" as const },
+  { href: "/admin/questionbank/analytics", label: "Analytics", icon: BarChart2, desc: "Trends, frequency, and distribution across the question bank.", accent: "emerald" as const },
 ];
 
 const IMPORTANCE_STYLES = {

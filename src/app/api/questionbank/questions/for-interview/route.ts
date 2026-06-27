@@ -16,10 +16,16 @@ export async function GET(req: Request) {
   const search = searchParams.get("search");
   const category = searchParams.get("category");
   const importance = searchParams.get("importance");
+  const company = searchParams.get("company");
+  const round = searchParams.get("round");
+  const interviewType = searchParams.get("interviewType");
   const size = searchParams.get("size") ?? "100";
   if (search) params.set("search", search);
   if (category) params.set("category", category);
   if (importance) params.set("importance", importance);
+  if (company) params.set("company", company);
+  if (round) params.set("round", round);
+  if (interviewType) params.set("interviewType", interviewType);
   params.set("size", size);
 
   try {

@@ -1,12 +1,11 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/app/components/AppShell";
-import QuestionBankManageClient from "./QuestionBankManageClient";
+import QuestionBankAnalyticsClient from "./QuestionBankAnalyticsClient";
 
-export default function QuestionBankManagePage() {
+export default function QuestionBankAnalyticsPage() {
   return (
-    <AppShell title="Question Bank" subtitle="Search, edit, and curate individual questions">
+    <AppShell title="Question Bank Analytics" subtitle="Trends, frequency, and distribution insights">
       <div className="mb-4">
         <Link
           href="/admin/questionbank"
@@ -16,9 +15,7 @@ export default function QuestionBankManagePage() {
           Back to Dashboard
         </Link>
       </div>
-      <Suspense>
-        <QuestionBankManageClient />
-      </Suspense>
+      <QuestionBankAnalyticsClient />
     </AppShell>
   );
 }

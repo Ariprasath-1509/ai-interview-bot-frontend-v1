@@ -12,6 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useConfirm } from "@/components/common/ConfirmDialog";
+import { useToast } from "@/components/common/Toast";
+import { INTERVIEW_TYPE_COLORS } from "@/lib/questionbank-constants";
 
 interface Category {
   id: string;
@@ -21,13 +24,11 @@ interface Category {
   createdAt: string;
 }
 
-const TYPE_COLORS = {
-  backend: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  frontend: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  shared: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-};
 
 export default function QuestionBankCategoriesClient() {
+  const { confirm } = useConfirm();
+  const { toast } = useToast();
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,14 +36,16 @@ export default function QuestionBankCategoriesClient() {
   const [newInterviewType, setNewInterviewType] = useState("shared");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editInterviewType, setEditInterviewType] = useState("shared");
 
   const fetchCategories = () => {
     fetch("/api/questionbank/categories")
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setCategories(data.data);
+        else toast(data.message || "Failed to load categories", "error");
       })
-      .catch(console.error)
+      .catch(() => toast("Failed to load categories", "error"))
       .finally(() => setLoading(false));
   };
 
@@ -63,12 +66,21 @@ export default function QuestionBankCategoriesClient() {
       if (data.success) {
         setNewCategory("");
         fetchCategories();
+        toast("Category created", "success");
+      } else {
+        toast(data.message || "Failed to create category", "error");
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      toast("Failed to create category", "error");
     } finally {
       setSaving(false);
     }
+  };
+
+  const startEdit = (cat: Category) => {
+    setEditingId(cat.id);
+    setEditName(cat.name);
+    setEditInterviewType(cat.interviewType || "shared");
   };
 
   const handleUpdate = async (id: string) => {
@@ -78,32 +90,48 @@ export default function QuestionBankCategoriesClient() {
       const res = await fetch(`/api/questionbank/categories/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName }),
+        body: JSON.stringify({ name: editName, interviewType: editInterviewType }),
       });
       const data = await res.json();
       if (data.success) {
         setEditingId(null);
         fetchCategories();
+        toast("Category updated", "success");
+      } else {
+        toast(data.message || "Failed to update category", "error");
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      toast("Failed to update category", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this category?")) return;
+  const handleDelete = async (id: string, questionCount: number) => {
+    const ok = await confirm({
+      title: "Delete category?",
+      message: questionCount > 0
+        ? `This category has ${questionCount} question${questionCount !== 1 ? "s" : ""}. They will become uncategorized. This action cannot be undone.`
+        : "This action cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/questionbank/categories/${id}`, { method: "DELETE" });
       const data = await res.json();
-      if (data.success) fetchCategories();
-    } catch (e) {
-      console.error(e);
+      if (data.success) {
+        fetchCategories();
+        toast("Category deleted", "success");
+      } else {
+        toast(data.message || "Failed to delete category", "error");
+      }
+    } catch {
+      toast("Failed to delete category", "error");
     }
   };
 
-  const getTypeColor = (type: string) => TYPE_COLORS[type as keyof typeof TYPE_COLORS] || TYPE_COLORS.shared;
+  const getTypeColor = (type: string) => INTERVIEW_TYPE_COLORS[type] || INTERVIEW_TYPE_COLORS.shared;
 
   if (loading) {
     return <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -127,6 +155,7 @@ export default function QuestionBankCategoriesClient() {
               onChange={(e) => setNewCategory(e.target.value)}
               placeholder="Category name"
               className="flex-1"
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
             <Select value={newInterviewType} onValueChange={setNewInterviewType}>
               <SelectTrigger className="w-36">
@@ -171,22 +200,23 @@ export default function QuestionBankCategoriesClient() {
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       className="font-medium"
+                      onKeyDown={(e) => e.key === "Enter" && handleUpdate(cat.id)}
                     />
+                    <Select value={editInterviewType} onValueChange={setEditInterviewType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="backend">Backend</SelectItem>
+                        <SelectItem value="frontend">Frontend</SelectItem>
+                        <SelectItem value="shared">Shared</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleUpdate(cat.id)}
-                        disabled={saving}
-                        className="flex-1"
-                      >
+                      <Button size="sm" onClick={() => handleUpdate(cat.id)} disabled={saving} className="flex-1">
                         Save
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingId(null)}
-                        className="flex-1"
-                      >
+                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="flex-1">
                         Cancel
                       </Button>
                     </div>
@@ -196,11 +226,7 @@ export default function QuestionBankCategoriesClient() {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-lg">{cat.name}</span>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${getTypeColor(
-                            cat.interviewType || "shared"
-                          )}`}
-                        >
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getTypeColor(cat.interviewType || "shared")}`}>
                           {cat.interviewType || "shared"}
                         </span>
                       </div>
@@ -209,20 +235,13 @@ export default function QuestionBankCategoriesClient() {
                       </p>
                     </div>
                     <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingId(cat.id);
-                          setEditName(cat.name);
-                        }}
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => startEdit(cat)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(cat.id)}
+                        onClick={() => handleDelete(cat.id, cat.questionCount)}
                         className="text-red-500 hover:text-red-600"
                       >
                         <Trash2 className="h-4 w-4" />

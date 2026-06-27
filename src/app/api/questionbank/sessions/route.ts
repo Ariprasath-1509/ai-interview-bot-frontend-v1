@@ -11,8 +11,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const params = new URLSearchParams();
+  ["page", "size", "company", "round", "candidate"].forEach((key) => {
+    const v = searchParams.get(key);
+    if (v) params.set(key, v);
+  });
+
   try {
-    const response = await fetch(`${GATEWAY}/questionbank/api/sessions`, {
+    const response = await fetch(`${GATEWAY}/questionbank/api/sessions?${params}`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "Content-Type": "application/json"

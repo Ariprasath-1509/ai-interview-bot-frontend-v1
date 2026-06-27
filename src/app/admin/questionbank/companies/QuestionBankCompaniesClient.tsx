@@ -5,17 +5,22 @@ import { Loader2, Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/common/ConfirmDialog";
+import { useToast } from "@/components/common/Toast";
 
 interface Company {
   id: string;
   name: string;
   slug: string;
   questionCount: number;
-  sessionCount?: number;
+  sessionCount: number;
   createdAt: string;
 }
 
 export default function QuestionBankCompaniesClient() {
+  const { confirm } = useConfirm();
+  const { toast } = useToast();
+
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCompany, setNewCompany] = useState("");
@@ -28,8 +33,9 @@ export default function QuestionBankCompaniesClient() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setCompanies(data.data);
+        else toast(data.message || "Failed to load companies", "error");
       })
-      .catch(console.error)
+      .catch(() => toast("Failed to load companies", "error"))
       .finally(() => setLoading(false));
   };
 
@@ -50,9 +56,12 @@ export default function QuestionBankCompaniesClient() {
       if (data.success) {
         setNewCompany("");
         fetchCompanies();
+        toast("Company added", "success");
+      } else {
+        toast(data.message || "Failed to create company", "error");
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      toast("Failed to create company", "error");
     } finally {
       setSaving(false);
     }
@@ -71,22 +80,42 @@ export default function QuestionBankCompaniesClient() {
       if (data.success) {
         setEditingId(null);
         fetchCompanies();
+        toast("Company updated", "success");
+      } else {
+        toast(data.message || "Failed to update company", "error");
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      toast("Failed to update company", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (slug: string) => {
-    if (!confirm("Delete this company?")) return;
+  const handleDelete = async (company: Company) => {
+    const parts: string[] = [];
+    if (company.questionCount > 0) parts.push(`${company.questionCount} question${company.questionCount !== 1 ? "s" : ""}`);
+    if ((company.sessionCount ?? 0) > 0) parts.push(`${company.sessionCount} session${company.sessionCount !== 1 ? "s" : ""}`);
+
+    const ok = await confirm({
+      title: `Delete "${company.name}"?`,
+      message: parts.length > 0
+        ? `This company has ${parts.join(" and ")} linked to it. This action cannot be undone.`
+        : "This action cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
-      const res = await fetch(`/api/questionbank/companies/${slug}`, { method: "DELETE" });
+      const res = await fetch(`/api/questionbank/companies/${company.slug}`, { method: "DELETE" });
       const data = await res.json();
-      if (data.success) fetchCompanies();
-    } catch (e) {
-      console.error(e);
+      if (data.success) {
+        fetchCompanies();
+        toast("Company deleted", "success");
+      } else {
+        toast(data.message || "Failed to delete company", "error");
+      }
+    } catch {
+      toast("Failed to delete company", "error");
     }
   };
 
@@ -112,6 +141,7 @@ export default function QuestionBankCompaniesClient() {
               onChange={(e) => setNewCompany(e.target.value)}
               placeholder="Company name"
               className="flex-1"
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
             <Button
               onClick={handleCreate}
@@ -146,22 +176,17 @@ export default function QuestionBankCompaniesClient() {
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       className="font-medium"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleUpdate(company.slug);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      autoFocus
                     />
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleUpdate(company.slug)}
-                        disabled={saving}
-                        className="flex-1"
-                      >
+                      <Button size="sm" onClick={() => handleUpdate(company.slug)} disabled={saving} className="flex-1">
                         Save
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingId(null)}
-                        className="flex-1"
-                      >
+                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="flex-1">
                         Cancel
                       </Button>
                     </div>
@@ -176,24 +201,22 @@ export default function QuestionBankCompaniesClient() {
                       <p className="text-xs text-muted-foreground font-mono">{company.slug}</p>
                       <p className="text-sm text-muted-foreground">
                         {company.questionCount} question{company.questionCount !== 1 ? "s" : ""}
-                        {company.sessionCount !== undefined && ` · ${company.sessionCount} session${company.sessionCount !== 1 ? "s" : ""}`}
+                        {" · "}
+                        {(company.sessionCount ?? 0)} session{(company.sessionCount ?? 0) !== 1 ? "s" : ""}
                       </p>
                     </div>
                     <div className="flex gap-1">
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => {
-                          setEditingId(company.id);
-                          setEditName(company.name);
-                        }}
+                        onClick={() => { setEditingId(company.id); setEditName(company.name); }}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(company.slug)}
+                        onClick={() => handleDelete(company)}
                         className="text-red-500 hover:text-red-600"
                       >
                         <Trash2 className="h-4 w-4" />
