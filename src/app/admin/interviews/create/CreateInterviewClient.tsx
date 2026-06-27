@@ -60,11 +60,11 @@ interface Client {
 }
 
 const INTERVIEW_MODES = [
-  { value: 'SCREENING', label: 'SCREENING (5q, 15min)', duration: 15 },
-  { value: 'L1', label: 'L1 (7q, 20min)', duration: 20 },
-  { value: 'L2', label: 'L2 (8q, 25min)', duration: 25 },
-  { value: 'L3', label: 'L3 (10q, 30min)', duration: 30 },
-  { value: 'L4', label: 'L4 (10q, 30min)', duration: 30 }
+  { value: 'SCREENING', label: 'SCREENING (15min)', duration: 15 },
+  { value: 'L1', label: 'L1 (20min)', duration: 20 },
+  { value: 'L2', label: 'L2 (25min)', duration: 25 },
+  { value: 'L3', label: 'L3 (30min)', duration: 30 },
+  { value: 'L4', label: 'L4 (30min)', duration: 30 }
 ];
 
 interface CreateInterviewClientProps {
@@ -1109,9 +1109,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
             <div className="flex items-center gap-2 text-sm text-zinc-600">
               <FileText className="h-4 w-4" />
               <span>
-                {formData.interviewMode} mode includes{' '}
-                {INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.label.match(/\d+q/)?.[0] || 'multiple'} questions
-                and {formData.customDurationMinutes || INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.duration || 15} minutes duration
+                {formData.interviewMode} mode includes{' '} multiple questions
+                for {formData.customDurationMinutes || INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.duration || 15} minutes
               </span>
             </div>
 

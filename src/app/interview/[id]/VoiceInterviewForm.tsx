@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { VoiceInterviewClient } from "./VoiceInterviewClient";
 import { CodeWorkspace } from "./CodeWorkspace";
+import { InterviewInstructions } from "./InterviewInstructions";
 import type { CodeSubmissionRecord, QuestionMeta } from "./codingTypes";
 import { isCodingQuestion } from "./codingTypes";
 import { Loader2 } from "lucide-react";
@@ -90,6 +91,7 @@ export function VoiceInterviewForm({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
+  const [instructionsDone, setInstructionsDone] = useState(false);
   const [transcriptJson, setTranscriptJson] = useState("");
   const [voiceValidation, setVoiceValidation] = useState<VoiceValidationSnapshot | null>(null);
   const [timeExpired, setTimeExpired] = useState(false);
@@ -106,8 +108,8 @@ export function VoiceInterviewForm({
   const [waitingRecording, setWaitingRecording] = useState(false);
   const [mediaHealth, setMediaHealth] = useState<{
     mediaReady?: boolean;
-    whisperReachable?: boolean;
-    coquiReachable?: boolean;
+    sttReady?: boolean;
+    ttsReady?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -117,8 +119,8 @@ export function VoiceInterviewForm({
       if (!res?.ok || cancelled) return;
       const data = (await res.json()) as {
         mediaReady?: boolean;
-        whisperReachable?: boolean;
-        coquiReachable?: boolean;
+        sttReady?: boolean;
+        ttsReady?: boolean;
       };
       if (!cancelled) setMediaHealth(data);
     })();
@@ -194,6 +196,18 @@ export function VoiceInterviewForm({
   const recordingBlocksSubmit =
     (recordingState.recording || recordingState.uploading) && !recordingState.uploaded;
 
+  if (!instructionsDone) {
+    return (
+      <InterviewInstructions
+        jdTitle={jdTitle}
+        durationMinutes={durationMinutes}
+        proctoringMode={proctoringMode}
+        includeProgrammingQuestions={includeProgrammingQuestions}
+        onReady={() => setInstructionsDone(true)}
+      />
+    );
+  }
+
   return (
     <div className="card flex flex-col gap-5 p-6">
       <div>
@@ -210,8 +224,8 @@ export function VoiceInterviewForm({
       {mediaHealth && mediaHealth.mediaReady === false && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <span className="font-semibold">Voice services warming up.</span>{" "}
-          Whisper STT {!mediaHealth.whisperReachable ? "unavailable" : "ok"},{" "}
-          Coqui TTS {!mediaHealth.coquiReachable ? "unavailable" : "ok"}.
+          Whisper STT {!mediaHealth.sttReady ? "unavailable" : "ok"},{" "}
+          Kokoro TTS {!mediaHealth.ttsReady ? "unavailable" : "ok"}.
           You can still type answers; voice playback and transcription may fail until services are ready.
         </div>
       )}

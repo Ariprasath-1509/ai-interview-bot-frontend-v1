@@ -175,9 +175,9 @@ const ALIASES: Record<string, string> = {
 };
 
 const PISTON_LANG: Record<string, string> = {
-  python: "python", javascript: "javascript", typescript: "typescript",
-  java: "java", cpp: "c++", c: "c", go: "go", rust: "rust",
-  csharp: "csharp", kotlin: "kotlin", ruby: "ruby", php: "php",
+  python: "python", javascript: "node", typescript: "typescript",
+  java: "java", cpp: "gcc", c: "gcc", go: "go", rust: "rust",
+  csharp: "mono", kotlin: "kotlin", ruby: "ruby", php: "php",
   swift: "swift", bash: "bash",
 };
 

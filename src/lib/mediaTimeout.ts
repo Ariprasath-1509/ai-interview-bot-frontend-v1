@@ -1,5 +1,9 @@
-/** Max wait for Whisper STT before falling back to browser speech. */
-export const MEDIA_SERVICE_TIMEOUT_MS = 15_000;
+/** Max wait for Whisper STT before falling back to browser speech.
+ *  large-v3 on CPU with int8 takes 20-40 s for a typical answer clip.
+ *  Keep the server-side route timeout LOWER than this so the route can
+ *  return a clean 504 before the client's fetch aborts mid-stream. */
+export const MEDIA_SERVICE_TIMEOUT_MS = 45_000;
+export const STT_ROUTE_TIMEOUT_MS = 40_000; // used server-side so it fires before the client cuts off
 
 /** Max wait for Kokoro TTS — longer because first request triggers model warmup. */
 export const TTS_TIMEOUT_MS = 45_000;

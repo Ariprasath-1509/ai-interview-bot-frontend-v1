@@ -2219,6 +2219,11 @@ export function VoiceInterviewClient({
           if (!sessionActiveRef.current || pausedForTtsRef.current) {
             return;
           }
+          // In Whisper/server-STT mode the user must explicitly click Send answer —
+          // auto-advancing here would bypass Whisper and submit browser SR text instead.
+          if (serverVoiceModeRef.current) {
+            return;
+          }
           // Only auto-advance if we haven't had speech for the timeout period
           const timeSinceLastSpeech = Date.now() - lastSpeechTimeRef.current;
           if (timeSinceLastSpeech >= SPEECH_TIMEOUT_MS && sessionActiveRef.current) {
@@ -3020,8 +3025,8 @@ export function VoiceInterviewClient({
       {listening && !timeExpired && !fetchingNextQuestion && !ttsLoading && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
 
-          {/* Mic status + waveform */}
-          <div className={`rounded-lg border-2 p-3 transition-colors ${
+          {/* Mic status + waveform — hidden in typed-only mode (the textarea below is the input) */}
+          {!typedAnswersOnly && <div className={`rounded-lg border-2 p-3 transition-colors ${
             micPreviewStatus === "hearing"
               ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
               : micPreviewStatus === "error" || micPreviewStatus === "mic_off"
@@ -3077,7 +3082,7 @@ export function VoiceInterviewClient({
             {whisperError && (
               <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">{whisperError}</p>
             )}
-          </div>
+          </div>}
 
           {/* Language selector — Whisper mode only */}
           {!typedAnswersOnly && isServerVoiceMode && (

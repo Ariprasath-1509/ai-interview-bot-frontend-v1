@@ -4,7 +4,6 @@ export const INTERVIEW_MODES = [
     label: 'Screening', 
     defaultDuration: 15, 
     description: 'Initial filter - 5 questions',
-    questions: 5,
     difficulty: 'Easy'
   },
   { 
@@ -12,7 +11,6 @@ export const INTERVIEW_MODES = [
     label: 'L1 - Fundamentals', 
     defaultDuration: 20, 
     description: 'First technical round - 7 questions',
-    questions: 7,
     difficulty: 'Easy-Medium'
   },
   { 
@@ -20,7 +18,6 @@ export const INTERVIEW_MODES = [
     label: 'L2 - Applied Knowledge', 
     defaultDuration: 25, 
     description: 'Second technical round - 8 questions',
-    questions: 8,
     difficulty: 'Medium'
   },
   { 
@@ -28,7 +25,6 @@ export const INTERVIEW_MODES = [
     label: 'L3 - Senior Level', 
     defaultDuration: 30, 
     description: 'Senior/deep technical - 10 questions',
-    questions: 10,
     difficulty: 'Medium-Hard'
   },
   { 
@@ -36,7 +32,6 @@ export const INTERVIEW_MODES = [
     label: 'L4 - Staff/Principal', 
     defaultDuration: 30, 
     description: 'Leadership + depth - 10 questions',
-    questions: 10,
     difficulty: 'Hard'
   }
 ];
