@@ -216,12 +216,12 @@ export default function InterviewSetupClient() {
           >
             {INTERVIEW_MODES.map(mode => (
               <option key={mode.value} value={mode.value}>
-                {mode.label} - {mode.description} ({mode.questions}q, {mode.defaultDuration}min, {mode.difficulty})
+                {mode.label} - {mode.description} ({mode.defaultDuration}min, {mode.difficulty})
               </option>
             ))}
           </select>
           <p className="text-sm text-zinc-500 mt-1">
-            {autoFillMode ? 'Recommended based on position experience level' : `Default: ${selectedMode?.questions} questions in ${defaultDuration} minutes (${selectedMode?.difficulty} difficulty)`}
+            {autoFillMode ? 'Recommended based on position experience level' : `Default: ${defaultDuration} minutes (${selectedMode?.difficulty} difficulty)`}
           </p>
         </div>
 
