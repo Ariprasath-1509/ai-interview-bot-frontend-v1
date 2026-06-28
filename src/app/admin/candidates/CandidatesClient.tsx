@@ -832,13 +832,6 @@ export default function CandidatesClient({ role }: Props) {
                         Bulk Import
                       </Button>
                   )}
-                  <button
-                      type="button"
-                      onClick={selectedParent === "deployed" ? fetchDeployedCandidates : fetchCandidates}
-                      className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                  >
-                    Refresh
-                  </button>
                 </div>
               </div>
 
