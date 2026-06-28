@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
       aiRes = await fetch(AI_CHAT_URL, {
         method: "POST",
         headers,
-        body: JSON.stringify({ system, user }),
+        body: JSON.stringify({ system, user, mode: "structured" }),
         signal: AbortSignal.timeout(50_000),
       });
     } catch (fetchErr: unknown) {
