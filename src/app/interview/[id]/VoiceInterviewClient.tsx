@@ -63,6 +63,7 @@ type Props = {
   onQuestionChange?: (question: string) => void;
   onQuestionMetaChange?: (meta: QuestionMeta) => void;
   initialCodingSecondsLeft?: number | null;
+  initialSecondsLeft?: number | null;
 };
 
 type MicPhase = "idle" | "listening" | "bot_speaking";
@@ -323,6 +324,7 @@ export function VoiceInterviewClient({
   onQuestionChange,
   onQuestionMetaChange,
   initialCodingSecondsLeft = null,
+  initialSecondsLeft = null,
 }: Props) {
   const [supported, setSupported] = useState(false);
 
@@ -353,8 +355,10 @@ export function VoiceInterviewClient({
   /** Mirrored for UI; logic also uses typedOnlyRef inside callbacks. */
   const [typedAnswersOnly, setTypedAnswersOnly] = useState(false);
 
+  const [sessionStarted, setSessionStarted] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
+  const [secondsLeft, setSecondsLeft] = useState(initialSecondsLeft ?? durationMinutes * 60);
+  const secondsLeftRef = useRef(initialSecondsLeft ?? durationMinutes * 60);
   const [codingSecondsLeft, setCodingSecondsLeft] = useState(initialCodingSecondsLeft ?? CODING_SLOT_MINUTES * 60);
   const [codingTimerActive, setCodingTimerActive] = useState(false);
   const [mainTimerPaused, setMainTimerPaused] = useState(false);
@@ -483,6 +487,7 @@ export function VoiceInterviewClient({
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wasCodingPendingRef = useRef(false);
   const mainTimerPausedRef = useRef(false);
+  const codingExpiredRef = useRef(false);
 
   useEffect(() => {
     if (!videoProctoringRequired || !proctorSessionActive || crossSignalReportedRef.current) return;
@@ -512,9 +517,12 @@ export function VoiceInterviewClient({
   const codingPending = isCodingSlotActive && !codingSlotSatisfied;
 
   useEffect(() => {
+    if (!sessionStarted) return;
     const hasBotQuestion = utterances.some((u) => u.speaker === "BOT");
     if (hasBotQuestion && !timerStarted) setTimerStarted(true);
-  }, [utterances, timerStarted]);
+  }, [utterances, timerStarted, sessionStarted]);
+
+  useEffect(() => { secondsLeftRef.current = secondsLeft; }, [secondsLeft]);
 
   const isResumedCodingRef = useRef(initialCodingSecondsLeft != null);
 
@@ -524,11 +532,13 @@ export function VoiceInterviewClient({
         setCodingSecondsLeft(CODING_SLOT_MINUTES * 60);
       }
       isResumedCodingRef.current = false;
+      codingExpiredRef.current = false;
       setCodingTimerActive(true);
       setCodingTimeExpired(false);
       mainTimerPausedRef.current = true;
       setMainTimerPaused(true);
     } else if (!codingPending && wasCodingPendingRef.current) {
+      codingExpiredRef.current = false;
       setCodingTimerActive(false);
       setCodingTimeExpired(false);
       mainTimerPausedRef.current = false;
@@ -550,9 +560,10 @@ export function VoiceInterviewClient({
 
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     timerIntervalRef.current = setInterval(() => {
-      if (codingPending) {
+      if (codingPending && !codingExpiredRef.current) {
         setCodingSecondsLeft((prev) => {
           if (prev <= 1) {
+            codingExpiredRef.current = true;
             setCodingTimerActive(false);
             setCodingTimeExpired(true);
             mainTimerPausedRef.current = false;
@@ -2007,6 +2018,7 @@ export function VoiceInterviewClient({
             preferredLanguage: questionMeta?.preferredLanguage ?? "python",
           },
           codingStartedAt: codingStartedAtRef.current,
+          secondsLeft: secondsLeftRef.current,
         }),
       }),
     }).catch(() => null);
@@ -2449,6 +2461,7 @@ export function VoiceInterviewClient({
       note: "Typed-only mode used. Voice continuity cannot be guaranteed.",
     });
     sessionActiveRef.current = true;
+    setSessionStarted(true);
     setProctorSessionActive(true);
     void fullscreen.requestFullscreen();
     pausedForTtsRef.current = false;
@@ -2566,6 +2579,7 @@ export function VoiceInterviewClient({
 
     void startSessionRecording();
     sessionActiveRef.current = true;
+    setSessionStarted(true);
     setProctorSessionActive(true);
     void fullscreen.requestFullscreen();
     pausedForTtsRef.current = false;

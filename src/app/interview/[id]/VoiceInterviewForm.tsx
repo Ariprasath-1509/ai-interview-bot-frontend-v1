@@ -75,6 +75,7 @@ export function VoiceInterviewForm({
   initialSlot,
   initialQuestionMeta,
   initialCodingSecondsLeft,
+  initialSecondsLeft,
   completeInterview,
 }: {
   interviewId: string;
@@ -90,6 +91,7 @@ export function VoiceInterviewForm({
   initialSlot?: number | null;
   initialQuestionMeta?: { isCoding: boolean; preferredLanguage: string } | null;
   initialCodingSecondsLeft?: number | null;
+  initialSecondsLeft?: number | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   completeInterview: (formData: FormData) => Promise<any>;
 }) {
@@ -257,6 +259,7 @@ export function VoiceInterviewForm({
         onCodingTimerChange={setCodingTimer}
         onQuestionMetaChange={onQuestionMetaChange}
         initialCodingSecondsLeft={initialCodingSecondsLeft}
+        initialSecondsLeft={initialSecondsLeft}
       />
 
       {isCodingSlotActive && !codingSlotSatisfied && (

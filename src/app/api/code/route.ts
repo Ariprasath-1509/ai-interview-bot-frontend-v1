@@ -204,6 +204,7 @@ async function executeViaPiston(language: string, code: string, stdin: string, t
         files: [{ name: PISTON_FILE[language] ?? "main.txt", content: code }],
         stdin,
         run_timeout: Math.min(timeoutMs, PISTON_MAX_RUN_TIMEOUT_MS),
+        compile_timeout: Math.min(timeoutMs * 2, PISTON_MAX_RUN_TIMEOUT_MS),
       }),
       signal: AbortSignal.timeout(timeoutMs + 5000),
     });
