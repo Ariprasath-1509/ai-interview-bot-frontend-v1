@@ -6,6 +6,39 @@ import {
   AlertTriangle, Ban, Volume2, Clock, ChevronRight,
 } from "lucide-react";
 
+/** Generate a minimal 1-second silent WAV (16 kHz mono 16-bit PCM). */
+function createSilentWav(): Blob {
+  const sampleRate = 16_000;
+  const numSamples = sampleRate; // 1 second
+  const buf = new ArrayBuffer(44 + numSamples * 2);
+  const v = new DataView(buf);
+  const str = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); v.setUint32(4, 36 + numSamples * 2, true);
+  str(8, "WAVE"); str(12, "fmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);           // PCM
+  v.setUint16(22, 1, true);           // mono
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, numSamples * 2, true);
+  // PCM samples stay zero (silence) — ArrayBuffer is zero-initialised
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+async function warmUpWhisper() {
+  try {
+    const form = new FormData();
+    form.append("audio", createSilentWav(), "warmup.wav");
+    await fetch("/api/ai/transcribe", {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    // best-effort — ignore errors and timeouts
+  }
+}
+
 type Props = {
   jdTitle: string;
   durationMinutes: number;
@@ -84,6 +117,11 @@ function ViolationItem({ text }: { text: string }) {
 export function InterviewInstructions({ jdTitle, durationMinutes, proctoringMode, includeProgrammingQuestions, onReady }: Props) {
   const [secondsLeft, setSecondsLeft] = useState(TOTAL_SECONDS);
   const [canSkip, setCanSkip] = useState(false);
+
+  // Fire a silent audio clip at Whisper as soon as instructions appear so the model
+  // is loaded in RAM before the first real answer — cuts first-transcription latency
+  // from ~25s (cold) to ~5s (warm).
+  useEffect(() => { void warmUpWhisper(); }, []);
 
   useEffect(() => {
     const skipTimer = setTimeout(() => setCanSkip(true), ALLOW_SKIP_AFTER * 1000);
