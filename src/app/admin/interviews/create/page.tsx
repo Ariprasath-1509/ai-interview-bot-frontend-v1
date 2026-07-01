@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import { AppShell } from '@/app/components/AppShell';
 import { CreateInterviewClient } from './CreateInterviewClient';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,7 +24,12 @@ export default async function CreateInterviewPage({ searchParams }: PageProps) {
 
   return (
     <AppShell title="Create Interview" subtitle="Set up a new technical interview">
-      <CreateInterviewClient 
+      <div className="mb-4 flex justify-end">
+        <Link href="/admin/interviews/bulk-create" className="btn-secondary text-sm">
+          + Bulk Create
+        </Link>
+      </div>
+      <CreateInterviewClient
         candidateId={candidateId}
         clientId={clientId}
         searchParams={params}
