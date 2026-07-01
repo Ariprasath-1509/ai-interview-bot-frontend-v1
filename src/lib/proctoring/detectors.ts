@@ -129,6 +129,9 @@ function dedupeFaces(faces: FaceLike[]): FaceLike[] {
   return kept;
 }
 
+/** Minimum pixel area a face detection must have to be considered real (filters tiny background blips). */
+const MIN_FACE_AREA_PX = 600; // roughly a 24×25 box — anything smaller is noise
+
 /** Count faces that are distinct, confident, and large enough to be a real second person. */
 function countDistinctFaces(faces: FaceLike[]): number {
   const deduped = dedupeFaces(faces);
@@ -138,9 +141,10 @@ function countDistinctFaces(faces: FaceLike[]): number {
     .map((face) => {
       const box = faceBox(face);
       const prob = faceProbability(face) ?? 0;
-      return { face, box, prob, area: box ? boxArea(box) : 0 };
+      const area = box ? boxArea(box) : 0;
+      return { face, box, prob, area };
     })
-    .filter((f) => f.box && f.prob >= FACE_PROB);
+    .filter((f) => f.box && f.prob >= FACE_PROB && f.area >= MIN_FACE_AREA_PX);
 
   if (scored.length <= 1) return scored.length;
 
@@ -148,6 +152,7 @@ function countDistinctFaces(faces: FaceLike[]): number {
   const primaryArea = scored[0].area;
   const significant = scored.filter((f, idx) => {
     if (idx === 0) return true;
+    // Secondary face needs to be large enough relative to primary AND high-confidence
     if (f.area < primaryArea * MULTI_FACE_MIN_AREA_RATIO) return false;
     return f.prob >= MULTI_FACE_PROB;
   });
@@ -195,7 +200,9 @@ function isLookingAway(face: { landmarks?: number[][] }): boolean {
   const nose = lm[2];
   const eyeMidX = (rightEye[0] + leftEye[0]) / 2;
   const interEye = Math.abs(leftEye[0] - rightEye[0]);
-  if (interEye < 8) return true;
+  // Raised from 8 → 16: if inter-eye distance is tiny the face is too far away
+  // to reliably compute gaze — don't flag it as "looking away".
+  if (interEye < 16) return false;
   const noseOffset = (nose[0] - eyeMidX) / interEye;
   return Math.abs(noseOffset) > FACE_AWAY_RATIO;
 }
@@ -279,10 +286,17 @@ export async function detectFrame(
 
   if (config.cameraBlocked) {
     const bri = analyzeBrightness(video, briCanvas, briCtx);
+    // Require BOTH conditions for "blocked" to avoid plain-wall false positives:
+    //   - Frame is genuinely dark (mean luminance very low AND high % of dark pixels)
+    //   - AND the frame has almost no texture (std near 0, i.e. completely solid black)
+    // A white or grey wall has high std and high mean → never triggers.
+    // A covered lens produces near-black pixels with near-zero std → triggers.
     const looksBlocked =
       !!bri &&
-      ((bri.mean < DARK_MEAN && bri.darkPct >= DARK_PCT && bri.std < DARK_STD) ||
-        bri.std < UNIFORM_STD);
+      bri.mean < DARK_MEAN &&
+      bri.darkPct >= DARK_PCT &&
+      bri.std < DARK_STD &&
+      bri.std < UNIFORM_STD;
     if (looksBlocked) state.blockStreak++;
     else state.blockStreak = 0;
 

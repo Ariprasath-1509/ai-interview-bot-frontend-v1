@@ -69,19 +69,26 @@ export function compareIdentity(baseline: IdentityBaseline, current: Float32Arra
 export async function runFaceEnrollment(
   video: HTMLVideoElement,
   faceModel: BlazeFaceModel,
-  frameCount = 20,
+  frameCount = 30,   // increased from 20 — more samples → better average baseline
   intervalMs = 300,
 ): Promise<IdentityBaseline | null> {
   const samples: Float32Array[] = [];
-  const minSamples = 4;
+  const minSamples = 8; // increased from 4 — require more confident samples
 
   for (let i = 0; i < frameCount; i++) {
     if (video.readyState >= 2) {
       try {
         const faces = await faceModel.estimateFaces(video, false);
+        // Only accept frames where exactly one face is detected with high confidence
         if (faces.length === 1) {
-          const vector = extractIdentityVectorFromFace(faces[0]);
-          if (vector) samples.push(vector);
+          const face = faces[0];
+          const prob = Array.isArray(face.probability) ? face.probability[0]
+            : typeof face.probability === "number" ? face.probability
+            : 1;
+          if (prob >= 0.88) {
+            const vector = extractIdentityVectorFromFace(face);
+            if (vector) samples.push(vector);
+          }
         }
       } catch {
         /* skip frame */

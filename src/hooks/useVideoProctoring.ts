@@ -286,6 +286,9 @@ export function useVideoProctoring({
   const handleClear = useCallback(() => {
     activeViolationsRef.current.clear();
     lastReasonsRef.current = [];
+    // Reset the liveness height buffer so stale pre-clear frames don't skew blink detection
+    livenessStateRef.current.heightBuffer = [];
+    livenessStateRef.current.blinkPending = false;
     setViolationLevel("none");
     updateSnapshot({
       lastReasons: [],
@@ -636,6 +639,29 @@ export function useVideoProctoring({
     const interval = setInterval(() => void flushSync(), 15_000);
     return () => clearInterval(interval);
   }, [active, interviewId, flushSync, snapshot.ready]);
+
+  // ── Periodic integrity snapshot (new) ────────────────────────────────────
+  // Silently capture a frame every 2 minutes while monitoring is active.
+  // Gives reviewers visual evidence without waiting for a violation to trigger.
+  const periodicSnapshotTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!active || !interviewId || !snapshot.monitoring) return;
+
+    periodicSnapshotTimerRef.current = setInterval(async () => {
+      const video = videoRef.current;
+      if (!video || terminatedRef.current) return;
+      const blob = await captureVideoFrame(video);
+      if (blob) void uploadProctoringSnapshot(interviewId, blob, "clear");
+    }, 120_000); // every 2 minutes
+
+    return () => {
+      if (periodicSnapshotTimerRef.current) {
+        clearInterval(periodicSnapshotTimerRef.current);
+        periodicSnapshotTimerRef.current = null;
+      }
+    };
+  }, [active, interviewId, snapshot.monitoring]);
 
   const dismissWarning = useCallback(() => {
     if (violationLevelRef.current === "warning") {
