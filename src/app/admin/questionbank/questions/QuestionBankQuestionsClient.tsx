@@ -111,8 +111,8 @@ function flushSegment(segment: string, out: string[]) {
       if (lastNl > start + 400) end = lastNl;
     }
     out.push(segment.substring(start, end).trim());
-    start = end - 150;
-    if (start <= 0) start = end;
+    if (end >= segment.length) break;
+    start = Math.max(end - 150, start + 1);
   }
 }
 
