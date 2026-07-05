@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
 import { entityBranchBadgeClass, entityBranchLabel, isStaffAdminRole } from "@/lib/staffRoles";
+import { useBranchOptions } from "@/hooks/useBranchOptions";
 import type { Candidate } from "./CandidatesClient";
 
 const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + SB", JFSR: "JFSR", REACT_JS: "React JS", ANGULAR: "Angular", PYTHON: "Python", QA_ENGINEER: "QA Engineer", PLAYWRIGHT_AUTOMATION: "Playwright" };
@@ -121,6 +122,7 @@ function CandidateEditRow({
   onCancel: () => void;
   selectSmCls: string;
 }) {
+  const { options: branchOptions } = useBranchOptions();
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
       <div className="flex flex-col gap-1">
@@ -305,8 +307,9 @@ function CandidateEditRow({
             value={editForm.branch}
             onChange={(e) => setEditForm((p) => ({ ...p, branch: e.target.value }))}
           >
-            <option value="DEVELOPMENT">Development</option>
-            <option value="TESTING">Testing</option>
+            {branchOptions.map((b) => (
+              <option key={b.code} value={b.code}>{b.label}</option>
+            ))}
           </select>
         </div>
       )}

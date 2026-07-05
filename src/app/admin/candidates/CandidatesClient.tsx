@@ -17,6 +17,7 @@ import {
   type CandidateEditForm,
 } from '@/app/admin/candidates/CandidatesDirectoryTable';
 import { isStaffReadRole } from '@/lib/staffRoles';
+import { useBranchOptions } from '@/hooks/useBranchOptions';
 
 export interface Candidate {
   id: string;
@@ -109,6 +110,7 @@ function getEffectiveInterviewCount(candidate: Candidate): number {
 }
 
 export default function CandidatesClient({ role }: Props) {
+  const { options: branchOptions } = useBranchOptions();
   const [selectedParent, setSelectedParent] = useState<TreeParent>('all');
   const [selectedSubParent, setSelectedSubParent] = useState<string>('ALL');
   const [openTreeGroups, setOpenTreeGroups] = useState<Record<TreeParent, boolean>>({
@@ -1226,8 +1228,9 @@ export default function CandidatesClient({ role }: Props) {
                     <label className="grid gap-1.5">
                       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Branch <span className="text-red-500">*</span></span>
                       <select className={inputCls} value={addForm.branch} onChange={(e) => setAddForm((f) => ({ ...f, branch: e.target.value }))}>
-                        <option value="DEVELOPMENT">Development</option>
-                        <option value="TESTING">Testing</option>
+                        {branchOptions.map((b) => (
+                          <option key={b.code} value={b.code}>{b.label}</option>
+                        ))}
                       </select>
                     </label>
                   </div>
@@ -1362,8 +1365,9 @@ export default function CandidatesClient({ role }: Props) {
                       value={marketForm.branch}
                       onChange={e => setMarketForm(f => ({ ...f, branch: e.target.value }))}
                     >
-                      <option value="DEVELOPMENT">Development</option>
-                      <option value="TESTING">Testing</option>
+                      {branchOptions.map((b) => (
+                        <option key={b.code} value={b.code}>{b.label}</option>
+                      ))}
                     </select>
                   </label>
                 </div>

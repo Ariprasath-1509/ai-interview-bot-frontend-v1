@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageHero, StatCard } from '@/components/common/AppUi';
 import { Badge } from '@/components/ui/badge';
 import { entityBranchLabel, defaultStaffBranch, entityBranchBadgeClass, isStaffReadRole, isStaffAdminRole, resolveFormBranch } from '@/lib/staffRoles';
+import { useBranchOptions } from '@/hooks/useBranchOptions';
 
 interface Client {
   id: string;
@@ -82,6 +83,7 @@ const emptyForm: ClientFormData = {
 
 export default function ClientsClient({ userRole, userBranch }: { userRole: string; userBranch?: string }) {
   const router = useRouter();
+  const { options: branchOptions } = useBranchOptions();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -908,8 +910,9 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
                     onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
                     className="input-base"
                   >
-                    <option value="DEVELOPMENT">Development</option>
-                    <option value="TESTING">Testing</option>
+                    {branchOptions.map((b) => (
+                      <option key={b.code} value={b.code}>{b.label}</option>
+                    ))}
                   </select>
                 </label>
               ) : (

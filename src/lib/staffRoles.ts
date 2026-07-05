@@ -29,41 +29,76 @@ export function isTestingStaffRole(role: string | undefined | null): boolean {
   return role === "TESTING_ADMIN" || role === "TESTING_RECRUITER";
 }
 
-export type BranchCode = "DEVELOPMENT" | "TESTING";
+/**
+ * A branch code from the BRANCH master-data category (DEVELOPMENT, TESTING, or any
+ * admin-added branch). Kept as a plain string rather than a fixed union since the set
+ * is now managed dynamically — see src/hooks/useBranchOptions.ts for the live list.
+ */
+export type BranchCode = string;
 
-/** Branch stored on clients, candidates, audit logs, etc. */
+function normalizeBranch(branch?: string | null): string | null {
+  const trimmed = branch?.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+}
+
+/** Branch stored on clients, candidates, audit logs, etc. Passes through any master-data code. */
 export function entityBranchCode(branch?: string | null): BranchCode {
-  return branch === "TESTING" ? "TESTING" : "DEVELOPMENT";
+  return normalizeBranch(branch) ?? "DEVELOPMENT";
+}
+
+function humanizeBranchCode(code: string): string {
+  if (code === "TESTING") return "Testing";
+  if (code === "DEVELOPMENT") return "Development";
+  return code
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 export function entityBranchLabel(branch?: string | null): string {
-  return entityBranchCode(branch) === "TESTING" ? "Testing" : "Development";
+  return humanizeBranchCode(entityBranchCode(branch));
+}
+
+/** DEVELOPMENT/TESTING keep their original colors; any other code gets a deterministic
+ * color from this palette so it stays visually distinct and stable across renders. */
+const BRANCH_BADGE_PALETTE = [
+  "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200",
+  "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200",
+  "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200",
+  "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200",
+  "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-200",
+];
+
+function badgeClassForCode(code: string): string {
+  if (code === "TESTING") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200";
+  if (code === "DEVELOPMENT") return "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200";
+  let hash = 0;
+  for (let i = 0; i < code.length; i++) hash = (hash * 31 + code.charCodeAt(i)) | 0;
+  return BRANCH_BADGE_PALETTE[Math.abs(hash) % BRANCH_BADGE_PALETTE.length];
 }
 
 export function entityBranchBadgeClass(branch?: string | null): string {
-  if (entityBranchCode(branch) === "TESTING") {
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200";
-  }
-  return "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200";
+  return badgeClassForCode(entityBranchCode(branch));
 }
 
+/** Conventional default branch for a role — only used when no explicit assignment exists yet. */
 export function resolveStaffBranchFromRole(role: string | undefined | null): BranchCode {
   if (isTestingStaffRole(role)) return "TESTING";
   return "DEVELOPMENT";
 }
 
-/** Staff accounts: prefer role mapping over stored branch (stored value can be stale after role edits). */
+/** Staff accounts: the persisted per-user branch is authoritative (backend keeps it in sync
+ * on role changes); role default is only a fallback for accounts predating explicit assignment. */
 export function staffBranchLabel(branch?: string | null, role?: string | null): string {
-  const code = role ? resolveStaffBranchFromRole(role) : entityBranchCode(branch);
-  return code === "TESTING" ? "Testing" : "Development";
+  const code = normalizeBranch(branch) ?? resolveStaffBranchFromRole(role);
+  return humanizeBranchCode(code);
 }
 
 export function staffBranchBadgeClass(branch?: string | null, role?: string | null): string {
-  const code = role ? resolveStaffBranchFromRole(role) : entityBranchCode(branch);
-  if (code === "TESTING") {
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200";
-  }
-  return "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200";
+  const code = normalizeBranch(branch) ?? resolveStaffBranchFromRole(role);
+  return badgeClassForCode(code);
 }
 
 export function canPickBranch(role: string | undefined | null): boolean {
@@ -77,9 +112,9 @@ export function resolveFormBranch(
   selected?: string | null
 ): BranchCode {
   if (canPickBranch(role)) {
-    return selected === "TESTING" ? "TESTING" : "DEVELOPMENT";
+    return normalizeBranch(selected) ?? "DEVELOPMENT";
   }
-  return sessionBranch === "TESTING" ? "TESTING" : "DEVELOPMENT";
+  return normalizeBranch(sessionBranch) ?? "DEVELOPMENT";
 }
 
 export function defaultStaffBranch(role: string | undefined | null, sessionBranch?: string | null): BranchCode {

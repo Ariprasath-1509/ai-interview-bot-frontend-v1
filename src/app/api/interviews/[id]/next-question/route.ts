@@ -40,10 +40,11 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
     return Response.json({ error: "Interview not found" }, { status: interviewRes?.status ?? 404 });
   }
 
-  const interview = (await interviewRes.json()) as { 
-    jdId: string; 
-    planId: string | null; 
+  const interview = (await interviewRes.json()) as {
+    jdId: string;
+    planId: string | null;
     interviewMode?: string;
+    questionDifficulty?: string;
     includeProgrammingQuestions?: boolean;
     questionBankQuestionsJson?: string;
     customQuestionsJson?: string;
@@ -53,16 +54,26 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
   // No slot cap — interview runs until the candidate's timer expires.
   // The AI generates questions continuously; the frontend timer controls session length.
 
-  // 2. Fetch JD
+  // 2. Fetch JD — retry once; without it the AI loses role grounding and asks
+  // wrong-stack questions (the backend also disables its first-question cache on blank JD)
   let jdTitle = "Target role";
   let jdText = "";
-  const jdRes = await fetch(`${GATEWAY}/interviews/jd/${interview.jdId}`, {
+  let jdRes = await fetch(`${GATEWAY}/interviews/jd/${interview.jdId}`, {
     headers,
   }).catch(() => null);
+  if (!jdRes?.ok) {
+    jdRes = await fetch(`${GATEWAY}/interviews/jd/${interview.jdId}`, {
+      headers,
+    }).catch(() => null);
+  }
   if (jdRes?.ok) {
     const jd = (await jdRes.json()) as { title?: string; text?: string };
     jdTitle = jd.title ?? jdTitle;
     jdText = jd.text ?? jdText;
+  } else {
+    console.error(
+      `[next-question] JD fetch failed for jd ${interview.jdId} (status ${jdRes?.status ?? "network error"}) — proceeding WITHOUT role context; questions may be generic`
+    );
   }
 
   // 3. Fetch plan for focusAreas + resumeSummary + rubricJson + candidateProfileJson
@@ -105,6 +116,7 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
       rubricJson,
       candidateProfileJson,
       interviewMode: interview.interviewMode ?? "L3",
+      questionDifficulty: interview.questionDifficulty ?? undefined,
       interviewId: id,
       includeProgrammingQuestions: interview.includeProgrammingQuestions !== false,
       questionBankQuestionsJson: interview.questionBankQuestionsJson,

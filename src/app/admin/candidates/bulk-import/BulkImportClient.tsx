@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { entityBranchLabel, defaultStaffBranch } from '@/lib/staffRoles';
+import { useBranchOptions } from '@/hooks/useBranchOptions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +50,8 @@ interface ImportResult {
 export default function BulkImportClient({ userRole, userBranch }: { userRole: string; userBranch?: string }) {
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
   const staffDefaultBranch = defaultStaffBranch(userRole, userBranch);
-  const [importBranch, setImportBranch] = useState<'DEVELOPMENT' | 'TESTING'>(staffDefaultBranch);
+  const { options: branchOptions } = useBranchOptions();
+  const [importBranch, setImportBranch] = useState<string>(staffDefaultBranch);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -210,10 +212,11 @@ export default function BulkImportClient({ userRole, userBranch }: { userRole: s
                   <select
                     className="input-base max-w-xs"
                     value={importBranch}
-                    onChange={(e) => setImportBranch(e.target.value as 'DEVELOPMENT' | 'TESTING')}
+                    onChange={(e) => setImportBranch(e.target.value)}
                   >
-                    <option value="DEVELOPMENT">Development</option>
-                    <option value="TESTING">Testing</option>
+                    {branchOptions.map((b) => (
+                      <option key={b.code} value={b.code}>{b.label}</option>
+                    ))}
                   </select>
                 ) : (
                   <input readOnly disabled value={entityBranchLabel(staffDefaultBranch)} className="input-base max-w-xs opacity-70" />

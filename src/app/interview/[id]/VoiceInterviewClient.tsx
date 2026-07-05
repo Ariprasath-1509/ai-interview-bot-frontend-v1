@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Volume2 } from "lucide-react";
+import { HelpCircle, Loader2, Volume2 } from "lucide-react";
 import { VideoProctorPanel } from "@/components/proctoring/VideoProctorPanel";
 import { useFullscreenEnforcement } from "@/hooks/useFullscreenEnforcement";
 import { useVideoProctoring } from "@/hooks/useVideoProctoring";
@@ -36,6 +36,13 @@ const WHISPER_LANGUAGES = [
 ];
 
 type Utterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
+
+/**
+ * BOT utterances starting with this prefix are question explanations, not new questions.
+ * Must match QuestionService.EXPLANATION_PREFIX in the ai-service — the backend uses it to
+ * exclude explanations from question dedup.
+ */
+const EXPLANATION_PREFIX = "In simpler terms: ";
 
 type Props = {
   jdTitle: string;
@@ -2801,7 +2808,10 @@ export function VoiceInterviewClient({
       ? (livePreviewText || interimText)
       : interimText;
 
-  const currentBotQuestion = utterances.filter((u) => u.speaker === "BOT").at(-1)?.text ?? "";
+  // Skip explanation utterances so the card keeps showing the actual question
+  const currentBotQuestion = utterances
+    .filter((u) => u.speaker === "BOT" && !u.text.startsWith(EXPLANATION_PREFIX))
+    .at(-1)?.text ?? "";
 
   const [replaying, setReplaying] = useState(false);
   const replayQuestion = useCallback(async () => {
@@ -2818,6 +2828,49 @@ export function VoiceInterviewClient({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBotQuestion, replaying, micPhase, fetchingNextQuestion]);
+
+  const [explaining, setExplaining] = useState(false);
+  const [explanationText, setExplanationText] = useState<string | null>(null);
+  const [explainedQuestion, setExplainedQuestion] = useState<string | null>(null);
+
+  // New question → previous explanation no longer applies
+  useEffect(() => {
+    setExplanationText(null);
+  }, [currentBotQuestion]);
+
+  const explainQuestion = useCallback(async () => {
+    if (!currentBotQuestion || explaining || replaying || micPhase === "bot_speaking" || fetchingNextQuestion) return;
+    if (explainedQuestion === currentBotQuestion) return; // one explanation per question
+    setExplaining(true);
+    try {
+      const res = await fetch(`/api/interviews/${encodeURIComponent(interviewId)}/explain-question`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ questionText: currentBotQuestion }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { explanation?: string };
+      if (!data.explanation) return;
+      setExplanationText(data.explanation);
+      setExplainedQuestion(currentBotQuestion);
+      // Keep it in the transcript (prefix-marked) so the AI and reviewers see it was given.
+      // It is NOT an answer and does not advance the question slot.
+      syncUtterances([...utterancesRef.current, { speaker: "BOT", text: data.explanation, at: nowIso() }]);
+      setMicPhase("bot_speaking");
+      pausedForTtsRef.current = true;
+      try {
+        await speakWhenDone(data.explanation);
+      } finally {
+        pausedForTtsRef.current = false;
+        setMicPhase(sessionActiveRef.current && !sessionFinalizedRef.current ? "listening" : "idle");
+      }
+    } catch {
+      /* candidate can retry — button stays enabled until an explanation lands */
+    } finally {
+      setExplaining(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBotQuestion, explaining, explainedQuestion, replaying, micPhase, fetchingNextQuestion, interviewId]);
 
   if (!supported) {
     return (
@@ -3101,20 +3154,44 @@ export function VoiceInterviewClient({
         <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Current question</p>
-            <button
-              type="button"
-              onClick={() => void replayQuestion()}
-              disabled={replaying || micPhase === "bot_speaking" || fetchingNextQuestion}
-              title="Replay question"
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 disabled:opacity-40 dark:text-blue-400 dark:hover:bg-blue-900/40"
-            >
-              {replaying
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <Volume2 className="h-3.5 w-3.5" />}
-              Replay
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => void explainQuestion()}
+                disabled={explaining || replaying || micPhase === "bot_speaking" || fetchingNextQuestion || explainedQuestion === currentBotQuestion}
+                title={explainedQuestion === currentBotQuestion ? "Explanation already given for this question" : "Explain this question in simpler terms"}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 disabled:opacity-40 dark:text-blue-400 dark:hover:bg-blue-900/40"
+              >
+                {explaining
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <HelpCircle className="h-3.5 w-3.5" />}
+                Explain
+              </button>
+              <button
+                type="button"
+                onClick={() => void replayQuestion()}
+                disabled={replaying || micPhase === "bot_speaking" || fetchingNextQuestion}
+                title="Replay question"
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 disabled:opacity-40 dark:text-blue-400 dark:hover:bg-blue-900/40"
+              >
+                {replaying
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Volume2 className="h-3.5 w-3.5" />}
+                Replay
+              </button>
+            </div>
           </div>
           <p className="text-sm leading-relaxed text-zinc-900 dark:text-zinc-100">{currentBotQuestion}</p>
+          {explanationText && (
+            <div className="mt-2 rounded-lg bg-blue-100/70 p-2.5 dark:bg-blue-900/30">
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-500 dark:text-blue-300">Simpler explanation</p>
+              <p className="text-sm leading-relaxed text-blue-900 dark:text-blue-100">
+                {explanationText.startsWith(EXPLANATION_PREFIX)
+                  ? explanationText.slice(EXPLANATION_PREFIX.length)
+                  : explanationText}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

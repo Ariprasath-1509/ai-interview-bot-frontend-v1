@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
-import { entityBranchBadgeClass, entityBranchLabel, staffBranchBadgeClass, staffBranchLabel, resolveStaffBranchFromRole } from "@/lib/staffRoles";
+import { entityBranchBadgeClass, entityBranchLabel, staffBranchBadgeClass, staffBranchLabel } from "@/lib/staffRoles";
 import { DeleteButton } from "./DeleteButton";
 import { EditStaffDialog } from "./EditStaffDialog";
 
@@ -33,7 +33,7 @@ export function StaffDirectoryTable({ staff }: { staff: StaffRow[] }) {
       {
         id: "branch",
         header: "Branch",
-        accessorFn: (r) => resolveStaffBranchFromRole(r.role),
+        accessorFn: (r) => staffBranchLabel(r.branch, r.role),
         cell: ({ row }) => (
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${staffBranchBadgeClass(row.original.branch, row.original.role)}`}>
             {staffBranchLabel(row.original.branch, row.original.role)}

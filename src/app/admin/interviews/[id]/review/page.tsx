@@ -715,10 +715,10 @@ export default async function InterviewReviewPage({
           </div>
         )}
 
-        {isStaffAdminRole(session?.role) ? (
+        {isStaffReadRole(session?.role) ? (
           <>
             <p className="mt-3 text-sm text-zinc-600">
-              {existingSignOff.signedOff ? "Update sign-off:" : "Admin can override and must leave a note."}
+              {existingSignOff.signedOff ? "Update sign-off:" : "Overriding an existing verdict requires a note."}
             </p>
             <form action={signOff} className="mt-3 grid gap-3">
               <input type="hidden" name="interviewId" value={interview.id} />
@@ -759,7 +759,7 @@ export default async function InterviewReviewPage({
           </>
         ) : (
           <p className="mt-4 text-sm text-zinc-500">
-            Sign-off is restricted to Admins.
+            Sign-off is restricted to staff accounts.
           </p>
         )}
       </div>
@@ -772,7 +772,7 @@ async function signOff(formData: FormData) {
   "use server";
 
   const session = await getSession();
-  if (!session || (!isStaffAdminRole(session.role))) redirect("/unauthorized");
+  if (!session || (!isStaffReadRole(session.role))) redirect("/unauthorized");
 
   const parsed = SignOffSchema.parse({
     interviewId: formData.get("interviewId"),

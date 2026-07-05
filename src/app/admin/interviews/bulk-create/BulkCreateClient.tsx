@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { CheckSquare, Square, ChevronRight, ChevronLeft, Users, Settings, Building2, Send, CheckCircle, XCircle, Loader2, Search } from "lucide-react";
 
@@ -17,6 +17,8 @@ type Candidate = {
 type Client = {
   id: string;
   clientName: string;
+  jdRole?: string;
+  jdDescription?: string;
 };
 
 type CandidateRow = {
@@ -28,6 +30,7 @@ type SharedConfig = {
   jdTitle: string;
   jdText: string;
   interviewMode: "SCREENING" | "L1" | "L2" | "L3" | "L4";
+  questionDifficulty: "" | "EASY" | "MEDIUM" | "HARD"; // "" = auto from mode
   customDurationMinutes: string;
   includeProgrammingQuestions: boolean;
   scheduledAt: string;
@@ -60,6 +63,7 @@ export function BulkCreateClient() {
     jdTitle: "",
     jdText: "",
     interviewMode: "L1",
+    questionDifficulty: "",
     customDurationMinutes: "",
     includeProgrammingQuestions: true,
     scheduledAt: "",
@@ -111,8 +115,8 @@ export function BulkCreateClient() {
 
   // ── Client fetch ───────────────────────────────────────────────────────────
 
+  // Fetch clients on mount — needed by the Configure step (JD auto-fill) and the Assign step
   useEffect(() => {
-    if (step !== 2) return;
     fetch("/api/recruiter/clients/for-interview", { credentials: "include" })
       .then((r) => r.json())
       .then((d: { clients?: Client[] } | Client[]) => {
@@ -120,6 +124,10 @@ export function BulkCreateClient() {
         setClients(list);
       })
       .catch(() => setClients([]));
+  }, []);
+
+  useEffect(() => {
+    if (step !== 2) return;
     // Initialise per-candidate rows when entering step 3
     setRows(selected.map((c) => ({ candidate: c, clientId: "" })));
   }, [step, selected]);
@@ -138,6 +146,35 @@ export function BulkCreateClient() {
 
   function setRowClient(email: string, clientId: string) {
     setRows((prev) => prev.map((r) => r.candidate.email === email ? { ...r, clientId } : r));
+  }
+
+  /** The client whose JD was last applied — lets us re-sync on client change without clobbering manual edits. */
+  const autoFilledFromClientRef = useRef<Client | null>(null);
+
+  /**
+   * Select the shared client and auto-fill JD title/text from its position.
+   * A field is only overwritten when it is empty or still holds the previous
+   * client's auto-filled value (i.e. the recruiter hasn't hand-edited it).
+   */
+  function selectClientAndFillJd(clientId: string) {
+    setGlobalClientId(clientId);
+    if (clientId) setSameClient(true);
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) {
+      autoFilledFromClientRef.current = null;
+      return;
+    }
+    const prev = autoFilledFromClientRef.current;
+    setConfig((p) => {
+      const titleUntouched = !p.jdTitle.trim() || (prev != null && p.jdTitle === (prev.jdRole ?? ""));
+      const textUntouched = !p.jdText.trim() || (prev != null && p.jdText === (prev.jdDescription ?? ""));
+      return {
+        ...p,
+        jdTitle: titleUntouched && client.jdRole ? client.jdRole : p.jdTitle,
+        jdText: textUntouched && client.jdDescription ? client.jdDescription : p.jdText,
+      };
+    });
+    autoFilledFromClientRef.current = client;
   }
 
   function canNext() {
@@ -164,6 +201,7 @@ export function BulkCreateClient() {
         jdTitle: config.jdTitle,
         jdText: config.jdText || null,
         interviewMode: config.interviewMode,
+        questionDifficulty: config.questionDifficulty || null,
         customDurationMinutes: config.customDurationMinutes ? Number(config.customDurationMinutes) : null,
         includeProgrammingQuestions: config.includeProgrammingQuestions,
         scheduledAt: config.scheduledAt ? new Date(config.scheduledAt).toISOString() : null,
@@ -303,6 +341,18 @@ export function BulkCreateClient() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
+              <label className="label">Client (auto-fills JD)</label>
+              <select className="input w-full" value={globalClientId} onChange={(e) => selectClientAndFillJd(e.target.value)}>
+                <option value="">— No client / manual JD —</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.clientName}{c.jdRole ? ` — ${c.jdRole}` : ""}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-zinc-500">
+                {globalClientId
+                  ? "JD title and text were filled from this client's position — edit them below if needed. The client is also pre-selected in the Assign Clients step."
+                  : "Selecting a client fills the JD from its open position and assigns it to all candidates. Leave empty to enter the JD manually (or assign different clients per candidate later)."}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
               <label className="label">JD Title *</label>
               <input className="input w-full" value={config.jdTitle} onChange={(e) => setConfig((p) => ({ ...p, jdTitle: e.target.value }))} placeholder="e.g. Senior DevOps Engineer" />
             </div>
@@ -319,6 +369,15 @@ export function BulkCreateClient() {
             <div>
               <label className="label">Custom Duration (min)</label>
               <input className="input w-full" type="number" min={5} max={180} value={config.customDurationMinutes} onChange={(e) => setConfig((p) => ({ ...p, customDurationMinutes: e.target.value }))} placeholder="Leave blank for default" />
+            </div>
+            <div>
+              <label className="label">Question Difficulty</label>
+              <select className="input w-full" value={config.questionDifficulty} onChange={(e) => setConfig((p) => ({ ...p, questionDifficulty: e.target.value as SharedConfig["questionDifficulty"] }))}>
+                <option value="">Auto (based on mode)</option>
+                <option value="EASY">Easy</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HARD">Hard</option>
+              </select>
             </div>
             <div>
               <label className="label">Scheduled At</label>
@@ -362,10 +421,15 @@ export function BulkCreateClient() {
           {sameClient ? (
             <div>
               <label className="label">Client (optional)</label>
-              <select className="input w-full" value={globalClientId} onChange={(e) => setGlobalClientId(e.target.value)}>
+              <select className="input w-full" value={globalClientId} onChange={(e) => selectClientAndFillJd(e.target.value)}>
                 <option value="">— No client —</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.clientName}</option>)}
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.clientName}{c.jdRole ? ` — ${c.jdRole}` : ""}</option>)}
               </select>
+              {globalClientId && (
+                <p className="mt-1 text-xs text-zinc-500">
+                  Changing the client here also updates the JD in the Configure step, unless you edited it manually.
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -410,11 +474,13 @@ export function BulkCreateClient() {
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Interview Config</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
               <span className="text-zinc-500">JD Title</span><span className="col-span-1 font-medium text-zinc-900 dark:text-zinc-50 sm:col-span-2">{config.jdTitle}</span>
+              {sameClient && globalClientId && <><span className="text-zinc-500">Client</span><span className="col-span-1 sm:col-span-2">{clients.find((c) => c.id === globalClientId)?.clientName ?? "—"}</span></>}
               <span className="text-zinc-500">Mode</span><span className="col-span-1 sm:col-span-2">{config.interviewMode}{config.customDurationMinutes ? ` · ${config.customDurationMinutes} min` : ""}</span>
               <span className="text-zinc-500">Coding</span><span className="col-span-1 sm:col-span-2">{config.includeProgrammingQuestions ? "Yes" : "No"}</span>
               {config.scheduledAt && <><span className="text-zinc-500">Scheduled</span><span className="col-span-1 sm:col-span-2">{new Date(config.scheduledAt).toLocaleString()}</span></>}
               {config.expiresAt && <><span className="text-zinc-500">Expires</span><span className="col-span-1 sm:col-span-2">{new Date(config.expiresAt).toLocaleString()}</span></>}
               {config.roundName && <><span className="text-zinc-500">Round</span><span className="col-span-1 sm:col-span-2">{config.roundName}</span></>}
+              {config.questionDifficulty && <><span className="text-zinc-500">Difficulty</span><span className="col-span-1 sm:col-span-2">{config.questionDifficulty}</span></>}
             </div>
           </div>
 

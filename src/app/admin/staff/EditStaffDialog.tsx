@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateStaffAction } from "./actions";
+import { StaffBranchSelect } from "./StaffBranchSelect";
 
 type StaffRow = {
   id: string;
@@ -23,10 +24,10 @@ type StaffRow = {
 };
 
 const EDITABLE_ROLES = [
-  { value: "RECRUITER", label: "Recruiter (Development)" },
-  { value: "TESTING_RECRUITER", label: "Recruiter (Testing)" },
-  { value: "ADMIN", label: "Admin (Development)" },
-  { value: "TESTING_ADMIN", label: "Admin (Testing)" },
+  { value: "RECRUITER", label: "Recruiter" },
+  { value: "TESTING_RECRUITER", label: "Testing Recruiter" },
+  { value: "ADMIN", label: "Admin" },
+  { value: "TESTING_ADMIN", label: "Testing Admin" },
 ] as const;
 
 export function EditStaffDialog({ staff }: { staff: StaffRow }) {
@@ -50,6 +51,7 @@ export function EditStaffDialog({ staff }: { staff: StaffRow }) {
       password: String(form.get("password") ?? ""),
       role: isSuperAdmin ? "SUPER_ADMIN" : String(form.get("role") ?? staff.role),
       adminSource: showAdminSource ? String(form.get("adminSource") ?? "") : undefined,
+      branch: isSuperAdmin ? undefined : String(form.get("branch") ?? ""),
     });
 
     setPending(false);
@@ -107,22 +109,33 @@ export function EditStaffDialog({ staff }: { staff: StaffRow }) {
               <Input value="Super Admin" disabled />
             </div>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor={`edit-role-${staff.id}`}>Role</Label>
-              <select
-                id={`edit-role-${staff.id}`}
-                name="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                {EDITABLE_ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor={`edit-role-${staff.id}`}>Role</Label>
+                <select
+                  id={`edit-role-${staff.id}`}
+                  name="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {EDITABLE_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`edit-branch-${staff.id}`}>Branch</Label>
+                <StaffBranchSelect
+                  id={`edit-branch-${staff.id}`}
+                  name="branch"
+                  defaultValue={staff.branch ?? "DEVELOPMENT"}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+            </>
           )}
           {showAdminSource && (
             <div className="space-y-2">

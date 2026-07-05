@@ -4,6 +4,7 @@ import { AppShell } from "@/app/components/AppShell";
 import { apiServer } from "@/lib/apiClient";
 import { revalidatePath } from "next/cache";
 import { StaffDirectoryTable, type StaffRow } from "./StaffDirectoryTable";
+import { StaffBranchSelect } from "./StaffBranchSelect";
 
 export default async function StaffPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await getSession();
@@ -25,10 +26,14 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
     const password = formData.get("password");
     const role = formData.get("role");
     const adminSource = formData.get("adminSource") || undefined;
+    const branch = formData.get("branch") || undefined;
 
     const body: Record<string, unknown> = { name, email, password, role };
     if ((role === "ADMIN" || role === "TESTING_ADMIN") && adminSource) {
       body.adminSource = adminSource;
+    }
+    if (branch) {
+      body.branch = branch;
     }
 
     const r = await apiServer("/auth/staff", s.token, {
@@ -77,15 +82,15 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Role
               <select required name="role" className="input-base" defaultValue="RECRUITER">
-                <optgroup label="Development">
-                  <option value="RECRUITER">Recruiter</option>
-                  <option value="ADMIN">Admin</option>
-                </optgroup>
-                <optgroup label="Testing">
-                  <option value="TESTING_RECRUITER">Testing Recruiter</option>
-                  <option value="TESTING_ADMIN">Testing Admin</option>
-                </optgroup>
+                <option value="RECRUITER">Recruiter</option>
+                <option value="ADMIN">Admin</option>
+                <option value="TESTING_RECRUITER">Testing Recruiter</option>
+                <option value="TESTING_ADMIN">Testing Admin</option>
               </select>
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Branch <span className="font-normal text-zinc-400">(independent of role — defaults from role if left as-is)</span>
+              <StaffBranchSelect name="branch" defaultValue="DEVELOPMENT" className="input-base" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Admin Source <span className="font-normal text-zinc-400">(required for Admin roles)</span>

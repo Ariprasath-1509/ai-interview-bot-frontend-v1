@@ -8,7 +8,8 @@ export type LookupCategoryKey =
   | "QUESTION_TYPE"
   | "DIFFICULTY"
   | "CATEGORY_INTERVIEW_TYPE"
-  | "POSITION_SOURCE";
+  | "POSITION_SOURCE"
+  | "BRANCH";
 
 export const LOOKUP_CATEGORIES: { key: LookupCategoryKey; label: string; description: string }[] = [
   { key: "SKILL_SET", label: "Skill Sets", description: "Candidate and client skill tracks" },
@@ -21,4 +22,5 @@ export const LOOKUP_CATEGORIES: { key: LookupCategoryKey; label: string; descrip
   { key: "DIFFICULTY", label: "Difficulty Levels", description: "Easy, Medium, Hard" },
   { key: "CATEGORY_INTERVIEW_TYPE", label: "Category Types", description: "Backend, Frontend, Shared" },
   { key: "POSITION_SOURCE", label: "Position Sources", description: "Bench/B2B vs Market requirements" },
+  { key: "BRANCH", label: "Branches", description: "Data segregation branches assignable to staff accounts (e.g. Development, Testing)" },
 ];

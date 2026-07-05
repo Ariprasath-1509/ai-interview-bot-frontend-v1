@@ -22,6 +22,7 @@ interface InterviewFormData {
   focusAreas: string;
   resumeSummary: string;
   interviewMode: string;
+  questionDifficulty: string; // '' = auto (derived from mode) | EASY | MEDIUM | HARD
   customDurationMinutes: number | null;
   includeProgrammingQuestions: boolean;
   candidateId?: string;
@@ -120,6 +121,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     focusAreas: '',
     resumeSummary: '',
     interviewMode: 'SCREENING',
+    questionDifficulty: '',
     customDurationMinutes: null,
     includeProgrammingQuestions: true,
     candidateId,
@@ -663,23 +665,19 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
   };
 
   return (
-    <div className="w-full p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          {(formData.candidateId || formData.clientId) && !autoFillApplied && (
-            <Button 
-              onClick={triggerAutoFill}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Sparkles className="h-4 w-4" />
-              Auto-Fill Form
-            </Button>
-          )}
+    <div className="mx-auto w-full max-w-4xl">
+      {(formData.candidateId || formData.clientId) && !autoFillApplied && (
+        <div className="mb-6 flex justify-end">
+          <Button
+            onClick={triggerAutoFill}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Auto-Fill Form
+          </Button>
         </div>
-      </div>
-
-
+      )}
 
       {/* Auto-fill Indicator */}
       <AutoFillIndicator
@@ -732,17 +730,17 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               
               {/* Search Results */}
               {showCandidateResults && candidateResults.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg max-h-60 overflow-y-auto dark:bg-zinc-900 dark:border-zinc-700">
                   {candidateResults.map((candidate) => (
                     <div
                       key={candidate.id}
-                      className="p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0"
+                      className="p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 dark:hover:bg-zinc-800 dark:border-zinc-800"
                       onClick={() => selectCandidate(candidate)}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-zinc-900">{candidate.name}</p>
-                          <p className="text-sm text-zinc-600">{candidate.email}</p>
+                          <p className="font-medium text-zinc-900 dark:text-zinc-100">{candidate.name}</p>
+                          <p className="text-sm text-zinc-600 dark:text-zinc-400">{candidate.email}</p>
                           {candidate.skillSet && (
                             <p className="text-xs text-zinc-500 mt-1">
                               {candidate.skillSet} • {candidate.yoeActual || 0} years exp
@@ -761,23 +759,23 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               )}
               
               {showCandidateResults && candidateResults.length === 0 && !searchingCandidates && candidateSearch.trim() && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg p-3">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg p-3 dark:bg-zinc-900 dark:border-zinc-700">
                   <p className="text-sm text-zinc-500">No candidates found</p>
                 </div>
               )}
             </div>
             
             {selectedCandidate && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md dark:bg-blue-950/20 dark:border-blue-900">
                 <div className="flex items-center gap-2 mb-2">
-                  <User className="h-4 w-4 text-blue-600" />
-                  <span className="font-medium text-blue-900">Selected Candidate</span>
+                  <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="font-medium text-blue-900 dark:text-blue-200">Selected Candidate</span>
                 </div>
-                <p className="text-sm text-blue-800">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
                   {selectedCandidate.name} ({selectedCandidate.email})
                 </p>
                 {selectedCandidate.skillSet && (
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-blue-600 mt-1 dark:text-blue-400">
                     {selectedCandidate.skillSet} • {selectedCandidate.yoeActual || 0} years experience
                   </p>
                 )}
@@ -803,8 +801,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 </div>
               )}
               {!searchingClients && clientResults.length === 0 && (
-                <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-md">
-                  <p className="text-sm text-zinc-600">No clients available</p>
+                <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-md dark:bg-zinc-900 dark:border-zinc-800">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">No clients available</p>
                 </div>
               )}
               {clientResults.map((client) => (
@@ -814,12 +812,12 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                   className={`cursor-pointer rounded-lg border p-3 transition-colors ${
                     selectedClient?.id === client.id
                       ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20'
-                      : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                      : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-sm text-zinc-900">{client.clientName}</p>
+                      <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{client.clientName}</p>
                       <p className="text-xs text-zinc-500 mt-0.5">{client.jdRole}</p>
                     </div>
                     {selectedClient?.id === client.id && (
@@ -858,24 +856,24 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               )}
 
               {!searchingClients && clientResults.length === 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                  <p className="text-sm text-amber-800">{clientsMessage || 'No client positions found.'}</p>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md dark:bg-amber-950/20 dark:border-amber-900">
+                  <p className="text-sm text-amber-800 dark:text-amber-300">{clientsMessage || 'No client positions found.'}</p>
                 </div>
               )}
 
               {clientResults.map((client) => {
                 const isSelected = selectedClient?.id === client.id;
                 const labelColors = {
-                  STRONG:    'bg-emerald-100 text-emerald-700 border-emerald-200',
-                  GOOD:      'bg-blue-100 text-blue-700 border-blue-200',
-                  PARTIAL:   'bg-amber-100 text-amber-700 border-amber-200',
-                  AVAILABLE: 'bg-zinc-100 text-zinc-600 border-zinc-200',
+                  STRONG:    'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+                  GOOD:      'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
+                  PARTIAL:   'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+                  AVAILABLE: 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
                 };
                 const cardColors = {
-                  STRONG:    isSelected ? 'border-emerald-400 bg-emerald-50' : 'border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/50',
-                  GOOD:      isSelected ? 'border-blue-400 bg-blue-50' : 'border-blue-200 hover:border-blue-300 hover:bg-blue-50/50',
-                  PARTIAL:   isSelected ? 'border-amber-400 bg-amber-50' : 'border-amber-100 hover:border-amber-200 hover:bg-amber-50/50',
-                  AVAILABLE: isSelected ? 'border-zinc-400 bg-zinc-50' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50',
+                  STRONG:    isSelected ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/20' : 'border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/50 dark:border-emerald-900 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20',
+                  GOOD:      isSelected ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20' : 'border-blue-200 hover:border-blue-300 hover:bg-blue-50/50 dark:border-blue-900 dark:hover:border-blue-700 dark:hover:bg-blue-950/20',
+                  PARTIAL:   isSelected ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-950/20' : 'border-amber-100 hover:border-amber-200 hover:bg-amber-50/50 dark:border-amber-900 dark:hover:border-amber-700 dark:hover:bg-amber-950/20',
+                  AVAILABLE: isSelected ? 'border-zinc-400 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-900' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900',
                 };
                 const label = client.matchLabel ?? 'AVAILABLE';
                 return (
@@ -887,22 +885,22 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm text-zinc-900">{client.clientName}</p>
+                          <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{client.clientName}</p>
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${labelColors[label]}`}>
                             {label}
                           </span>
                           {isSelected && (
-                            <span className="text-[10px] font-semibold text-blue-600">✓ Selected</span>
+                            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">✓ Selected</span>
                           )}
                         </div>
-                        <p className="text-xs text-zinc-600 mt-0.5">{client.jdRole}</p>
+                        <p className="text-xs text-zinc-600 mt-0.5 dark:text-zinc-400">{client.jdRole}</p>
                         {client.focusAreas && (
-                          <p className="text-xs text-zinc-400 mt-0.5 truncate">Focus: {client.focusAreas}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5 truncate dark:text-zinc-500">Focus: {client.focusAreas}</p>
                         )}
                         {client.matchReasons && client.matchReasons.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {client.matchReasons.map((r, i) => (
-                              <span key={i} className="text-[10px] bg-white border border-zinc-200 rounded px-1.5 py-0.5 text-zinc-500">
+                              <span key={i} className="text-[10px] bg-white border border-zinc-200 rounded px-1.5 py-0.5 text-zinc-500 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-400">
                                 {r}
                               </span>
                             ))}
@@ -1069,11 +1067,11 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2 min-h-5">
                   <Label htmlFor="interviewMode">Interview Mode</Label>
-                  <FieldAutoFillIndicator 
+                  <FieldAutoFillIndicator
                     isAutoFilled={autoFilledFields.includes('interviewMode') && !manuallyEdited.has('interviewMode')}
                     confidence={autoFillConfidence}
                   />
@@ -1093,7 +1091,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
               </div>
 
               <div>
-                <Label htmlFor="customDuration">Duration (minutes)</Label>
+                <div className="flex items-center mb-2 min-h-5">
+                  <Label htmlFor="customDuration">Duration (minutes)</Label>
+                </div>
                 <Input
                   id="customDuration"
                   type="number"
@@ -1104,13 +1104,33 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                   max={120}
                 />
               </div>
+
+              <div>
+                <div className="flex items-center mb-2 min-h-5">
+                  <Label htmlFor="questionDifficulty">Question Difficulty</Label>
+                </div>
+                <Select
+                  value={formData.questionDifficulty || 'AUTO'}
+                  onValueChange={(v) => handleInputChange('questionDifficulty', v === 'AUTO' ? '' : v)}
+                >
+                  <SelectTrigger id="questionDifficulty">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AUTO">Auto (based on mode)</SelectItem>
+                    <SelectItem value="EASY">Easy</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HARD">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-zinc-600">
+            <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
               <FileText className="h-4 w-4" />
               <span>
-                {formData.interviewMode} mode includes{' '} multiple questions
-                for {formData.customDurationMinutes || INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.duration || 15} minutes
+                {formData.interviewMode} mode · {formData.customDurationMinutes || INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.duration || 15} minutes ·{' '}
+                {formData.questionDifficulty ? `${formData.questionDifficulty.charAt(0)}${formData.questionDifficulty.slice(1).toLowerCase()} questions` : 'difficulty set by mode'}
               </span>
             </div>
 
@@ -1164,12 +1184,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-4 p-3 bg-zinc-50 rounded-md">
-              <span className="text-sm text-zinc-600">Choose one option:</span>
-              <Badge variant="outline" className="text-xs">Question Bank</Badge>
-              <span className="text-zinc-400">or</span>
-              <Badge variant="outline" className="text-xs">Manual Entry</Badge>
-            </div>
+            <p className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+              Optionally pin specific questions — pick them from the question bank here, or add your own in the next section. Leave both off to let the AI generate everything.
+            </p>
 
             <div className="flex items-center gap-3">
               <button
@@ -1213,7 +1230,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 </div>
 
                 {/* Question list */}
-                <div className="border border-zinc-200 rounded-md max-h-64 overflow-y-auto">
+                <div className="border border-zinc-200 rounded-md max-h-64 overflow-y-auto dark:border-zinc-700">
                   {bankLoading && (
                     <div className="flex items-center justify-center p-4 gap-2 text-zinc-500">
                       <Loader2 className="h-4 w-4 animate-spin" /> Loading questions...
@@ -1228,15 +1245,15 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                       <div
                         key={q.id}
                         onClick={() => toggleQuestion(q)}
-                        className={`flex items-start gap-3 p-3 cursor-pointer border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 ${
-                          isSelected ? 'bg-blue-50' : ''
+                        className={`flex items-start gap-3 p-3 cursor-pointer border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900 ${
+                          isSelected ? 'bg-blue-50 dark:bg-blue-950/30' : ''
                         }`}
                       >
                         {isSelected
                           ? <CheckSquare className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
                           : <Square className="h-4 w-4 text-zinc-400 mt-0.5 shrink-0" />}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-zinc-900 line-clamp-2">{q.text}</p>
+                          <p className="text-sm text-zinc-900 line-clamp-2 dark:text-zinc-100">{q.text}</p>
                           <div className="flex items-center gap-2 mt-1">
                             {q.category && <span className="text-xs text-zinc-500">{q.category}</span>}
                             <Badge variant="outline" className={`text-xs ${
@@ -1253,15 +1270,15 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
 
                 {/* Selected summary */}
                 {selectedQuestions.length > 0 && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md dark:bg-blue-950/20 dark:border-blue-900">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-blue-900">
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
                         {selectedQuestions.length} question{selectedQuestions.length !== 1 ? 's' : ''} selected
                       </span>
                       <button
                         type="button"
                         onClick={() => setSelectedQuestions([])}
-                        className="text-xs text-blue-600 underline"
+                        className="text-xs text-blue-600 underline dark:text-blue-400"
                       >
                         Clear all
                       </button>
@@ -1270,7 +1287,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                       {selectedQuestions.map(q => (
                         <span
                           key={q.id}
-                          className="inline-flex items-center gap-1 bg-white border border-blue-200 rounded px-2 py-0.5 text-xs text-blue-800"
+                          className="inline-flex items-center gap-1 bg-white border border-blue-200 rounded px-2 py-0.5 text-xs text-blue-800 dark:bg-zinc-900 dark:border-blue-900 dark:text-blue-300"
                         >
                           {q.text.substring(0, 40)}{q.text.length > 40 ? '…' : ''}
                           <button type="button" onClick={e => { e.stopPropagation(); toggleQuestion(q); }}>
@@ -1356,10 +1373,10 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-zinc-200" />
+                    <span className="w-full border-t border-zinc-200 dark:border-zinc-700" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-zinc-500">Or add individually</span>
+                    <span className="bg-white px-2 text-zinc-500 dark:bg-zinc-950">Or add individually</span>
                   </div>
                 </div>
 
@@ -1423,9 +1440,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                       </Button>
                     </div>
                     
-                    <div className="max-h-80 overflow-y-auto rounded-md border border-zinc-200 divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <div className="max-h-80 overflow-y-auto rounded-md border border-zinc-200 divide-y divide-zinc-100 dark:border-zinc-700 dark:divide-zinc-800">
                       {manualQuestions.map((question, index) => (
-                        <div key={index} className="p-3 hover:bg-zinc-50 group">
+                        <div key={index} className="p-3 hover:bg-zinc-50 group dark:hover:bg-zinc-900">
                           {editingIndex === index ? (
                             <div className="flex gap-2">
                               <Input
@@ -1482,7 +1499,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                           ) : (
                             <div className="flex items-start gap-3">
                               <span className="text-xs font-medium text-zinc-400 mt-1 shrink-0">Q{index + 1}</span>
-                              <p className="flex-1 text-sm text-zinc-900">{question}</p>
+                              <p className="flex-1 text-sm text-zinc-900 dark:text-zinc-100">{question}</p>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Button
                                   type="button"
@@ -1515,8 +1532,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                       ))}
                     </div>
                     
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <p className="text-xs text-blue-800">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md dark:bg-blue-950/20 dark:border-blue-900">
+                      <p className="text-xs text-blue-800 dark:text-blue-300">
                         <strong>Note:</strong> These {manualQuestions.length} question{manualQuestions.length !== 1 ? 's' : ''} will be asked in order during the interview. If time remains after all custom questions, the AI will generate additional questions.
                       </p>
                     </div>
@@ -1524,7 +1541,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 )}
 
                 {manualQuestions.length === 0 && (
-                  <div className="p-4 border-2 border-dashed border-zinc-200 rounded-md text-center">
+                  <div className="p-4 border-2 border-dashed border-zinc-200 rounded-md text-center dark:border-zinc-700">
                     <p className="text-sm text-zinc-500">No custom questions added yet</p>
                     <p className="text-xs text-zinc-400 mt-1">Use quick paste or add questions individually above</p>
                   </div>

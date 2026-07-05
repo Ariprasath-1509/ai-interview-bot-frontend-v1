@@ -9,6 +9,7 @@ type UpdateStaffInput = {
   password?: string;
   role: string;
   adminSource?: string;
+  branch?: string;
 };
 
 export async function updateStaffAction(
@@ -30,6 +31,9 @@ export async function updateStaffAction(
   }
   if (input.adminSource !== undefined) {
     body.adminSource = input.adminSource.trim();
+  }
+  if (input.branch !== undefined && input.branch.trim()) {
+    body.branch = input.branch.trim();
   }
 
   try {
