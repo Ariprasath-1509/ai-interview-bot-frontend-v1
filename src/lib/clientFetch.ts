@@ -32,7 +32,7 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
   return response;
 }
 
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/screening"];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

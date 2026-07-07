@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
 import { entityBranchBadgeClass, entityBranchLabel, isStaffAdminRole } from "@/lib/staffRoles";
 import { useBranchOptions } from "@/hooks/useBranchOptions";
+import { useSkillSetOptions } from "@/hooks/useSkillSetOptions";
 import type { Candidate } from "./CandidatesClient";
 
 const SKILL_LABEL: Record<string, string> = { JAVA_SB: "Java + SB", JFSR: "JFSR", REACT_JS: "React JS", ANGULAR: "Angular", PYTHON: "Python", QA_ENGINEER: "QA Engineer", PLAYWRIGHT_AUTOMATION: "Playwright" };
@@ -103,6 +104,7 @@ type RowHandlers = {
   onCreateInterview: (c: Candidate) => void;
   onViewHistory: (id: string) => void;
   onDownloadPdf?: (id: string, name: string) => void;
+  onToggleActive: (c: Candidate) => void;
 };
 
 function CandidateEditRow({
@@ -123,6 +125,7 @@ function CandidateEditRow({
   selectSmCls: string;
 }) {
   const { options: branchOptions } = useBranchOptions();
+  const { options: skillSetOptions } = useSkillSetOptions();
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
       <div className="flex flex-col gap-1">
@@ -230,13 +233,9 @@ function CandidateEditRow({
           onChange={(e) => setEditForm((p) => ({ ...p, skillSet: e.target.value }))}
         >
           <option value="">—</option>
-          <option value="JAVA_SB">Java + SB</option>
-          <option value="JFSR">JFSR</option>
-          <option value="REACT_JS">React JS</option>
-          <option value="ANGULAR">Angular</option>
-          <option value="PYTHON">Python</option>
-          <option value="QA_ENGINEER">QA Engineer</option>
-          <option value="PLAYWRIGHT_AUTOMATION">Playwright</option>
+          {skillSetOptions.map((o) => (
+            <option key={o.code} value={o.code}>{o.label}</option>
+          ))}
         </select>
       </div>
       <div className="flex flex-col gap-1">
@@ -382,7 +381,14 @@ export function CandidatesMainTable({
         header: "Name",
         cell: ({ row }) => (
           <div>
-            <div className="font-medium text-zinc-900 dark:text-zinc-100">{row.original.name || "—"}</div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">{row.original.name || "—"}</span>
+              {row.original.active === false && (
+                <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:border-red-800/50 dark:bg-red-900/30 dark:text-red-300">
+                  Inactive
+                </span>
+              )}
+            </div>
             <div className="text-[11px] text-zinc-400">{row.original.email}</div>
           </div>
         ),
@@ -642,6 +648,17 @@ export function CandidatesMainTable({
                 >
                   <Sparkles className="h-3 w-3" />
                   Interview
+                </button>
+              )}
+              {isStaffAdminRole(role) && (
+                <button
+                  type="button"
+                  onClick={() => handlersRef.current.onToggleActive(c)}
+                  className={c.active === false
+                    ? "text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                    : "text-xs font-medium text-red-600 hover:underline dark:text-red-400"}
+                >
+                  {c.active === false ? "Reactivate" : "Delete"}
                 </button>
               )}
             </div>

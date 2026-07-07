@@ -5,7 +5,7 @@ import { redirectToLogin } from "@/lib/clientFetch";
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/screening"];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

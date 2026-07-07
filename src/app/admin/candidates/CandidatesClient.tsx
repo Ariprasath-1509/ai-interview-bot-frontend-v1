@@ -47,6 +47,7 @@ export interface Candidate {
   interviewMentorName?: string | null;
   clientName?: string | null;
   branch?: string | null;
+  active?: boolean | null;
 }
 
 interface Props { role: string; }
@@ -550,6 +551,38 @@ export default function CandidatesClient({ role }: Props) {
     }
   };
 
+  const handleToggleActive = async (candidate: Candidate) => {
+    const deactivating = candidate.active !== false;
+    const confirmed = await confirm({
+      title: deactivating ? `Delete ${candidate.name}?` : `Reactivate ${candidate.name}?`,
+      message: deactivating
+        ? 'This is a soft delete — the candidate record is kept, but they will no longer be able to log in. You can reactivate them later.'
+        : 'The candidate will be able to log in again.',
+      confirmLabel: deactivating ? 'Delete' : 'Reactivate',
+      variant: deactivating ? 'danger' : 'default',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/candidates/${candidate.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !deactivating }),
+      });
+
+      if (res.ok) {
+        toast(deactivating ? 'Candidate deactivated' : 'Candidate reactivated', 'success');
+        fetchCandidates();
+      } else {
+        const data = await res.json().catch(() => null);
+        toast(data?.error ?? 'Failed to update candidate', 'error');
+      }
+    } catch {
+      toast('Error updating candidate', 'error');
+    }
+  };
+
   const treeData = selectedParent === 'deployed'
       ? deployedTreeFiltered
       : selectedParent === 'matched'
@@ -854,6 +887,7 @@ export default function CandidatesClient({ role }: Props) {
                           onDownloadResume: handleDownloadResume,
                           onCreateInterview: handleCreateInterview,
                           onViewHistory: handleViewHistory,
+                          onToggleActive: handleToggleActive,
                           onDownloadPdf: async (id, name) => {
                             setDownloadingPdf(id);
                             try {

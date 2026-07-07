@@ -92,6 +92,7 @@ export default function middleware(req: NextRequest) {
       "/api/auth/logout",
       "/api/demo/login",
       "/api/health",
+      "/api/screening/public",
     ];
     if (PUBLIC_API.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
