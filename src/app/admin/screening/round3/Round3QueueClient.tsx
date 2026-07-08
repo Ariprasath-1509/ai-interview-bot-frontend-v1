@@ -13,6 +13,8 @@ interface Candidate {
   name: string;
   email: string;
   stage: string;
+  contactNumber: string | null;
+  institute: string | null;
 }
 
 type Decision = 'SELECTED' | 'HOLD' | 'REJECTED';
@@ -63,13 +65,16 @@ export function Round3QueueClient() {
 
   useEffect(load, []);
 
-  const fieldsFor = (id: string) => feedback[id] ?? emptyFields;
-  const updateScore = (id: string, key: CategoryKey, value: string) => {
-    const f = fieldsFor(id);
-    setFeedback((prev) => ({ ...prev, [id]: { ...f, scores: { ...f.scores, [key]: value } } }));
+  // Contact number and source are usually already known from CSV intake — pre-fill rather than
+  // ask the manager to retype them; Training batch and Skill set are the only genuinely new inputs here.
+  const fieldsFor = (c: Candidate) =>
+    feedback[c.id] ?? { ...emptyFields, contactNumber: c.contactNumber ?? '', source: c.institute ?? '' };
+  const updateScore = (c: Candidate, key: CategoryKey, value: string) => {
+    const f = fieldsFor(c);
+    setFeedback((prev) => ({ ...prev, [c.id]: { ...f, scores: { ...f.scores, [key]: value } } }));
   };
-  const updateField = (id: string, key: keyof Omit<Fields, 'scores'>, value: string) => {
-    setFeedback((prev) => ({ ...prev, [id]: { ...fieldsFor(id), [key]: value } }));
+  const updateField = (c: Candidate, key: keyof Omit<Fields, 'scores'>, value: string) => {
+    setFeedback((prev) => ({ ...prev, [c.id]: { ...fieldsFor(c), [key]: value } }));
   };
 
   const total = (f: Fields) =>
@@ -85,8 +90,8 @@ export function Round3QueueClient() {
     }
   };
 
-  const submitFeedback = async (id: string) => {
-    const f = fieldsFor(id);
+  const submitFeedback = async (candidate: Candidate) => {
+    const f = fieldsFor(candidate);
     for (const c of CATEGORIES) {
       const v = f.scores[c.key];
       if (v === '' || Number(v) < 0 || Number(v) > 5) {
@@ -98,6 +103,7 @@ export function Round3QueueClient() {
       alert('Training batch and skill set are required to onboard a passed candidate.');
       return;
     }
+    const id = candidate.id;
     setBusy(id);
     try {
       const body: Record<string, unknown> = {
@@ -162,7 +168,7 @@ export function Round3QueueClient() {
       {backLink}
       <div className="space-y-4">
         {candidates.map((c) => {
-          const f = fieldsFor(c.id);
+          const f = fieldsFor(c);
           return (
             <Card key={c.id}>
               <CardHeader>
@@ -187,14 +193,14 @@ export function Round3QueueClient() {
                             max={5}
                             className="mt-1"
                             value={f.scores[cat.key]}
-                            onChange={(e) => updateScore(c.id, cat.key, e.target.value)}
+                            onChange={(e) => updateScore(c, cat.key, e.target.value)}
                           />
                         </div>
                       ))}
                     </div>
                     <div>
                       <Label>Concluding Comments</Label>
-                      <Textarea className="mt-1" value={f.concludingComments} onChange={(e) => updateField(c.id, 'concludingComments', e.target.value)} />
+                      <Textarea className="mt-1" value={f.concludingComments} onChange={(e) => updateField(c, 'concludingComments', e.target.value)} />
                     </div>
                     <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                       Total: {total(f)} / 30
@@ -204,7 +210,7 @@ export function Round3QueueClient() {
                       <select
                         className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
                         value={f.result}
-                        onChange={(e) => updateField(c.id, 'result', e.target.value)}
+                        onChange={(e) => updateField(c, 'result', e.target.value)}
                       >
                         <option value="SELECTED">Pass — onboard as Under Training</option>
                         <option value="HOLD">Hold</option>
@@ -213,27 +219,34 @@ export function Round3QueueClient() {
                     </div>
 
                     {f.result === 'SELECTED' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+                      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+                        <p className="text-xs text-zinc-500 mb-3">
+                          Not part of the evaluation — this creates the candidate&apos;s real account. Contact number
+                          and source are pre-filled from Round 1 intake when known; only training batch and skill set
+                          are required here.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                          <Label>Contact number</Label>
-                          <Input className="mt-1" value={f.contactNumber} onChange={(e) => updateField(c.id, 'contactNumber', e.target.value)} />
+                          <Label>Contact number{c.contactNumber ? ' (on file)' : ''}</Label>
+                          <Input className="mt-1" value={f.contactNumber} onChange={(e) => updateField(c, 'contactNumber', e.target.value)} />
                         </div>
                         <div>
-                          <Label>Training batch</Label>
-                          <Input className="mt-1" value={f.batchLabel} onChange={(e) => updateField(c.id, 'batchLabel', e.target.value)} />
+                          <Label>Training batch *</Label>
+                          <Input className="mt-1" value={f.batchLabel} onChange={(e) => updateField(c, 'batchLabel', e.target.value)} />
                         </div>
                         <div>
-                          <Label>Source</Label>
-                          <Input className="mt-1" value={f.source} onChange={(e) => updateField(c.id, 'source', e.target.value)} />
+                          <Label>Source{c.institute ? ' (on file)' : ''}</Label>
+                          <Input className="mt-1" value={f.source} onChange={(e) => updateField(c, 'source', e.target.value)} />
                         </div>
                         <div>
-                          <Label>Skill set</Label>
-                          <Input className="mt-1" value={f.skillSet} onChange={(e) => updateField(c.id, 'skillSet', e.target.value)} />
+                          <Label>Skill set *</Label>
+                          <Input className="mt-1" value={f.skillSet} onChange={(e) => updateField(c, 'skillSet', e.target.value)} />
+                        </div>
                         </div>
                       </div>
                     )}
 
-                    <Button size="sm" onClick={() => submitFeedback(c.id)} disabled={busy === c.id}>
+                    <Button size="sm" onClick={() => submitFeedback(c)} disabled={busy === c.id}>
                       Submit
                     </Button>
                   </div>
