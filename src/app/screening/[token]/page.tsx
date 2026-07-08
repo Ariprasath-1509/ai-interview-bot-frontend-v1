@@ -24,6 +24,40 @@ const cardCls = "max-w-3xl w-full bg-white dark:bg-zinc-950 p-8 rounded-2xl bord
 const inputCls = "w-full px-4 py-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
 const textareaCls = inputCls + " min-h-[100px] font-mono text-sm";
 
+interface Draft {
+  confirmed: boolean;
+  emailInput: string;
+  answers: Record<string, string>;
+  logicalIncluded: Record<string, boolean>;
+}
+
+const draftKey = (token: string) => `screening-draft-${token}`;
+
+function loadDraft(token: string): Draft | null {
+  try {
+    const raw = localStorage.getItem(draftKey(token));
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(token: string, draft: Draft) {
+  try {
+    localStorage.setItem(draftKey(token), JSON.stringify(draft));
+  } catch {
+    // Ignore — e.g. private browsing with storage disabled. Answers just won't survive a reload.
+  }
+}
+
+function clearDraft(token: string) {
+  try {
+    localStorage.removeItem(draftKey(token));
+  } catch {
+    // Ignore
+  }
+}
+
 export default function ScreeningTestPage() {
   const params = useParams();
   const token = params.token as string;
@@ -38,6 +72,26 @@ export default function ScreeningTestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore any in-progress answers from this browser if the page was reloaded mid-test.
+  useEffect(() => {
+    const draft = loadDraft(token);
+    if (draft) {
+      setConfirmed(draft.confirmed);
+      setEmailInput(draft.emailInput);
+      setAnswers(draft.answers);
+      setLogicalIncluded(draft.logicalIncluded);
+    }
+    setHydrated(true);
+  }, [token]);
+
+  // Keep the draft up to date as the candidate types — only after the initial restore above,
+  // so we don't overwrite a saved draft with blank initial state before it's loaded.
+  useEffect(() => {
+    if (!hydrated) return;
+    saveDraft(token, { confirmed, emailInput, answers, logicalIncluded });
+  }, [hydrated, token, confirmed, emailInput, answers, logicalIncluded]);
 
   useEffect(() => {
     fetch(`/api/screening/public/${token}`)
@@ -155,6 +209,7 @@ export default function ScreeningTestPage() {
         setSubmitError(data.error || 'Failed to submit — please try again');
         return;
       }
+      clearDraft(token);
       setSubmitted(true);
     } catch {
       setSubmitError('Network error — please try again');

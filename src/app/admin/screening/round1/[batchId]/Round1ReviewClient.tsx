@@ -14,6 +14,7 @@ interface Candidate {
   stage: string;
   round1Score: number | null;
   round1Link: string;
+  allowLateSubmission: boolean;
 }
 
 const emptyNewCandidate = { name: '', email: '', contactNumber: '', institute: '', branch: '', yop: '', experience: '' };
@@ -59,6 +60,20 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passed }),
+      });
+      load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleLateSubmission = async (candidateId: string, allow: boolean) => {
+    setBusy(candidateId);
+    try {
+      await fetch(`/api/screening/admin/candidates/${candidateId}/allow-late-submission`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allow }),
       });
       load();
     } finally {
@@ -228,6 +243,17 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
             <Button size="sm" variant="outline" onClick={() => copyLink(c.id, c.round1Link)}>
               {copiedId === c.id ? 'Copied!' : 'Copy test link'}
             </Button>
+            {(c.stage === 'ROUND1_PENDING' || c.stage === 'ROUND1_IN_PROGRESS') && (
+              c.allowLateSubmission ? (
+                <Button size="sm" variant="outline" onClick={() => toggleLateSubmission(c.id, false)} disabled={busy === c.id}>
+                  Late submission allowed — revoke
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => toggleLateSubmission(c.id, true)} disabled={busy === c.id}>
+                  Accept after deadline
+                </Button>
+              )
+            )}
             {c.stage === 'ROUND1_PENDING' && (
               <Button size="sm" variant="destructive" onClick={() => removeCandidate(c.id)} disabled={removingId === c.id}>
                 {removingId === c.id ? 'Removing…' : 'Remove'}
