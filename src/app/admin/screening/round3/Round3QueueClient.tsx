@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useSkillSetOptions } from '@/hooks/useSkillSetOptions';
+import { useCandidateSourceOptions } from '@/hooks/useCandidateSourceOptions';
 
 interface Candidate {
   id: string;
@@ -55,6 +57,8 @@ export function Round3QueueClient() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, Fields>>({});
+  const { options: skillSetOptions } = useSkillSetOptions();
+  const { options: sourceOptions } = useCandidateSourceOptions();
 
   const load = () => {
     fetch('/api/screening/admin/round3/queue')
@@ -65,10 +69,11 @@ export function Round3QueueClient() {
 
   useEffect(load, []);
 
-  // Contact number and source are usually already known from CSV intake — pre-fill rather than
-  // ask the manager to retype them; Training batch and Skill set are the only genuinely new inputs here.
+  // Contact number is usually already known from CSV intake — pre-fill rather than ask the manager
+  // to retype it. Source defaults to Bench (this whole pipeline is bench/training candidates — it is
+  // NOT the same thing as the candidate's JSpiders/QSpiders institute, which isn't a valid source value).
   const fieldsFor = (c: Candidate) =>
-    feedback[c.id] ?? { ...emptyFields, contactNumber: c.contactNumber ?? '', source: c.institute ?? '' };
+    feedback[c.id] ?? { ...emptyFields, contactNumber: c.contactNumber ?? '', source: 'BENCH' };
   const updateScore = (c: Candidate, key: CategoryKey, value: string) => {
     const f = fieldsFor(c);
     setFeedback((prev) => ({ ...prev, [c.id]: { ...f, scores: { ...f.scores, [key]: value } } }));
@@ -221,27 +226,44 @@ export function Round3QueueClient() {
                     {f.result === 'SELECTED' && (
                       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
                         <p className="text-xs text-zinc-500 mb-3">
-                          Not part of the evaluation — this creates the candidate&apos;s real account. Contact number
-                          and source are pre-filled from Round 1 intake when known; only training batch and skill set
-                          are required here.
+                          Not part of the evaluation — this creates the candidate&apos;s real account.
+                          {c.institute && ` Institute on file: ${c.institute}.`} Contact number is pre-filled from
+                          Round 1 intake when known; training batch and skill set are always required.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <Label>Contact number{c.contactNumber ? ' (on file)' : ''}</Label>
-                          <Input className="mt-1" value={f.contactNumber} onChange={(e) => updateField(c, 'contactNumber', e.target.value)} />
-                        </div>
-                        <div>
-                          <Label>Training batch *</Label>
-                          <Input className="mt-1" value={f.batchLabel} onChange={(e) => updateField(c, 'batchLabel', e.target.value)} />
-                        </div>
-                        <div>
-                          <Label>Source{c.institute ? ' (on file)' : ''}</Label>
-                          <Input className="mt-1" value={f.source} onChange={(e) => updateField(c, 'source', e.target.value)} />
-                        </div>
-                        <div>
-                          <Label>Skill set *</Label>
-                          <Input className="mt-1" value={f.skillSet} onChange={(e) => updateField(c, 'skillSet', e.target.value)} />
-                        </div>
+                          <div>
+                            <Label>Contact number{c.contactNumber ? ' (on file)' : ''}</Label>
+                            <Input className="mt-1" value={f.contactNumber} onChange={(e) => updateField(c, 'contactNumber', e.target.value)} />
+                          </div>
+                          <div>
+                            <Label>Training batch *</Label>
+                            <Input className="mt-1" value={f.batchLabel} onChange={(e) => updateField(c, 'batchLabel', e.target.value)} placeholder="e.g. 2026-Q1-Java" />
+                          </div>
+                          <div>
+                            <Label>Source *</Label>
+                            <select
+                              className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
+                              value={f.source}
+                              onChange={(e) => updateField(c, 'source', e.target.value)}
+                            >
+                              {sourceOptions.map((o) => (
+                                <option key={o.code} value={o.code}>{o.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <Label>Skill set *</Label>
+                            <select
+                              className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
+                              value={f.skillSet}
+                              onChange={(e) => updateField(c, 'skillSet', e.target.value)}
+                            >
+                              <option value="">—</option>
+                              {skillSetOptions.map((o) => (
+                                <option key={o.code} value={o.code}>{o.label}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                       </div>
                     )}
