@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/app/components/AppShell";
-import { RoundQueueClient } from "../RoundQueueClient";
+import { Round3QueueClient } from "./Round3QueueClient";
 
 export default async function Round3QueuePage() {
   const session = await getSession();
@@ -10,7 +10,7 @@ export default async function Round3QueuePage() {
 
   return (
     <AppShell title="Round 3 — Managerial" subtitle="Conducted live by a manager; passing onboards the candidate as Under Training">
-      <RoundQueueClient round={3} />
+      <Round3QueueClient />
     </AppShell>
   );
 }

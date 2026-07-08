@@ -404,6 +404,9 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
                           <Link href={`/admin/screening/round1/${b.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
                             Review
                           </Link>
+                          <Link href={`/admin/screening/summary/${b.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                            Summary
+                          </Link>
                           <button
                             type="button"
                             onClick={() => removeBatch(b.id)}
