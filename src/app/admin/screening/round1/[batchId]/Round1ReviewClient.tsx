@@ -20,6 +20,7 @@ interface Candidate {
 const emptyNewCandidate = { name: '', email: '', contactNumber: '', institute: '', branch: '', yop: '', experience: '' };
 
 interface Answer {
+  id: string;
   questionId: string;
   questionType: string;
   prompt: string;
@@ -36,6 +37,8 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [answersLoading, setAnswersLoading] = useState(false);
+  const [scoreEdits, setScoreEdits] = useState<Record<string, string>>({});
+  const [savingScoreId, setSavingScoreId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -94,6 +97,28 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
       setAnswers(data.answers || []);
     } finally {
       setAnswersLoading(false);
+    }
+  };
+
+  const correctScore = async (answerId: string) => {
+    const value = scoreEdits[answerId];
+    if (value === undefined || value === '') return;
+    setSavingScoreId(answerId);
+    try {
+      const res = await fetch(`/api/screening/admin/answers/${answerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score: Number(value) }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        alert(data.error || 'Failed to correct score');
+        return;
+      }
+      setAnswers((prev) => prev.map((a) => (a.id === answerId ? { ...a, score: data.score } : a)));
+      load(); // refresh the candidate's round1 total shown above
+    } finally {
+      setSavingScoreId(null);
     }
   };
 
@@ -276,9 +301,31 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
                 ) : (
                   answers.map((a) => (
                     <div key={a.questionId} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 text-sm">
-                      <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">
-                        {a.questionType} · {a.score} / {a.marks}
-                      </p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs uppercase tracking-wide text-zinc-500">
+                          {a.questionType} · {a.score} / {a.marks}
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={a.marks}
+                            step="0.5"
+                            placeholder="Correct to…"
+                            defaultValue={a.score}
+                            className="w-20 px-2 py-1 text-xs border rounded-md bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-700 dark:text-zinc-100"
+                            onChange={(e) => setScoreEdits((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                          />
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
+                            onClick={() => correctScore(a.id)}
+                            disabled={savingScoreId === a.id}
+                          >
+                            {savingScoreId === a.id ? 'Saving…' : 'Correct'}
+                          </button>
+                        </div>
+                      </div>
                       <p className="font-medium text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap">{a.prompt}</p>
                       <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-400">Candidate&apos;s answer</p>
                       <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono text-xs">{a.rawAnswer || '(no answer)'}</p>
