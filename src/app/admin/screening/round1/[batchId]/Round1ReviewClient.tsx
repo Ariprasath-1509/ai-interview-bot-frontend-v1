@@ -17,6 +17,7 @@ interface Candidate {
   allowLateSubmission: boolean;
   tabSwitchCount: number;
   proctoringViolation: boolean;
+  violationLocked: boolean;
 }
 
 const emptyNewCandidate = { name: '', email: '', contactNumber: '', institute: '', branch: '', yop: '', experience: '' };
@@ -76,6 +77,20 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
     setBusy(candidateId);
     try {
       await fetch(`/api/screening/admin/candidates/${candidateId}/allow-late-submission`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allow }),
+      });
+      load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleViolationLock = async (candidateId: string, allow: boolean) => {
+    setBusy(candidateId);
+    try {
+      await fetch(`/api/screening/admin/candidates/${candidateId}/allow-continue-after-violation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ allow }),
@@ -266,6 +281,11 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
                   ⚠ Multiple tab switches ({c.tabSwitchCount})
                 </span>
               )}
+              {c.violationLocked && (
+                <span className="mt-1 ml-1 inline-block rounded-full border border-amber-200 bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/30 dark:text-amber-300">
+                  ⏸ Test paused
+                </span>
+              )}
             </div>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-3">
@@ -285,6 +305,11 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
                   Accept after deadline
                 </Button>
               )
+            )}
+            {(c.stage === 'ROUND1_PENDING' || c.stage === 'ROUND1_IN_PROGRESS') && c.violationLocked && (
+              <Button size="sm" onClick={() => toggleViolationLock(c.id, true)} disabled={busy === c.id}>
+                {busy === c.id ? 'Permitting…' : 'Permit candidate to continue'}
+              </Button>
             )}
             {c.stage === 'ROUND1_PENDING' && (
               <Button size="sm" variant="destructive" onClick={() => removeCandidate(c.id)} disabled={removingId === c.id}>

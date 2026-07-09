@@ -109,15 +109,30 @@ export default function ScreeningTestPage() {
   }, [token]);
 
   // Proctoring: once the candidate confirms and starts, require fullscreen and flag tab switches.
-  // One violation (fullscreen exit or tab switch) shows a warning; a second auto-submits and flags the attempt.
+  // One violation (fullscreen exit or tab switch) shows a warning; a second pauses the test — the
+  // candidate can only resume on this same link once a recruiter/admin explicitly permits it.
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [violationWarning, setViolationWarning] = useState('');
+  const [locked, setLocked] = useState(false);
   const tabSwitchCountRef = useRef(0);
   const lastViolationAtRef = useRef(0);
-  const autoSubmittingRef = useRef(false);
-  const handleSubmitRef = useRef<(auto?: boolean) => void>(() => {});
+  const lockTriggeredRef = useRef(false);
 
-  const proctoringActive = confirmed && !!test && !submitted;
+  const proctoringActive = confirmed && !!test && !submitted && !locked;
+
+  const lockTest = useCallback(async () => {
+    try {
+      await fetch(`/api/screening/public/${token}/lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tabSwitchCount: tabSwitchCountRef.current }),
+      });
+    } catch {
+      // Best-effort — the draft stays in localStorage either way, so nothing is lost once unlocked.
+    } finally {
+      setLocked(true);
+    }
+  }, [token]);
 
   const registerViolation = useCallback((source: 'fullscreen' | 'tab') => {
     const now = Date.now();
@@ -130,21 +145,21 @@ export default function ScreeningTestPage() {
     setTabSwitchCount(next);
 
     if (next >= 2) {
-      setViolationWarning('Multiple tab switches detected — submitting your test now.');
-      if (!autoSubmittingRef.current) {
-        autoSubmittingRef.current = true;
-        handleSubmitRef.current(true);
+      setViolationWarning('Multiple violations detected — your test has been paused.');
+      if (!lockTriggeredRef.current) {
+        lockTriggeredRef.current = true;
+        lockTest();
       }
     } else {
       setViolationWarning(
         source === 'fullscreen'
-          ? 'You exited fullscreen. One more tab switch or fullscreen exit will auto-submit your test.'
-          : 'Tab switch detected. One more tab switch or fullscreen exit will auto-submit your test.'
+          ? 'You exited fullscreen. One more tab switch or fullscreen exit will pause your test.'
+          : 'Tab switch detected. One more tab switch or fullscreen exit will pause your test.'
       );
     }
-  }, []);
+  }, [lockTest]);
 
-  useFullscreenEnforcement({
+  const { isFullscreen, requestFullscreen } = useFullscreenEnforcement({
     active: proctoringActive,
     onExit: () => registerViolation('fullscreen'),
   });
@@ -210,6 +225,23 @@ export default function ScreeningTestPage() {
     );
   }
 
+  if (locked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#050505] p-4">
+        <div className="max-w-md w-full bg-white dark:bg-zinc-950 p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            <span className="text-xl font-bold">!</span>
+          </div>
+          <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Test paused</h2>
+          <p className="text-zinc-600 dark:text-zinc-400">
+            Your test was paused after a proctoring violation (leaving fullscreen or switching tabs). Please contact
+            your recruiter or admin — once they permit you to continue, reload this page to pick up where you left off.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!confirmed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#050505] p-4">
@@ -249,13 +281,9 @@ export default function ScreeningTestPage() {
   const logicalQuestions = test.questions.filter((q) => q.type === 'LOGICAL');
   const includedLogicalCount = logicalQuestions.filter((q) => logicalIncluded[q.id]).length;
 
-  // Plain function, not useCallback/useEffect — this is reached after conditional early returns
-  // above, so it can't itself contain hooks (Rules of Hooks). The plain ref assignment right after
-  // it is safe because it's a render-time write, not a hook, and always runs before any violation
-  // (an async event) could read it.
-  const handleSubmit = async (auto = false) => {
+  const handleSubmit = async () => {
     setSubmitError('');
-    if (!auto && includedLogicalCount !== test.logicalChoiceCount) {
+    if (includedLogicalCount !== test.logicalChoiceCount) {
       setSubmitError(`Please choose exactly ${test.logicalChoiceCount} of the ${logicalQuestions.length} logical questions to answer.`);
       return;
     }
@@ -286,7 +314,6 @@ export default function ScreeningTestPage() {
       setSubmitting(false);
     }
   };
-  handleSubmitRef.current = handleSubmit;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] py-12 px-4">
@@ -298,13 +325,24 @@ export default function ScreeningTestPage() {
           </p>
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
             This test runs in fullscreen. Leaving fullscreen or switching tabs is tracked — a second violation
-            auto-submits your test. Copy/paste is disabled.
+            pauses your test until a recruiter or admin permits you to continue. Copy/paste is disabled.
           </p>
         </div>
 
         {violationWarning && (
-          <div className="rounded-2xl border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-300">
-            {violationWarning}
+          <div className="rounded-2xl border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-300 flex items-center justify-between gap-4">
+            <span>{violationWarning}</span>
+            {!isFullscreen && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (await requestFullscreen()) setViolationWarning('');
+                }}
+                className="shrink-0 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 transition-colors"
+              >
+                Return to fullscreen
+              </button>
+            )}
           </div>
         )}
 

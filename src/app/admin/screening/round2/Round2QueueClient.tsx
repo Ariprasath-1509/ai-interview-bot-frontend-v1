@@ -35,6 +35,7 @@ export function Round2QueueClient() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, Fields>>({});
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const load = () => {
     fetch('/api/screening/admin/round2/queue')
@@ -48,6 +49,22 @@ export function Round2QueueClient() {
   const fieldsFor = (id: string) => feedback[id] ?? emptyFields;
   const updateField = (id: string, key: keyof Fields, value: string) => {
     setFeedback((prev) => ({ ...prev, [id]: { ...fieldsFor(id), [key]: value } }));
+  };
+
+  const removeCandidate = async (id: string) => {
+    if (!window.confirm('Remove this candidate from Round 2? This cannot be undone.')) return;
+    setRemovingId(id);
+    try {
+      const res = await fetch(`/api/screening/admin/candidates/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        alert(data.error || 'Failed to remove candidate');
+        return;
+      }
+      load();
+    } finally {
+      setRemovingId(null);
+    }
   };
 
   const start = async (id: string) => {
@@ -122,15 +139,25 @@ export function Round2QueueClient() {
           const f = fieldsFor(c.id);
           return (
             <Card key={c.id}>
-              <CardHeader>
-                <CardTitle className="text-base">{c.name}</CardTitle>
-                <p className="text-sm text-zinc-500">{c.email}</p>
-                <p className="text-xs text-zinc-500">
-                  Round 1: {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
-                  {c.proctoringViolation && (
-                    <span className="ml-2 text-red-600 dark:text-red-400">⚠ Multiple tab switches</span>
-                  )}
-                </p>
+              <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-base">{c.name}</CardTitle>
+                  <p className="text-sm text-zinc-500">{c.email}</p>
+                  <p className="text-xs text-zinc-500">
+                    Round 1: {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
+                    {c.proctoringViolation && (
+                      <span className="ml-2 text-red-600 dark:text-red-400">⚠ Multiple tab switches</span>
+                    )}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeCandidate(c.id)}
+                  disabled={removingId === c.id}
+                  className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                >
+                  {removingId === c.id ? 'Removing…' : 'Delete'}
+                </button>
               </CardHeader>
               <CardContent>
                 {c.stage === 'ROUND1_PASSED' && (
