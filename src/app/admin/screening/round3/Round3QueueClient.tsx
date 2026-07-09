@@ -17,6 +17,14 @@ interface Candidate {
   stage: string;
   contactNumber: string | null;
   institute: string | null;
+  round1Score: number | null;
+  proctoringViolation: boolean;
+  round2Strengths: string | null;
+  round2Weaknesses: string | null;
+  round2Practical: string | null;
+  round2Improvements: string | null;
+  round2Marks: number | null;
+  round2Result: string | null;
 }
 
 type Decision = 'SELECTED' | 'HOLD' | 'REJECTED';
@@ -181,6 +189,25 @@ export function Round3QueueClient() {
                 <p className="text-sm text-zinc-500">{c.email}</p>
               </CardHeader>
               <CardContent>
+                <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 mb-4 text-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+                    Previous rounds — for cross-questioning
+                  </p>
+                  <p className="text-zinc-700 dark:text-zinc-300">
+                    Round 1: {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
+                    {c.proctoringViolation && (
+                      <span className="ml-2 text-red-600 dark:text-red-400">⚠ Multiple tab switches</span>
+                    )}
+                  </p>
+                  <p className="text-zinc-700 dark:text-zinc-300 mt-1">
+                    Round 2: {c.round2Marks != null ? `${c.round2Marks} / 35` : '—'}
+                    {c.round2Result && <span className="ml-2 text-zinc-500">({c.round2Result})</span>}
+                  </p>
+                  {c.round2Strengths && <p className="mt-2"><span className="text-zinc-500">Strengths:</span> {c.round2Strengths}</p>}
+                  {c.round2Weaknesses && <p className="mt-1"><span className="text-zinc-500">Weaknesses:</span> {c.round2Weaknesses}</p>}
+                  {c.round2Practical && <p className="mt-1"><span className="text-zinc-500">Practical:</span> {c.round2Practical}</p>}
+                  {c.round2Improvements && <p className="mt-1"><span className="text-zinc-500">Improvements:</span> {c.round2Improvements}</p>}
+                </div>
                 {c.stage === 'ROUND2_SELECTED' && (
                   <Button size="sm" onClick={() => start(c.id)} disabled={busy === c.id}>
                     Start Round 3

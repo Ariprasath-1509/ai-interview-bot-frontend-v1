@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useFullscreenEnforcement } from '@/hooks/useFullscreenEnforcement';
 
 interface QuestionView {
   id: string;
@@ -107,6 +108,69 @@ export default function ScreeningTestPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  // Proctoring: once the candidate confirms and starts, require fullscreen and flag tab switches.
+  // One violation (fullscreen exit or tab switch) shows a warning; a second auto-submits and flags the attempt.
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [violationWarning, setViolationWarning] = useState('');
+  const tabSwitchCountRef = useRef(0);
+  const lastViolationAtRef = useRef(0);
+  const autoSubmittingRef = useRef(false);
+  const handleSubmitRef = useRef<(auto?: boolean) => void>(() => {});
+
+  const proctoringActive = confirmed && !!test && !submitted;
+
+  const registerViolation = useCallback((source: 'fullscreen' | 'tab') => {
+    const now = Date.now();
+    // A single real tab-switch often fires both a visibilitychange and a fullscreenchange exit
+    // near-simultaneously — debounce so it only counts as one violation.
+    if (now - lastViolationAtRef.current < 1000) return;
+    lastViolationAtRef.current = now;
+    const next = tabSwitchCountRef.current + 1;
+    tabSwitchCountRef.current = next;
+    setTabSwitchCount(next);
+
+    if (next >= 2) {
+      setViolationWarning('Multiple tab switches detected — submitting your test now.');
+      if (!autoSubmittingRef.current) {
+        autoSubmittingRef.current = true;
+        handleSubmitRef.current(true);
+      }
+    } else {
+      setViolationWarning(
+        source === 'fullscreen'
+          ? 'You exited fullscreen. One more tab switch or fullscreen exit will auto-submit your test.'
+          : 'Tab switch detected. One more tab switch or fullscreen exit will auto-submit your test.'
+      );
+    }
+  }, []);
+
+  useFullscreenEnforcement({
+    active: proctoringActive,
+    onExit: () => registerViolation('fullscreen'),
+  });
+
+  useEffect(() => {
+    if (!proctoringActive) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') registerViolation('tab');
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [proctoringActive, registerViolation]);
+
+  useEffect(() => {
+    if (!proctoringActive) return;
+    const blockClipboard = (e: ClipboardEvent) => e.preventDefault();
+    document.addEventListener('copy', blockClipboard);
+    document.addEventListener('cut', blockClipboard);
+    document.addEventListener('paste', blockClipboard);
+    return () => {
+      document.removeEventListener('copy', blockClipboard);
+      document.removeEventListener('cut', blockClipboard);
+      document.removeEventListener('paste', blockClipboard);
+    };
+  }, [proctoringActive]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#050505]">
@@ -185,9 +249,13 @@ export default function ScreeningTestPage() {
   const logicalQuestions = test.questions.filter((q) => q.type === 'LOGICAL');
   const includedLogicalCount = logicalQuestions.filter((q) => logicalIncluded[q.id]).length;
 
-  const handleSubmit = async () => {
+  // Plain function, not useCallback/useEffect — this is reached after conditional early returns
+  // above, so it can't itself contain hooks (Rules of Hooks). The plain ref assignment right after
+  // it is safe because it's a render-time write, not a hook, and always runs before any violation
+  // (an async event) could read it.
+  const handleSubmit = async (auto = false) => {
     setSubmitError('');
-    if (includedLogicalCount !== test.logicalChoiceCount) {
+    if (!auto && includedLogicalCount !== test.logicalChoiceCount) {
       setSubmitError(`Please choose exactly ${test.logicalChoiceCount} of the ${logicalQuestions.length} logical questions to answer.`);
       return;
     }
@@ -198,6 +266,7 @@ export default function ScreeningTestPage() {
         answers: test.questions
           .filter((q) => q.type !== 'LOGICAL' || logicalIncluded[q.id])
           .map((q) => ({ questionId: q.id, rawAnswer: answers[q.id] || '' })),
+        tabSwitchCount: tabSwitchCountRef.current,
       };
       const res = await fetch(`/api/screening/public/${token}/submit`, {
         method: 'POST',
@@ -217,6 +286,7 @@ export default function ScreeningTestPage() {
       setSubmitting(false);
     }
   };
+  handleSubmitRef.current = handleSubmit;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] py-12 px-4">
@@ -226,7 +296,17 @@ export default function ScreeningTestPage() {
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Answer every question except the 2 logical questions you choose to skip. Submit once — this link cannot be reopened afterward.
           </p>
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+            This test runs in fullscreen. Leaving fullscreen or switching tabs is tracked — a second violation
+            auto-submits your test. Copy/paste is disabled.
+          </p>
         </div>
+
+        {violationWarning && (
+          <div className="rounded-2xl border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-300">
+            {violationWarning}
+          </div>
+        )}
 
         {test.questions.map((q, idx) => {
           if (q.type === 'LOGICAL') {
@@ -300,7 +380,7 @@ export default function ScreeningTestPage() {
           <button
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
             disabled={submitting}
-            onClick={handleSubmit}
+            onClick={() => handleSubmit()}
           >
             {submitting ? 'Submitting…' : 'Submit test'}
           </button>

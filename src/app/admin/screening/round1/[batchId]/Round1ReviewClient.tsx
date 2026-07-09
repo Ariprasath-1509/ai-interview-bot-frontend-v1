@@ -15,6 +15,8 @@ interface Candidate {
   round1Score: number | null;
   round1Link: string;
   allowLateSubmission: boolean;
+  tabSwitchCount: number;
+  proctoringViolation: boolean;
 }
 
 const emptyNewCandidate = { name: '', email: '', contactNumber: '', institute: '', branch: '', yop: '', experience: '' };
@@ -259,6 +261,11 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
                 {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
               </p>
               <p className="text-xs text-zinc-500">{c.stage.replaceAll('_', ' ')}</p>
+              {c.proctoringViolation && (
+                <span className="mt-1 inline-block rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:border-red-800/50 dark:bg-red-900/30 dark:text-red-300">
+                  ⚠ Multiple tab switches ({c.tabSwitchCount})
+                </span>
+              )}
             </div>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-3">

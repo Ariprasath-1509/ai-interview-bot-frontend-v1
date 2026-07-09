@@ -13,6 +13,8 @@ interface Candidate {
   name: string;
   email: string;
   stage: string;
+  round1Score: number | null;
+  proctoringViolation: boolean;
 }
 
 type Decision = 'SELECTED' | 'HOLD' | 'REJECTED';
@@ -123,6 +125,12 @@ export function Round2QueueClient() {
               <CardHeader>
                 <CardTitle className="text-base">{c.name}</CardTitle>
                 <p className="text-sm text-zinc-500">{c.email}</p>
+                <p className="text-xs text-zinc-500">
+                  Round 1: {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
+                  {c.proctoringViolation && (
+                    <span className="ml-2 text-red-600 dark:text-red-400">⚠ Multiple tab switches</span>
+                  )}
+                </p>
               </CardHeader>
               <CardContent>
                 {c.stage === 'ROUND1_PASSED' && (
