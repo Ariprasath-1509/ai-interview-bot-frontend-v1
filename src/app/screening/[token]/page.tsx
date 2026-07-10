@@ -280,6 +280,8 @@ export default function ScreeningTestPage() {
 
   const logicalQuestions = test.questions.filter((q) => q.type === 'LOGICAL');
   const includedLogicalCount = logicalQuestions.filter((q) => logicalIncluded[q.id]).length;
+  // Blocks all answer interaction until the candidate returns to fullscreen — cleared the instant they do.
+  const outOfFullscreen = !!violationWarning && !isFullscreen;
 
   const handleSubmit = async () => {
     setSubmitError('');
@@ -329,20 +331,24 @@ export default function ScreeningTestPage() {
           </p>
         </div>
 
-        {violationWarning && (
-          <div className="rounded-2xl border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-300 flex items-center justify-between gap-4">
-            <span>{violationWarning}</span>
-            {!isFullscreen && (
+        {outOfFullscreen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="max-w-md w-full bg-white dark:bg-zinc-950 rounded-2xl border border-red-300 dark:border-red-800 p-6 text-center shadow-2xl">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                <span className="text-xl font-bold">!</span>
+              </div>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Proctoring violation</h3>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">{violationWarning}</p>
               <button
                 type="button"
                 onClick={async () => {
                   if (await requestFullscreen()) setViolationWarning('');
                 }}
-                className="shrink-0 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 transition-colors"
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-lg transition-colors"
               >
                 Return to fullscreen
               </button>
-            )}
+            </div>
           </div>
         )}
 
@@ -360,7 +366,7 @@ export default function ScreeningTestPage() {
                     <input
                       type="checkbox"
                       checked={included}
-                      disabled={disabled}
+                      disabled={disabled || outOfFullscreen}
                       onChange={(e) =>
                         setLogicalIncluded((prev) => ({ ...prev, [q.id]: e.target.checked }))
                       }
@@ -372,7 +378,7 @@ export default function ScreeningTestPage() {
                 <textarea
                   className={textareaCls}
                   placeholder="Write pseudocode or full code — plain text, no editor required."
-                  disabled={!included}
+                  disabled={!included || outOfFullscreen}
                   value={answers[q.id] || ''}
                   onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
                 />
@@ -395,6 +401,7 @@ export default function ScreeningTestPage() {
                         type="radio"
                         name={q.id}
                         checked={answers[q.id] === opt}
+                        disabled={outOfFullscreen}
                         onChange={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
                       />
                       {opt}
@@ -405,6 +412,7 @@ export default function ScreeningTestPage() {
                 <textarea
                   className={textareaCls}
                   placeholder="Type your answer here..."
+                  disabled={outOfFullscreen}
                   value={answers[q.id] || ''}
                   onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
                 />
@@ -417,10 +425,10 @@ export default function ScreeningTestPage() {
           {submitError && <p className="text-red-600 dark:text-red-400 text-sm mb-4">{submitError}</p>}
           <button
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
-            disabled={submitting}
+            disabled={submitting || outOfFullscreen}
             onClick={() => handleSubmit()}
           >
-            {submitting ? 'Submitting…' : 'Submit test'}
+            {submitting ? 'Submitting…' : outOfFullscreen ? 'Return to fullscreen to continue' : 'Submit test'}
           </button>
         </div>
       </div>
