@@ -40,6 +40,7 @@ type Interview = {
   endedAt?: string | null;
   scheduledAt?: string | null;
   expiresAt?: string | null;
+  assessmentType?: string | null;
 };
 
 function fmtDatetime(iso: string | null | undefined): string {
@@ -245,6 +246,11 @@ export default async function InterviewReviewPage({
               interview.status === "REVIEW_PENDING" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800" :
               "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700"
             }`}>{interview.status.replace(/_/g, " ")}</span>
+            {interview.assessmentType === "ONBOARDING" && (
+              <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-700 border border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800">
+                Onboarding Assessment
+              </span>
+            )}
             {interview.proposedVerdict && (
               <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800">
                 Proposed: {interview.proposedVerdict.replace(/_/g, " ")}
@@ -687,7 +693,7 @@ export default async function InterviewReviewPage({
         </div>
       )}
 
-      {isStaffReadRole(session?.role) && (
+      {isStaffReadRole(session?.role) && interview.assessmentType !== "ONBOARDING" && (
         <ClientBriefPanel interviewId={interview.id} />
       )}
 

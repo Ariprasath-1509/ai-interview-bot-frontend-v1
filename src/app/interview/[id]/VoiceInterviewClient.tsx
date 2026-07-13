@@ -2492,7 +2492,10 @@ export function VoiceInterviewClient({
       }
       const q =
         nextQ?.question ??
-        `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
+        // Role-neutral by design: this is the local last-resort fallback used only when the
+        // server call for the opening question fails outright — it must read sensibly whether
+        // jdTitle holds a job role (client interview) or a concept name (onboarding assessment).
+        `We’ll get started right away on ${jdTitle}. First: in your own words, walk me through your understanding of it and where you’ve applied or encountered it.`;
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
       await addBot(q, {
@@ -2612,7 +2615,10 @@ export function VoiceInterviewClient({
       }
       const q =
         nextQ?.question ??
-        `We’ll go straight to technical for ${jdTitle}. First: name a core subsystem or stack you’d own in this kind of role and walk me through how you’ve built or run it in production—constraints, what broke, and how you verified it.`;
+        // Role-neutral by design: this is the local last-resort fallback used only when the
+        // server call for the opening question fails outright — it must read sensibly whether
+        // jdTitle holds a job role (client interview) or a concept name (onboarding assessment).
+        `We’ll get started right away on ${jdTitle}. First: in your own words, walk me through your understanding of it and where you’ve applied or encountered it.`;
       botPromptIdxRef.current = 1;
       setBotPromptIdx(1);
       await addBot(q, {

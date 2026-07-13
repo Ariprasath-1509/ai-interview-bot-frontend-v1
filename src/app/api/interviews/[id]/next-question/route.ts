@@ -45,6 +45,7 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
     planId: string | null;
     interviewMode?: string;
     questionDifficulty?: string;
+    assessmentType?: string;
     includeProgrammingQuestions?: boolean;
     questionBankQuestionsJson?: string;
     customQuestionsJson?: string;
@@ -117,6 +118,7 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
       candidateProfileJson,
       interviewMode: interview.interviewMode ?? "L3",
       questionDifficulty: interview.questionDifficulty ?? undefined,
+      assessmentType: interview.assessmentType ?? undefined,
       interviewId: id,
       includeProgrammingQuestions: interview.includeProgrammingQuestions !== false,
       questionBankQuestionsJson: interview.questionBankQuestionsJson,

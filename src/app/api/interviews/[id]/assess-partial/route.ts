@@ -18,6 +18,9 @@ type AssessmentPayload = {
   technicalKnowledge?: { score: number; rationale: string };
   communication?: { score: number; rationale: string };
   summary?: string;
+  // Onboarding single-pass shape (see ai-service AssessmentService.onboardingAssessment) —
+  // one holistic score, not a category breakdown.
+  score?: number;
   [key: string]: unknown;
 };
 
@@ -62,6 +65,7 @@ export async function POST(
     jdId: string;
     planId: string | null;
     interviewMode?: string;
+    assessmentType?: string;
     proposedVerdict?: string;
     status?: string;
   };
@@ -103,6 +107,7 @@ export async function POST(
       rubricJson,
       candidateProfileJson,
       interviewMode: interview.interviewMode ?? "L3",
+      assessmentType: interview.assessmentType,
       ...(body.data.codeSubmissionJson?.trim()
         ? { codeSubmissionJson: body.data.codeSubmissionJson }
         : {}),
@@ -117,6 +122,10 @@ export async function POST(
   const assessment = await assessRes.json() as AssessmentPayload;
   const assessmentScores = assessment.categoryScores?.length
     ? assessment.categoryScores
+    : typeof assessment.score === "number"
+    ? [
+        { dimension: "ConceptUnderstanding", value: assessment.score, rationale: assessment.summary },
+      ]
     : [
         {
           dimension: "TechnicalKnowledge",

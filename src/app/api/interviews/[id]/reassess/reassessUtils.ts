@@ -6,6 +6,7 @@ export type ReassessInterview = {
   planId: string | null;
   transcriptJson: string | null;
   interviewMode?: string;
+  assessmentType?: string;
 };
 
 export async function loadReassessContext(interviewId: string, token: string) {
@@ -78,6 +79,7 @@ export async function loadReassessContext(interviewId: string, token: string) {
       rubricJson,
       candidateProfileJson,
       interviewMode: interview.interviewMode ?? 'L3',
+      assessmentType: interview.assessmentType,
       forceRefresh: true,
       ...(codeSubmissionJson ? { codeSubmissionJson } : {}),
     },
@@ -99,11 +101,23 @@ export async function applyAssessmentResult(
     }[];
     technicalKnowledge?: { score?: number; rationale?: string };
     communication?: { score?: number; rationale?: string };
+    // Onboarding single-pass shape (see ai-service AssessmentService.onboardingAssessment) —
+    // one holistic score, not a category breakdown.
+    score?: number;
+    summary?: string;
     [key: string]: unknown;
   }
 ) {
   const assessmentScores = assessment.categoryScores?.length
     ? assessment.categoryScores
+    : typeof assessment.score === 'number'
+    ? [
+        {
+          dimension: 'ConceptUnderstanding',
+          value: assessment.score,
+          rationale: assessment.summary,
+        },
+      ]
     : [
         {
           dimension: 'TechnicalKnowledge',

@@ -218,7 +218,7 @@ async function completeInterview(formData: FormData) {
   // Fetch interview + JD + plan for assessment context
   const interviewRes = await apiServer(`/interviews/${parsed.interviewId}`, session.token);
   if (!interviewRes.ok) redirect("/admin/interviews/create?error=Interview%20not%20found");
-  const interview = (await interviewRes.json()) as { jdId: string; planId: string | null; interviewMode?: string };
+  const interview = (await interviewRes.json()) as { jdId: string; planId: string | null; interviewMode?: string; assessmentType?: string };
 
   let jdTitle = "Target role";
   let jdText = "";
@@ -254,6 +254,9 @@ async function completeInterview(formData: FormData) {
     gaps?: string[];
     source?: string;
     categoryScores?: { dimension: string; value: number; rationale?: string; gap?: string; evidence?: string }[];
+    // Onboarding single-pass shape (see ai-service AssessmentService.onboardingAssessment) —
+    // one holistic score, not a category breakdown.
+    score?: number;
   };
 
   const assessBody = {
@@ -265,6 +268,7 @@ async function completeInterview(formData: FormData) {
     rubricJson,
     candidateProfileJson,
     interviewMode: interview.interviewMode ?? "L3",
+    assessmentType: interview.assessmentType,
     ...(codeSubmissionPayload ? { codeSubmissionJson: JSON.stringify(codeSubmissionPayload) } : {}),
   };
 
@@ -382,7 +386,9 @@ async function completeInterview(formData: FormData) {
           rationale: s.rationale,
           evidence: s.evidence,
           gap: s.gap,
-        })) : [
+        })) : typeof assessment.score === "number" ? [
+          { dimension: "ConceptUnderstanding", value: assessment.score, rationale: assessment.summary },
+        ] : [
           { dimension: "TechnicalKnowledge", value: assessment.technicalKnowledge?.score ?? 1, rationale: assessment.technicalKnowledge?.rationale ?? "No rationale provided" },
           { dimension: "Communication", value: assessment.communication?.score ?? 1, rationale: assessment.communication?.rationale ?? "No rationale provided" },
         ],

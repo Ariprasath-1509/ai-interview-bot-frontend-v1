@@ -23,6 +23,7 @@ interface InterviewFormData {
   resumeSummary: string;
   interviewMode: string;
   questionDifficulty: string; // '' = auto (derived from mode) | EASY | MEDIUM | HARD
+  assessmentType: 'CLIENT_INTERVIEW' | 'ONBOARDING';
   customDurationMinutes: number | null;
   includeProgrammingQuestions: boolean;
   candidateId?: string;
@@ -122,6 +123,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     resumeSummary: '',
     interviewMode: 'SCREENING',
     questionDifficulty: '',
+    assessmentType: 'CLIENT_INTERVIEW',
     customDurationMinutes: null,
     includeProgrammingQuestions: true,
     candidateId,
@@ -664,6 +666,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     toast('Auto-fill reverted', 'success');
   };
 
+  const isOnboarding = formData.assessmentType === 'ONBOARDING';
+
   return (
     <div className="mx-auto w-full max-w-4xl">
       {(formData.candidateId || formData.clientId) && !autoFillApplied && (
@@ -689,6 +693,58 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
       />
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Interview Type */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Interview Type
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label
+                className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors ${
+                  formData.assessmentType === 'CLIENT_INTERVIEW'
+                    ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20'
+                    : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+                  <input
+                    type="radio"
+                    name="assessmentType"
+                    checked={formData.assessmentType === 'CLIENT_INTERVIEW'}
+                    onChange={() => handleInputChange('assessmentType', 'CLIENT_INTERVIEW')}
+                    className="h-4 w-4"
+                  />
+                  Client Interview
+                </span>
+                <span className="text-xs text-zinc-500">JD-based, scored against a client's role with the full assessment report.</span>
+              </label>
+              <label
+                className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors ${
+                  formData.assessmentType === 'ONBOARDING'
+                    ? 'border-teal-400 bg-teal-50 dark:border-teal-600 dark:bg-teal-950/20'
+                    : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+                  <input
+                    type="radio"
+                    name="assessmentType"
+                    checked={formData.assessmentType === 'ONBOARDING'}
+                    onChange={() => handleInputChange('assessmentType', 'ONBOARDING')}
+                    className="h-4 w-4"
+                  />
+                  Onboarding Assessment
+                </span>
+                <span className="text-xs text-zinc-500">Checks basic understanding of one concept you specify — no client, single simple score.</span>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Candidate Search */}
         <Card>
           <CardHeader>
@@ -785,7 +841,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         </Card>
 
         {/* Client Selection - Show all clients when no candidate selected */}
-        {!selectedCandidate && (
+        {!isOnboarding && !selectedCandidate && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -839,7 +895,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         )}
 
         {/* Client Selection - Show matching clients for selected candidate */}
-        {selectedCandidate && (
+        {!isOnboarding && selectedCandidate && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1001,19 +1057,19 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
           </CardContent>
         </Card>
 
-        {/* Job Description */}
+        {/* Job Description / Concept */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
-              Job Description
+              {isOnboarding ? 'Concept / Topic' : 'Job Description'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="jdTitle">Job Title *</Label>
-                <FieldAutoFillIndicator 
+                <Label htmlFor="jdTitle">{isOnboarding ? 'Concept / Topic *' : 'Job Title *'}</Label>
+                <FieldAutoFillIndicator
                   isAutoFilled={autoFilledFields.includes('jdTitle') && !manuallyEdited.has('jdTitle')}
                   confidence={autoFillConfidence}
                 />
@@ -1022,39 +1078,43 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 id="jdTitle"
                 value={formData.jdTitle}
                 onChange={(e) => handleInputChange('jdTitle', e.target.value)}
-                placeholder="Senior Backend Engineer"
+                placeholder={isOnboarding ? 'Java Collections' : 'Senior Backend Engineer'}
                 required
                 className={autoFilledFields.includes('jdTitle') && !manuallyEdited.has('jdTitle') ? 'border-blue-300 bg-blue-50/50' : ''}
               />
             </div>
 
             <div>
-              <Label htmlFor="jdText">Job Description</Label>
+              <Label htmlFor="jdText">{isOnboarding ? 'Concept description' : 'Job Description'}</Label>
               <Textarea
                 id="jdText"
                 value={formData.jdText}
                 onChange={(e) => handleInputChange('jdText', e.target.value)}
-                placeholder="Detailed job requirements, responsibilities, and qualifications..."
+                placeholder={isOnboarding
+                  ? 'What the candidate should understand — key points, scope, and anything to explicitly cover or avoid...'
+                  : 'Detailed job requirements, responsibilities, and qualifications...'}
                 rows={6}
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="focusAreas">Focus Areas</Label>
-                <FieldAutoFillIndicator 
-                  isAutoFilled={autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas')}
-                  confidence={autoFillConfidence}
+            {!isOnboarding && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="focusAreas">Focus Areas</Label>
+                  <FieldAutoFillIndicator
+                    isAutoFilled={autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas')}
+                    confidence={autoFillConfidence}
+                  />
+                </div>
+                <Input
+                  id="focusAreas"
+                  value={formData.focusAreas}
+                  onChange={(e) => handleInputChange('focusAreas', e.target.value)}
+                  placeholder="Java, Spring Boot, Microservices, System Design"
+                  className={autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas') ? 'border-blue-300 bg-blue-50/50' : ''}
                 />
               </div>
-              <Input
-                id="focusAreas"
-                value={formData.focusAreas}
-                onChange={(e) => handleInputChange('focusAreas', e.target.value)}
-                placeholder="Java, Spring Boot, Microservices, System Design"
-                className={autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas') ? 'border-blue-300 bg-blue-50/50' : ''}
-              />
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1175,7 +1235,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
           </CardContent>
         </Card>
 
-        {/* Question Bank Selection */}
+        {/* Question Bank Selection — not applicable to onboarding (bank entries are JD-role scoped) */}
+        {!isOnboarding && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1302,6 +1363,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Manual Custom Questions */}
         <Card>

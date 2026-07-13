@@ -31,6 +31,7 @@ type SharedConfig = {
   jdText: string;
   interviewMode: "SCREENING" | "L1" | "L2" | "L3" | "L4";
   questionDifficulty: "" | "EASY" | "MEDIUM" | "HARD"; // "" = auto from mode
+  assessmentType: "CLIENT_INTERVIEW" | "ONBOARDING";
   customDurationMinutes: string;
   includeProgrammingQuestions: boolean;
   scheduledAt: string;
@@ -64,6 +65,7 @@ export function BulkCreateClient() {
     jdText: "",
     interviewMode: "L1",
     questionDifficulty: "",
+    assessmentType: "CLIENT_INTERVIEW",
     customDurationMinutes: "",
     includeProgrammingQuestions: true,
     scheduledAt: "",
@@ -202,6 +204,7 @@ export function BulkCreateClient() {
         jdText: config.jdText || null,
         interviewMode: config.interviewMode,
         questionDifficulty: config.questionDifficulty || null,
+        assessmentType: config.assessmentType,
         customDurationMinutes: config.customDurationMinutes ? Number(config.customDurationMinutes) : null,
         includeProgrammingQuestions: config.includeProgrammingQuestions,
         scheduledAt: config.scheduledAt ? new Date(config.scheduledAt).toISOString() : null,
@@ -341,24 +344,53 @@ export function BulkCreateClient() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="label">Client (auto-fills JD)</label>
-              <select className="input w-full" value={globalClientId} onChange={(e) => selectClientAndFillJd(e.target.value)}>
-                <option value="">— No client / manual JD —</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.clientName}{c.jdRole ? ` — ${c.jdRole}` : ""}</option>)}
-              </select>
-              <p className="mt-1 text-xs text-zinc-500">
-                {globalClientId
-                  ? "JD title and text were filled from this client's position — edit them below if needed. The client is also pre-selected in the Assign Clients step."
-                  : "Selecting a client fills the JD from its open position and assigns it to all candidates. Leave empty to enter the JD manually (or assign different clients per candidate later)."}
-              </p>
+              <label className="label">Interview Type</label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors ${
+                  config.assessmentType === "CLIENT_INTERVIEW" ? "border-violet-400 bg-violet-50 dark:border-violet-600 dark:bg-violet-950/20" : "border-zinc-200 hover:border-zinc-300"
+                }`}>
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <input type="radio" name="bulkAssessmentType" checked={config.assessmentType === "CLIENT_INTERVIEW"}
+                      onChange={() => setConfig((p) => ({ ...p, assessmentType: "CLIENT_INTERVIEW" }))} className="h-4 w-4" />
+                    Client Interview
+                  </span>
+                  <span className="text-xs text-zinc-500">JD-based, scored against a client's role with the full assessment report.</span>
+                </label>
+                <label className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors ${
+                  config.assessmentType === "ONBOARDING" ? "border-teal-400 bg-teal-50 dark:border-teal-600 dark:bg-teal-950/20" : "border-zinc-200 hover:border-zinc-300"
+                }`}>
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <input type="radio" name="bulkAssessmentType" checked={config.assessmentType === "ONBOARDING"}
+                      onChange={() => setConfig((p) => ({ ...p, assessmentType: "ONBOARDING" }))} className="h-4 w-4" />
+                    Onboarding Assessment
+                  </span>
+                  <span className="text-xs text-zinc-500">Checks basic understanding of one concept — no client, single simple score.</span>
+                </label>
+              </div>
+            </div>
+            {config.assessmentType === "CLIENT_INTERVIEW" && (
+              <div className="sm:col-span-2">
+                <label className="label">Client (auto-fills JD)</label>
+                <select className="input w-full" value={globalClientId} onChange={(e) => selectClientAndFillJd(e.target.value)}>
+                  <option value="">— No client / manual JD —</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.clientName}{c.jdRole ? ` — ${c.jdRole}` : ""}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {globalClientId
+                    ? "JD title and text were filled from this client's position — edit them below if needed. The client is also pre-selected in the Assign Clients step."
+                    : "Selecting a client fills the JD from its open position and assigns it to all candidates. Leave empty to enter the JD manually (or assign different clients per candidate later)."}
+                </p>
+              </div>
+            )}
+            <div className="sm:col-span-2">
+              <label className="label">{config.assessmentType === "ONBOARDING" ? "Concept / Topic *" : "JD Title *"}</label>
+              <input className="input w-full" value={config.jdTitle} onChange={(e) => setConfig((p) => ({ ...p, jdTitle: e.target.value }))}
+                placeholder={config.assessmentType === "ONBOARDING" ? "e.g. Java Collections" : "e.g. Senior DevOps Engineer"} />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">JD Title *</label>
-              <input className="input w-full" value={config.jdTitle} onChange={(e) => setConfig((p) => ({ ...p, jdTitle: e.target.value }))} placeholder="e.g. Senior DevOps Engineer" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">JD Text</label>
-              <textarea className="input w-full" rows={5} value={config.jdText} onChange={(e) => setConfig((p) => ({ ...p, jdText: e.target.value }))} placeholder="Paste job description here…" />
+              <label className="label">{config.assessmentType === "ONBOARDING" ? "Concept description" : "JD Text"}</label>
+              <textarea className="input w-full" rows={5} value={config.jdText} onChange={(e) => setConfig((p) => ({ ...p, jdText: e.target.value }))}
+                placeholder={config.assessmentType === "ONBOARDING" ? "What candidates should understand — key points and scope…" : "Paste job description here…"} />
             </div>
             <div>
               <label className="label">Interview Mode *</label>
@@ -391,10 +423,12 @@ export function BulkCreateClient() {
               <label className="label">Round Name</label>
               <input className="input w-full" value={config.roundName} onChange={(e) => setConfig((p) => ({ ...p, roundName: e.target.value }))} placeholder="e.g. Hands-On, Technical Screen" />
             </div>
-            <div>
-              <label className="label">Focus Areas</label>
-              <input className="input w-full" value={config.focusAreas} onChange={(e) => setConfig((p) => ({ ...p, focusAreas: e.target.value }))} placeholder="e.g. Kubernetes, Terraform" />
-            </div>
+            {config.assessmentType === "CLIENT_INTERVIEW" && (
+              <div>
+                <label className="label">Focus Areas</label>
+                <input className="input w-full" value={config.focusAreas} onChange={(e) => setConfig((p) => ({ ...p, focusAreas: e.target.value }))} placeholder="e.g. Kubernetes, Terraform" />
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className="flex cursor-pointer items-center gap-3">
                 <input type="checkbox" className="h-4 w-4 rounded accent-violet-600" checked={config.includeProgrammingQuestions} onChange={(e) => setConfig((p) => ({ ...p, includeProgrammingQuestions: e.target.checked }))} />
@@ -412,6 +446,12 @@ export function BulkCreateClient() {
             <Building2 className="h-5 w-5 text-violet-600" />
             <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Client Assignment</h2>
           </div>
+          {config.assessmentType === "ONBOARDING" ? (
+            <p className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800 dark:border-teal-800 dark:bg-teal-950/20 dark:text-teal-200">
+              Onboarding assessments aren't tied to a client — nothing to assign here. Continue to Review &amp; Submit.
+            </p>
+          ) : (
+          <>
           <div className="mb-4">
             <label className="flex cursor-pointer items-center gap-3">
               <input type="checkbox" className="h-4 w-4 rounded accent-violet-600" checked={sameClient} onChange={(e) => setSameClient(e.target.checked)} />
@@ -458,6 +498,8 @@ export function BulkCreateClient() {
               </table>
             </div>
           )}
+          </>
+          )}
         </div>
       )}
 
@@ -473,8 +515,9 @@ export function BulkCreateClient() {
           <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Interview Config</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-              <span className="text-zinc-500">JD Title</span><span className="col-span-1 font-medium text-zinc-900 dark:text-zinc-50 sm:col-span-2">{config.jdTitle}</span>
-              {sameClient && globalClientId && <><span className="text-zinc-500">Client</span><span className="col-span-1 sm:col-span-2">{clients.find((c) => c.id === globalClientId)?.clientName ?? "—"}</span></>}
+              <span className="text-zinc-500">Type</span><span className="col-span-1 sm:col-span-2">{config.assessmentType === "ONBOARDING" ? "Onboarding Assessment" : "Client Interview"}</span>
+              <span className="text-zinc-500">{config.assessmentType === "ONBOARDING" ? "Concept" : "JD Title"}</span><span className="col-span-1 font-medium text-zinc-900 dark:text-zinc-50 sm:col-span-2">{config.jdTitle}</span>
+              {config.assessmentType === "CLIENT_INTERVIEW" && sameClient && globalClientId && <><span className="text-zinc-500">Client</span><span className="col-span-1 sm:col-span-2">{clients.find((c) => c.id === globalClientId)?.clientName ?? "—"}</span></>}
               <span className="text-zinc-500">Mode</span><span className="col-span-1 sm:col-span-2">{config.interviewMode}{config.customDurationMinutes ? ` · ${config.customDurationMinutes} min` : ""}</span>
               <span className="text-zinc-500">Coding</span><span className="col-span-1 sm:col-span-2">{config.includeProgrammingQuestions ? "Yes" : "No"}</span>
               {config.scheduledAt && <><span className="text-zinc-500">Scheduled</span><span className="col-span-1 sm:col-span-2">{new Date(config.scheduledAt).toLocaleString()}</span></>}
