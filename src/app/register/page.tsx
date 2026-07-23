@@ -6,8 +6,6 @@ import { useEffect, useState } from "react";
 const inputCls = "input-base";
 const selectCls = "input-base appearance-none bg-white dark:bg-zinc-950";
 
-const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
-
 type Option = { code: string; label: string };
 
 const FALLBACK_SKILL_SETS: Option[] = [
@@ -31,7 +29,7 @@ function useLookupOptions(category: string, fallback: Option[]): Option[] {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${GATEWAY}/auth/master-data/${category}`)
+    fetch(`/api/public/master-data/${category}`)
       .then((r) => r.json())
       .then((data: { code: string; label: string }[]) => {
         if (!cancelled && Array.isArray(data) && data.length > 0) {
@@ -96,7 +94,7 @@ export default function RegisterPage() {
       branch: form.branch,
     };
 
-    const res = await fetch(`${GATEWAY}/auth/register`, {
+    const res = await fetch(`/api/public/register`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
