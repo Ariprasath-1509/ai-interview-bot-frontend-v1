@@ -24,6 +24,7 @@ export type QuestionAsked = {
   number: number;
   difficulty: string;
   text: string;
+  answer?: string;
   type: string;
   skillMappings: SkillMapping[];
 };
@@ -550,6 +551,14 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
                   </span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{q.text}</p>
+                {q.answer?.trim() ? (
+                  <div className="mt-2">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Candidate&apos;s answer</p>
+                    <p className="text-sm whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">{q.answer}</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs italic text-zinc-400">No answer recorded.</p>
+                )}
                 {q.skillMappings?.length ? (
                   <p className="mt-2 text-xs text-zinc-500">
                     {q.skillMappings.map((m) => `${m.skill}: ${m.subSkill}`).join('   |   ')}
