@@ -298,6 +298,16 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
     setDirty(true);
   };
 
+  const removeQuestion = (number: number) => {
+    setBrief((prev) => ({
+      ...prev,
+      questionsAsked: prev.questionsAsked
+        .filter((q) => q.number !== number)
+        .map((q, i) => ({ ...q, number: i + 1 })),
+    }));
+    setDirty(true);
+  };
+
   const updateAssessment = (index: number, patch: Partial<SkillAssessment>) => {
     setBrief((prev) => {
       const next = [...prev.skillAssessments];
@@ -546,9 +556,14 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <strong className="text-sm">Question {q.number}</strong>
-                  <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                    {q.difficulty || 'Medium'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                      {q.difficulty || 'Medium'}
+                    </span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => removeQuestion(q.number)}>
+                      Remove
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{q.text}</p>
                 {q.answer?.trim() ? (
