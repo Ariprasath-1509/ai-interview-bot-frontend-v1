@@ -1,27 +1,62 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const inputCls = "input-base";
 const selectCls = "input-base appearance-none bg-white dark:bg-zinc-950";
 
 const GATEWAY = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
 
+type Option = { code: string; label: string };
+
+const FALLBACK_SKILL_SETS: Option[] = [
+  { code: "JAVA_SB", label: "Java + Spring Boot" },
+  { code: "JFSR", label: "JFSR" },
+  { code: "REACT_JS", label: "React JS" },
+  { code: "ANGULAR", label: "Angular" },
+  { code: "PYTHON", label: "Python" },
+  { code: "QA_ENGINEER", label: "QA Engineer" },
+  { code: "PLAYWRIGHT_AUTOMATION", label: "Playwright Automation" },
+];
+
+const FALLBACK_BRANCHES: Option[] = [
+  { code: "DEVELOPMENT", label: "Development" },
+  { code: "TESTING", label: "Testing" },
+];
+
+/** Public, unauthenticated lookup — candidates fill this form before they have a session. */
+function useLookupOptions(category: string, fallback: Option[]): Option[] {
+  const [options, setOptions] = useState<Option[]>(fallback);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${GATEWAY}/auth/master-data/${category}`)
+      .then((r) => r.json())
+      .then((data: { code: string; label: string }[]) => {
+        if (!cancelled && Array.isArray(data) && data.length > 0) {
+          setOptions(data.map((e) => ({ code: e.code, label: e.label })));
+        }
+      })
+      .catch(() => { /* keep fallback */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
+
+  return options;
+}
+
 export default function RegisterPage() {
+  const skillSets = useLookupOptions("SKILL_SET", FALLBACK_SKILL_SETS);
+  const branches = useLookupOptions("BRANCH", FALLBACK_BRANCHES);
+
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
     contactNumber: "",
-    officialEmail: "",
-    personalEmail: "",
-    batch: "",
-    source: "" as "" | "B2B" | "BENCH" | "MARKET",
-    skillSet: "" as "" | "JAVA_SB" | "JFSR" | "REACT_JS" | "ANGULAR" | "PYTHON" | "QA_ENGINEER" | "PLAYWRIGHT_AUTOMATION",
-    yoeActual: "",
-    yoePortrayed: "",
-    yop: "",
+    skillSet: "",
+    branch: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<Record<string, string>>({});
@@ -44,12 +79,8 @@ export default function RegisterPage() {
     if (!form.email.trim()) errors.email = "Email is required";
     if (form.password.length < 6) errors.password = "Min 6 characters";
     if (!form.contactNumber.trim()) errors.contactNumber = "Required";
-    if (!form.batch.trim()) errors.batch = "Required";
-    if (!form.source) errors.source = "Required";
     if (!form.skillSet) errors.skillSet = "Required";
-    if (!form.yoeActual) errors.yoeActual = "Required";
-    if (!form.yoePortrayed) errors.yoePortrayed = "Required";
-    if (!form.yop) errors.yop = "Required";
+    if (!form.branch) errors.branch = "Required";
 
     if (Object.keys(errors).length > 0) {
       setFieldError(errors);
@@ -61,14 +92,8 @@ export default function RegisterPage() {
       email: form.email,
       password: form.password,
       contactNumber: form.contactNumber,
-      officialEmail: form.officialEmail || null,
-      personalEmail: form.personalEmail || null,
-      batch: form.batch,
-      source: form.source,
       skillSet: form.skillSet,
-      yoeActual: parseFloat(form.yoeActual),
-      yoePortrayed: parseFloat(form.yoePortrayed),
-      yop: parseInt(form.yop),
+      branch: form.branch,
     };
 
     const res = await fetch(`${GATEWAY}/auth/register`, {
@@ -131,16 +156,8 @@ export default function RegisterPage() {
               {/* Contact */}
               <div className={sectionCls}>
                 <p className={sectionTitle}>Contact</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Contact Number" error={fieldError.contactNumber}>
-                    <input className={inputCls} type="tel" placeholder="9876543210" value={form.contactNumber} onChange={set("contactNumber")} />
-                  </Field>
-                  <Field label="Official Email" hint="optional">
-                    <input className={inputCls} type="email" placeholder="you@company.com" value={form.officialEmail} onChange={set("officialEmail")} />
-                  </Field>
-                </div>
-                <Field label="Personal Email" hint="optional">
-                  <input className={inputCls} type="email" placeholder="you@gmail.com" value={form.personalEmail} onChange={set("personalEmail")} />
+                <Field label="Contact Number" error={fieldError.contactNumber}>
+                  <input className={inputCls} type="tel" placeholder="9876543210" value={form.contactNumber} onChange={set("contactNumber")} />
                 </Field>
               </div>
 
@@ -148,44 +165,21 @@ export default function RegisterPage() {
               <div className={sectionCls}>
                 <p className={sectionTitle}>Profile</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Batch" error={fieldError.batch}>
-                    <input className={inputCls} type="text" placeholder="Batch-2026-Q2" value={form.batch} onChange={set("batch")} />
-                  </Field>
-                  <Field label="Source" error={fieldError.source}>
-                    <select className={selectCls} value={form.source} onChange={set("source")}>
+                  <Field label="Skill Set" error={fieldError.skillSet}>
+                    <select className={selectCls} value={form.skillSet} onChange={set("skillSet")}>
                       <option value="">Select…</option>
-                      <option value="B2B">B2B</option>
-                      <option value="BENCH">Bench</option>
-                      <option value="MARKET">Market</option>
+                      {skillSets.map((o) => (
+                        <option key={o.code} value={o.code}>{o.label}</option>
+                      ))}
                     </select>
                   </Field>
-                </div>
-                <Field label="Skill Set" error={fieldError.skillSet}>
-                  <select className={selectCls} value={form.skillSet} onChange={set("skillSet")}>
-                    <option value="">Select…</option>
-                    <option value="JAVA_SB">Java + Spring Boot</option>
-                    <option value="JFSR">JFSR</option>
-                    <option value="REACT_JS">React JS</option>
-                    <option value="ANGULAR">Angular</option>
-                    <option value="PYTHON">Python</option>
-                    <option value="QA_ENGINEER">QA Engineer</option>
-                    <option value="PLAYWRIGHT_AUTOMATION">Playwright Automation</option>
-                  </select>
-                </Field>
-              </div>
-
-              {/* Experience */}
-              <div className={sectionCls}>
-                <p className={sectionTitle}>Experience</p>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label="YOE (Actual)" error={fieldError.yoeActual}>
-                    <input className={inputCls} type="number" step="0.5" min="0" max="30" placeholder="3.5" value={form.yoeActual} onChange={set("yoeActual")} />
-                  </Field>
-                  <Field label="YOE (Portrayed)" error={fieldError.yoePortrayed}>
-                    <input className={inputCls} type="number" step="0.5" min="0" max="30" placeholder="5.0" value={form.yoePortrayed} onChange={set("yoePortrayed")} />
-                  </Field>
-                  <Field label="Year of Passing" error={fieldError.yop}>
-                    <input className={inputCls} type="number" min="2000" max="2030" placeholder="2022" value={form.yop} onChange={set("yop")} />
+                  <Field label="Branch" error={fieldError.branch}>
+                    <select className={selectCls} value={form.branch} onChange={set("branch")}>
+                      <option value="">Select…</option>
+                      {branches.map((o) => (
+                        <option key={o.code} value={o.code}>{o.label}</option>
+                      ))}
+                    </select>
                   </Field>
                 </div>
               </div>

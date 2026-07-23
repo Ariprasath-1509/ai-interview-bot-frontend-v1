@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSkillSetOptions } from '@/hooks/useSkillSetOptions';
 import { useCandidateSourceOptions } from '@/hooks/useCandidateSourceOptions';
+import { PriorityBadge } from '@/components/common/PriorityBadge';
 
 interface Candidate {
   id: string;
@@ -18,6 +19,7 @@ interface Candidate {
   contactNumber: string | null;
   institute: string | null;
   round1Score: number | null;
+  round1Priority: string | null;
   proctoringViolation: boolean;
   round2Strengths: string | null;
   round2Weaknesses: string | null;
@@ -185,7 +187,10 @@ export function Round3QueueClient() {
           return (
             <Card key={c.id}>
               <CardHeader>
-                <CardTitle className="text-base">{c.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">{c.name}</CardTitle>
+                  <PriorityBadge priority={c.round1Priority} />
+                </div>
                 <p className="text-sm text-zinc-500">{c.email}</p>
               </CardHeader>
               <CardContent>

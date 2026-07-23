@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PriorityBadge, PRIORITIES, PRIORITY_LABEL } from '@/components/common/PriorityBadge';
 
 interface Candidate {
   id: string;
@@ -13,12 +14,15 @@ interface Candidate {
   email: string;
   stage: string;
   round1Score: number | null;
+  round1Priority: string | null;
   round1Link: string;
   allowLateSubmission: boolean;
   tabSwitchCount: number;
   proctoringViolation: boolean;
   violationLocked: boolean;
 }
+
+const NOT_YET_SUBMITTED_STAGES = new Set(['ROUND1_PENDING', 'ROUND1_IN_PROGRESS']);
 
 const emptyNewCandidate = { name: '', email: '', contactNumber: '', institute: '', branch: '', yop: '', experience: '' };
 
@@ -43,6 +47,7 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
   const [scoreEdits, setScoreEdits] = useState<Record<string, string>>({});
   const [savingScoreId, setSavingScoreId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [savingPriorityId, setSavingPriorityId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -70,6 +75,20 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
       load();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const setPriority = async (candidateId: string, priority: string) => {
+    setSavingPriorityId(candidateId);
+    try {
+      await fetch(`/api/screening/admin/candidates/${candidateId}/round1-priority`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: priority || null }),
+      });
+      load();
+    } finally {
+      setSavingPriorityId(null);
     }
   };
 
@@ -272,9 +291,12 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
               <p className="text-sm text-zinc-500">{c.email}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
-              </p>
+              <div className="flex items-center justify-end gap-2">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
+                </p>
+                <PriorityBadge priority={c.round1Priority} />
+              </div>
               <p className="text-xs text-zinc-500">{c.stage.replaceAll('_', ' ')}</p>
               {c.proctoringViolation && (
                 <span className="mt-1 inline-block rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:border-red-800/50 dark:bg-red-900/30 dark:text-red-300">
@@ -325,6 +347,22 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
                   Fail
                 </Button>
               </>
+            )}
+            {!NOT_YET_SUBMITTED_STAGES.has(c.stage) && (
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-zinc-500">Priority</Label>
+                <select
+                  className="h-8 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 text-xs text-zinc-900 dark:text-zinc-100 disabled:opacity-50"
+                  value={c.round1Priority ?? ''}
+                  disabled={savingPriorityId === c.id}
+                  onChange={(e) => setPriority(c.id, e.target.value)}
+                >
+                  <option value="">Unrated</option>
+                  {PRIORITIES.map((p) => (
+                    <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
+                  ))}
+                </select>
+              </div>
             )}
             {expanded === c.id && (
               <div className="w-full mt-3 space-y-3">

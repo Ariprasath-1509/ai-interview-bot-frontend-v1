@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { PriorityBadge } from '@/components/common/PriorityBadge';
 
 interface Candidate {
   id: string;
@@ -14,6 +15,7 @@ interface Candidate {
   email: string;
   stage: string;
   round1Score: number | null;
+  round1Priority: string | null;
   proctoringViolation: boolean;
 }
 
@@ -141,7 +143,10 @@ export function Round2QueueClient() {
             <Card key={c.id}>
               <CardHeader className="flex flex-row items-start justify-between space-y-0">
                 <div>
-                  <CardTitle className="text-base">{c.name}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">{c.name}</CardTitle>
+                    <PriorityBadge priority={c.round1Priority} />
+                  </div>
                   <p className="text-sm text-zinc-500">{c.email}</p>
                   <p className="text-xs text-zinc-500">
                     Round 1: {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
