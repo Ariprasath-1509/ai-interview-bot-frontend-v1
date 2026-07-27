@@ -54,6 +54,8 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
   const [newCandidate, setNewCandidate] = useState(emptyNewCandidate);
   const [addError, setAddError] = useState('');
   const [adding, setAdding] = useState(false);
+  const [minScore, setMinScore] = useState('');
+  const [maxScore, setMaxScore] = useState('');
 
   const load = () => {
     fetch(`/api/screening/admin/batches/${batchId}/candidates`)
@@ -216,6 +218,16 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
     }
   };
 
+  const min = minScore === '' ? null : Number(minScore);
+  const max = maxScore === '' ? null : Number(maxScore);
+  const filteredCandidates = candidates.filter((c) => {
+    if (min === null && max === null) return true;
+    if (c.round1Score == null) return false;
+    if (min !== null && c.round1Score < min) return false;
+    if (max !== null && c.round1Score > max) return false;
+    return true;
+  });
+
   const backLink = (
     <Link href="/admin/screening" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4">
       ← Back to Screening
@@ -282,8 +294,45 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
         )}
       </Card>
 
+      <Card className="mb-4">
+        <CardContent className="flex flex-wrap items-end gap-3 pt-4">
+          <div>
+            <Label className="text-xs text-zinc-500">Min marks (/35)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={35}
+              className="mt-1 w-28"
+              value={minScore}
+              onChange={(e) => setMinScore(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-500">Max marks (/35)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={35}
+              className="mt-1 w-28"
+              value={maxScore}
+              onChange={(e) => setMaxScore(e.target.value)}
+              placeholder="35"
+            />
+          </div>
+          {(min !== null || max !== null) && (
+            <Button size="sm" variant="outline" onClick={() => { setMinScore(''); setMaxScore(''); }}>
+              Clear filter
+            </Button>
+          )}
+          <p className="text-sm text-zinc-500">
+            Showing {filteredCandidates.length} of {candidates.length} candidates
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="space-y-4">
-      {candidates.map((c) => (
+      {filteredCandidates.map((c) => (
         <Card key={c.id}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
@@ -417,6 +466,9 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
         </Card>
       ))}
       {candidates.length === 0 && <p className="text-sm text-zinc-500">No candidates in this batch.</p>}
+      {candidates.length > 0 && filteredCandidates.length === 0 && (
+        <p className="text-sm text-zinc-500">No candidates match this marks filter.</p>
+      )}
       </div>
     </div>
   );

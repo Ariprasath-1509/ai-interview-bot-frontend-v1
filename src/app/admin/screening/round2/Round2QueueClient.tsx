@@ -19,6 +19,18 @@ interface Candidate {
   proctoringViolation: boolean;
 }
 
+interface Answer {
+  id: string;
+  questionId: string;
+  questionType: string;
+  prompt: string;
+  marks: number;
+  referenceAnswer: string | null;
+  rawAnswer: string;
+  score: number;
+  aiFeedback: string;
+}
+
 type Decision = 'SELECTED' | 'HOLD' | 'REJECTED';
 
 interface Fields {
@@ -38,6 +50,9 @@ export function Round2QueueClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, Fields>>({});
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [answersLoading, setAnswersLoading] = useState(false);
 
   const load = () => {
     fetch('/api/screening/admin/round2/queue')
@@ -66,6 +81,22 @@ export function Round2QueueClient() {
       load();
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const toggleAnswers = async (candidateId: string) => {
+    if (expanded === candidateId) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(candidateId);
+    setAnswersLoading(true);
+    try {
+      const res = await fetch(`/api/screening/admin/candidates/${candidateId}/answers`);
+      const data = await res.json();
+      setAnswers(data.answers || []);
+    } finally {
+      setAnswersLoading(false);
     }
   };
 
@@ -136,6 +167,7 @@ export function Round2QueueClient() {
   return (
     <div>
       {backLink}
+      <p className="mb-4 text-sm text-zinc-500">{candidates.length} candidate{candidates.length === 1 ? '' : 's'} in Round 2</p>
       <div className="space-y-4">
         {candidates.map((c) => {
           const f = fieldsFor(c.id);
@@ -154,6 +186,13 @@ export function Round2QueueClient() {
                       <span className="ml-2 text-red-600 dark:text-red-400">⚠ Multiple tab switches</span>
                     )}
                   </p>
+                  <button
+                    type="button"
+                    className="mt-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                    onClick={() => toggleAnswers(c.id)}
+                  >
+                    {expanded === c.id ? 'Hide Round 1 answers' : 'View Round 1 answers'}
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -165,6 +204,35 @@ export function Round2QueueClient() {
                 </button>
               </CardHeader>
               <CardContent>
+                {expanded === c.id && (
+                  <div className="mb-4 space-y-3">
+                    {answersLoading ? (
+                      <p className="text-sm text-zinc-500">Loading answers…</p>
+                    ) : answers.length === 0 ? (
+                      <p className="text-sm text-zinc-500">No Round 1 answers recorded.</p>
+                    ) : (
+                      answers.map((a) => (
+                        <div key={a.questionId} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 text-sm">
+                          <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">
+                            {a.questionType} · {a.score} / {a.marks}
+                          </p>
+                          <p className="font-medium text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap">{a.prompt}</p>
+                          <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-400">Candidate&apos;s answer</p>
+                          <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono text-xs">{a.rawAnswer || '(no answer)'}</p>
+                          {a.referenceAnswer && (
+                            <>
+                              <p className="mt-2 text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Expected answer</p>
+                              <p className="text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap font-mono text-xs">{a.referenceAnswer}</p>
+                            </>
+                          )}
+                          {a.aiFeedback && (
+                            <p className="mt-2 text-zinc-500 dark:text-zinc-400 italic">{a.aiFeedback}</p>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
                 {c.stage === 'ROUND1_PASSED' && (
                   <Button size="sm" onClick={() => start(c.id)} disabled={busy === c.id}>
                     Start Round 2
