@@ -173,11 +173,11 @@ export function SidebarLayout({
         title={collapsed ? item.label : undefined}
         className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-200 ${
           active
-            ? "bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-md shadow-violet-500/30 scale-[1.015]"
-            : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-violet-50/50 dark:hover:bg-violet-950/25 hover:translate-x-0.5"
+            ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-100/10 dark:border-indigo-900/10 shadow-sm"
+            : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100/60 dark:hover:bg-zinc-900/35 hover:translate-x-0.5"
         } ${collapsed ? "justify-center px-2 hover:translate-x-0" : ""}`}
       >
-        <Icon size={18} className={`shrink-0 transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-110"}`} />
+        <Icon size={18} className={`shrink-0 transition-transform duration-200 ${active ? "scale-105" : "group-hover:scale-105"}`} />
         {!collapsed && <span>{item.label}</span>}
       </Link>
     );
@@ -198,9 +198,9 @@ export function SidebarLayout({
   const sidebarContent = (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-14 items-center justify-between border-b border-violet-200/50 bg-gradient-to-r from-indigo-50/40 via-violet-50/30 to-fuchsia-50/20 px-4 dark:border-violet-900/20 dark:from-indigo-950/30 dark:via-violet-950/20 dark:to-fuchsia-950/10">
+      <div className="flex h-14 items-center justify-between border-b border-zinc-200/50 bg-white/40 dark:bg-zinc-950/20 px-4 dark:border-zinc-800/40">
         {!collapsed && (
-          <Link href="/" className="text-sm font-bold tracking-tight bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent transition-opacity hover:opacity-90">
+          <Link href="/" className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-indigo-500 to-violet-650 bg-clip-text text-transparent transition-opacity hover:opacity-90">
             Bench Readiness
           </Link>
         )}

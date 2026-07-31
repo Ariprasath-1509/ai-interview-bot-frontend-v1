@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { SectionHeader, StatCard } from "@/components/common/AppUi";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export interface TrendPoint {
   label?: string;
@@ -54,11 +55,6 @@ function TrendBarChart({
   points: TrendPoint[];
   emptyHint: string;
 }) {
-  const max = useMemo(
-    () => Math.max(1, ...points.flatMap((p) => [p.interviews, p.completed])),
-    [points]
-  );
-
   if (points.length === 0) {
     return (
       <div className="empty-state text-sm text-zinc-500">{emptyHint}</div>
@@ -67,33 +63,66 @@ function TrendBarChart({
 
   const allZero = points.every((p) => p.interviews === 0 && p.completed === 0);
 
+  const chartData = points.map((p, idx) => ({
+    name: p.label ?? p.date ?? p.week ?? `P${idx + 1}`,
+    created: p.interviews,
+    completed: p.completed,
+  }));
+
   return (
-    <div>
+    <div className="w-full">
       {allZero && (
         <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
           No interview activity in this period yet — bars will fill as interviews are created and completed.
         </p>
       )}
-      <div className="flex h-56 items-end justify-between gap-2">
-        {points.map((point, idx) => (
-          <div key={point.label ?? point.date ?? point.week ?? idx} className="flex flex-1 flex-col items-center">
-            <div className="mb-2 flex h-44 w-full items-end justify-center gap-1">
-              <div
-                className="w-2/5 min-h-[4px] rounded-t-sm bg-blue-400 dark:bg-blue-600"
-                style={{ height: `${(point.interviews / max) * 100}%` }}
-                title={`Created: ${point.interviews}`}
-              />
-              <div
-                className="w-2/5 min-h-[4px] rounded-t-sm bg-emerald-400 dark:bg-emerald-600"
-                style={{ height: `${(point.completed / max) * 100}%` }}
-                title={`Completed: ${point.completed}`}
-              />
-            </div>
-            <div className="text-center text-[10px] font-medium text-zinc-500 sm:text-xs">
-              {point.label ?? point.date ?? `P${idx + 1}`}
-            </div>
-          </div>
-        ))}
+      <div className="h-64 w-full text-xs">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={chartData}
+            margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-zinc-800" />
+            <XAxis
+              dataKey="name"
+              stroke="#888888"
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              stroke="#888888"
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className="rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1.5">{payload[0].payload.name}</p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1.5 font-semibold">
+                          <span className="h-2.5 w-2.5 rounded bg-blue-500 inline-block" />
+                          Created: {payload[0].value}
+                        </p>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-semibold">
+                          <span className="h-2.5 w-2.5 rounded bg-emerald-500 inline-block" />
+                          Completed: {payload[1].value}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Bar dataKey="created" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="completed" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

@@ -191,32 +191,20 @@ export function PageHero({
   icon?: LucideIcon;
   variant?: HeroVariant;
 }) {
-  const gradients: Record<HeroVariant, string> = {
-    blue: "from-blue-500/90 via-blue-600/90 to-cyan-600/90 border-blue-400/20 dark:border-blue-900/10",
-    indigo: "from-indigo-500/90 via-violet-600/90 to-purple-700/90 border-indigo-400/20 dark:border-indigo-900/10",
-    purple: "from-purple-500/90 via-fuchsia-600/90 to-pink-600/90 border-purple-400/20 dark:border-purple-900/10",
-    teal: "from-teal-500/90 via-cyan-600/90 to-blue-600/90 border-teal-400/20 dark:border-teal-900/10",
-    emerald: "from-emerald-500/90 via-green-600/90 to-teal-600/90 border-emerald-400/20 dark:border-emerald-900/10",
-    amber: "from-amber-500/90 via-orange-500/90 to-red-500/90 border-amber-400/20 dark:border-amber-900/10",
-    rose: "from-rose-500/90 via-pink-600/90 to-fuchsia-600/90 border-rose-400/20 dark:border-rose-900/10",
-    sunset: "from-violet-600/90 via-fuchsia-600/90 to-orange-500/90 border-violet-400/20 dark:border-violet-900/10",
-    ocean: "from-cyan-500/90 via-blue-600/90 to-indigo-700/90 border-cyan-400/20 dark:border-cyan-900/10",
-  };
-
   return (
     <div
-      className={`page-hero border bg-gradient-to-br ${gradients[variant]} text-white backdrop-blur-md rounded-2xl shadow-xl shadow-indigo-500/5`}
+      className="page-hero border border-zinc-200/80 bg-white/60 p-6 backdrop-blur-md rounded-2xl shadow-md dark:border-zinc-800/80 dark:bg-zinc-900/25 text-zinc-900 dark:text-zinc-50"
     >
-      <div className="relative flex items-start gap-4 z-10">
+      <div className="relative flex items-center gap-4 z-10">
         {Icon && (
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 shadow-lg backdrop-blur-md ring-1 ring-white/20">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40 shadow-sm transition-transform duration-300 hover:scale-105">
             <Icon className="h-6 w-6" />
           </div>
         )}
         <div>
-          <h2 className="text-xl font-bold tracking-tight drop-shadow-sm">{title}</h2>
+          <h2 className="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{title}</h2>
           {description && (
-            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-white/90 font-medium">
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 font-medium">
               {description}
             </p>
           )}

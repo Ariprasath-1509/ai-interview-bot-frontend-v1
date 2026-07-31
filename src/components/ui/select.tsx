@@ -74,7 +74,7 @@ const SelectContent: React.FC<{ children: React.ReactNode; className?: string }>
   return (
     <div
       ref={ref}
-      className={`absolute z-50 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-950 ${className}`}
+      className={`absolute z-50 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-950 animate-dropdown ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="max-h-60 overflow-y-auto py-1">
