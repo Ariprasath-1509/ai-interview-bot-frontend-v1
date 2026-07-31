@@ -8,7 +8,7 @@ import { StaffBranchSelect } from "./StaffBranchSelect";
 
 export default async function StaffPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await getSession();
-  if (!session || session.role !== "SUPER_ADMIN") redirect("/unauthorized");
+  if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) redirect("/unauthorized");
 
   const sp = await searchParams;
   const error = sp?.error as string | undefined;
@@ -19,7 +19,7 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
   async function createStaff(formData: FormData) {
     "use server";
     const s = await getSession();
-    if (!s || s.role !== "SUPER_ADMIN") return;
+    if (!s || (s.role !== "SUPER_ADMIN" && s.role !== "ADMIN")) return;
 
     const name = formData.get("name");
     const email = formData.get("email");

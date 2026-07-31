@@ -67,6 +67,12 @@ export function extractAdminSourceFromToken(token: string): string | undefined {
   return typeof adminSource === "string" && adminSource ? adminSource : undefined;
 }
 
+export function extractOrgFromToken(token: string): string | undefined {
+  const payload = decodeJwtPayload(token);
+  const org = payload?.org;
+  return typeof org === "string" && org ? org : undefined;
+}
+
 export function getAccessTokenExpiryMs(token: string): number | null {
   const payload = decodeJwtPayload(token);
   const exp = payload?.exp;

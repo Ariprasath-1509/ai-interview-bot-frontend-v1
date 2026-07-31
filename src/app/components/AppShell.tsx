@@ -4,6 +4,7 @@ import { getSidebarItems } from "@/config/roleConfig";
 import type { UserRole } from "@/server/roles";
 import { formatRoleLabel } from "@/server/roles";
 import { StaffSessionProvider } from "@/lib/StaffSessionContext";
+import { getEnabledFeatures } from "@/lib/orgFeatures";
 
 export async function AppShell({
   title,
@@ -16,7 +17,8 @@ export async function AppShell({
 }) {
   const session = await getSession();
   const role = (session?.role ?? "CANDIDATE") as UserRole;
-  const items = getSidebarItems(role);
+  const enabledFeatures = await getEnabledFeatures(session);
+  const items = getSidebarItems(role, enabledFeatures);
 
   let displayRole = formatRoleLabel(role);
   if ((role === "ADMIN" || role === "TESTING_ADMIN") && session?.adminSource) {

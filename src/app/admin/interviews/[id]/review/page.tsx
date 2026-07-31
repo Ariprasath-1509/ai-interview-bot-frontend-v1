@@ -75,6 +75,18 @@ function parseCodeSubmissions(transcriptJson: string | null): Record<string, unk
 
 type SignOff = { signedOff: boolean; finalVerdict?: string; note?: string; signedOffAt?: string };
 
+type TokenSummary = {
+  totalTokens: number;
+  totalCostUsd: number;
+  questionTokens: number;
+  assessmentTokens: number;
+  rubricTokens: number;
+};
+
+function fmtCost(usd: number): string {
+  return `$${usd.toFixed(usd < 1 ? 4 : 2)}`;
+}
+
 function cleanText(text: string | undefined): string {
   if (!text) return "";
   return text
@@ -111,13 +123,14 @@ export default async function InterviewReviewPage({
 
   const session = await getSession();
 
-  const [interviewRes, scoresRes, summaryRes, signOffRes, slotQuestionsRes, proctoringRes] = await Promise.all([
+  const [interviewRes, scoresRes, summaryRes, signOffRes, slotQuestionsRes, proctoringRes, tokenSummaryRes] = await Promise.all([
     apiServer(`/interviews/${id}`, session?.token),
     apiServer(`/scores/${id}`, session?.token),
     apiServer(`/interviews/summary`, session?.token),
     apiServer(`/reviews/${id}`, session?.token),
     apiServer(`/interviews/${id}/questions`, session?.token),
     apiServer(`/interviews/${id}/proctoring/timeline`, session?.token),
+    apiServer(`/tokens/interview-summary/${id}`, session?.token),
   ]);
 
   if (!interviewRes.ok) return <div className="mx-auto max-w-4xl p-8"><h1 className="text-2xl font-semibold">Not found</h1></div>;
@@ -130,6 +143,13 @@ export default async function InterviewReviewPage({
   const summary = summaries.find((s) => s.id === id);
   let existingSignOff: SignOff = { signedOff: false };
   try { if (signOffRes?.ok) existingSignOff = await signOffRes.json(); } catch {}
+  let tokenSummary: TokenSummary | null = null;
+  try {
+    if (tokenSummaryRes?.ok) {
+      const data = await tokenSummaryRes.json();
+      if (typeof data?.totalTokens === "number") tokenSummary = data;
+    }
+  } catch {}
   const ai = parseAiAssessment(interview.transcriptJson);
   const utterances = parseTranscript(interview.transcriptJson);
   const speech = ai?.speechAnalytics ?? null;
@@ -276,6 +296,14 @@ export default async function InterviewReviewPage({
             )}
             {interview.endedAt && (
               <span>Ended: <span className="text-zinc-700 dark:text-zinc-300">{fmtDatetime(interview.endedAt)}</span></span>
+            )}
+            {isStaffAdminRole(session?.role) && tokenSummary && (
+              <span
+                title={`Question: ${tokenSummary.questionTokens.toLocaleString()} · Assessment: ${tokenSummary.assessmentTokens.toLocaleString()} · Rubric: ${tokenSummary.rubricTokens.toLocaleString()}`}
+              >
+                Tokens: <span className="text-zinc-700 dark:text-zinc-300">{tokenSummary.totalTokens.toLocaleString()}</span>
+                {" "}(<span className="text-zinc-700 dark:text-zinc-300">{fmtCost(tokenSummary.totalCostUsd)}</span>)
+              </span>
             )}
           </div>
         </div>

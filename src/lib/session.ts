@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import type { UserRole } from "@/server/roles";
-import { extractBranchFromToken, isAccessTokenExpired } from "@/lib/authCookies";
+import { extractBranchFromToken, extractOrgFromToken, isAccessTokenExpired } from "@/lib/authCookies";
 import {
   applyRefreshToCookies,
   extractUserId,
@@ -14,6 +14,7 @@ export type Session = {
   adminSource?: string;
   branch?: string;
   userId?: string;
+  org?: string;
 };
 
 function buildSession(
@@ -26,7 +27,8 @@ function buildSession(
   const branch = jar.get("br_branch")?.value ?? extractBranchFromToken(token);
   const username = extractUsername(token, cookieUsername ?? "User");
   const userId = extractUserId(token);
-  return { token, role, username, adminSource, branch, userId };
+  const org = extractOrgFromToken(token);
+  return { token, role, username, adminSource, branch, userId, org };
 }
 
 /**

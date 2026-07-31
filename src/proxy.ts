@@ -7,7 +7,8 @@ import { clearAuthCookiesOnResponse } from "@/lib/authCookies";
 const STAFF_ROUTE_ROLES = STAFF_READ_ROLES as unknown as UserRole[];
 
 const ROUTE_ALLOWLIST: Array<{ prefix: string; roles: UserRole[] }> = [
-  { prefix: "/admin/staff", roles: ["SUPER_ADMIN"] },
+  { prefix: "/admin/organizations", roles: ["SUPER_ADMIN"] },
+  { prefix: "/admin/staff", roles: ["SUPER_ADMIN", "ADMIN"] },
   { prefix: "/admin/setup", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },
   { prefix: "/admin/settings", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },
   { prefix: "/admin/master-data", roles: STAFF_ADMIN_ROLES as unknown as UserRole[] },

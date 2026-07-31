@@ -1,4 +1,5 @@
 import type { UserRole } from "@/server/roles";
+import type { FeatureKey } from "@/app/admin/organizations/types";
 
 export type SidebarItem = {
   href: string;
@@ -54,6 +55,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase", navGroup: "candidates" },
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
+      { href: "/admin/organizations", label: "Organizations", icon: "Globe" },
       { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
       { href: "/admin/settings", label: "Settings", icon: "Settings" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
@@ -84,7 +86,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase", navGroup: "candidates" },
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
-      { href: "/admin/settings", label: "Settings", icon: "Settings" },
+      { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
       { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
       { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
@@ -98,7 +100,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
       "interviews.signoff", "interviews.observe", "interviews.inject", "interviews.flag",
       "candidates.view", "candidates.update", "candidates.bulk_import", "clients.manage", "matching.view",
-      "tokens.manage", "compliance.view", "masterdata.view", "analytics.view", "calendar.view",
+      "staff.manage", "compliance.view", "masterdata.view", "analytics.view", "calendar.view",
     ],
   },
   TESTING_ADMIN: {
@@ -112,7 +114,6 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload", navGroup: "candidates" },
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
-      { href: "/admin/settings", label: "Settings", icon: "Settings" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
       { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
       { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
@@ -126,7 +127,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
       "interviews.signoff", "interviews.observe", "interviews.inject", "interviews.flag",
       "candidates.view", "candidates.update", "candidates.bulk_import", "clients.manage", "matching.view",
-      "tokens.manage", "compliance.view", "masterdata.view", "analytics.view", "calendar.view",
+      "compliance.view", "masterdata.view", "analytics.view", "calendar.view",
     ],
   },
   RECRUITER: {
@@ -179,8 +180,35 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
   },
 };
 
-export function getSidebarItems(role: UserRole): SidebarItem[] {
-  const items = roleConfig[role]?.sidebar ?? [];
+/** Maps toggleable sidebar routes to the org-level feature that gates them. Routes not listed here
+ * (Dashboard, Organizations, Manage Staff, Settings) are role-gated only, never tenant-gated. */
+const SIDEBAR_FEATURE_MAP: Record<string, FeatureKey> = {
+  "/admin/interviews/create": "INTERVIEWS",
+  "/admin/review": "REVIEW",
+  "/admin/screening": "SCREENING",
+  "/admin/candidates": "CANDIDATES",
+  "/admin/candidates/bulk-import": "BULK_IMPORT",
+  "/admin/candidates/deployment-bulk-import": "DEPLOYMENT_IMPORT",
+  "/admin/clients": "CLIENTS",
+  "/admin/recruiter-bot": "RECRUITER_BOT",
+  "/admin/calendar": "CALENDAR",
+  "/admin/compliance": "COMPLIANCE",
+  "/admin/master-data": "MASTER_DATA",
+  "/admin/master-data/lookups": "MASTER_DATA",
+  "/admin/master-data/categories": "MASTER_DATA",
+  "/admin/master-data/tags": "MASTER_DATA",
+  "/admin/master-data/companies": "MASTER_DATA",
+  "/admin/questionbank": "QUESTION_BANK",
+};
+
+export function getSidebarItems(role: UserRole, enabledFeatures?: Record<FeatureKey, boolean>): SidebarItem[] {
+  let items = roleConfig[role]?.sidebar ?? [];
+  if (enabledFeatures) {
+    items = items.filter((item) => {
+      const feature = SIDEBAR_FEATURE_MAP[item.href];
+      return feature === undefined || enabledFeatures[feature] !== false;
+    });
+  }
   if (role !== "TESTING_ADMIN" && role !== "TESTING_RECRUITER") {
     return items;
   }

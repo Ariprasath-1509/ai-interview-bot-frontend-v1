@@ -17,7 +17,7 @@ export async function updateStaffAction(
   input: UpdateStaffInput
 ): Promise<{ error?: string } | void> {
   const session = await getSession();
-  if (!session || session.role !== "SUPER_ADMIN") {
+  if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
     return { error: "Unauthorized" };
   }
 
@@ -55,7 +55,7 @@ export async function updateStaffAction(
 
 export async function deleteStaffAction(id: string) {
   const session = await getSession();
-  if (!session || session.role !== "SUPER_ADMIN") return;
+  if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) return;
 
   await apiServer(`/auth/staff/${id}`, session.token, { method: "DELETE" });
   revalidatePath("/admin/staff");

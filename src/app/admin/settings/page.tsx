@@ -7,7 +7,7 @@ import SettingsClient from "./SettingsClient";
 export default async function SettingsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!hasPermission(session.role, "tokens.manage")) redirect("/admin");
+  if (session.role !== "SUPER_ADMIN") redirect("/unauthorized");
 
   return (
     <SidebarLayout
