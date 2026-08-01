@@ -3,72 +3,75 @@ import * as XLSX from 'xlsx';
 
 export async function GET(request: NextRequest) {
   try {
-    // Create workbook
+    const clientsEnabled = request.nextUrl.searchParams.get('clientsEnabled') !== 'false';
+
     const wb = XLSX.utils.book_new();
 
-    // Define headers - exact order as backend expects (Column A to Q)
-    // * = Required field
-    const headers = [
-      'No',                           // Column A - Row number (auto-filled)
-      'Batch (DOH) *',               // Column B - Required
-      'Batch Mentor',                // Column C - Optional
-      'Source *',                    // Column D - Required (B2B/BENCH/MARKET)
-      'Status',                      // Column E - Optional (RFD/WFD/DOB/DEPLOYED)
-      'Rating',                      // Column F - Optional (ASSET/MEDIUM/LIABILITY)
-      'Name *',                      // Column G - Required
-      'Contact Number',              // Column H - Optional
-      'Official Mail ID',            // Column I - At least one email required (official or personal)
-      'Personal Mail ID',            // Column J - At least one email required (official or personal)
-      'YOE - A',                     // Column K - Optional (Actual experience)
-      'YOE - P',                     // Column L - Optional (Portrayed experience)
-      'Skill Set *',                 // Column M - Required (JAVA_SB/JFSR/REACT_JS)
-      'YOP',                         // Column N - Optional (Year of Passing)
-      'No of Interviews',            // Column O - Optional
-      'Interview Mentor Name',       // Column P - Optional
-      'Client Name'                  // Column Q - Optional
-    ];
+    let headers: string[];
+    let sampleData: (string | number)[][];
+    let colWidths: { wch: number }[];
 
-    // Sample data rows with all columns
-    const sampleData = [
-      [1, 'Batch-2024-Q1', 'Mentor A', 'B2B', 'RFD', 'ASSET', 'John Doe', '9876543210', 'john@company.com', 'john@gmail.com', 5.5, 6.0, 'JAVA_SB', 2019, 2, 'Interview Mentor 1', 'TechCorp'],
-      [2, 'Batch-2024-Q1', 'Mentor B', 'BENCH', 'RFD', 'MEDIUM', 'Jane Smith', '9876543211', 'jane@company.com', 'jane@gmail.com', 3.0, 4.0, 'REACT_JS', 2021, 1, 'Interview Mentor 2', 'StartupXYZ'],
-      [3, 'Batch-2024-Q2', 'Mentor A', 'MARKET', 'WFD', 'ASSET', 'Mike Johnson', '9876543212', 'mike@company.com', 'mike@gmail.com', 7.0, 8.0, 'JFSR', 2017, 0, '', ''],
-    ];
+    if (clientsEnabled) {
+      // Full template — column indices match ExcelParserService COLUMN_MAPPING
+      headers = [
+        'No',                    // A - 0
+        'Batch (DOH) *',         // B - 1
+        'Batch Mentor',          // C - 2
+        'Source *',              // D - 3
+        'Status',                // E - 4
+        'Rating',                // F - 5
+        'Name *',                // G - 6
+        'Contact Number',        // H - 7
+        'Official Mail ID',      // I - 8
+        'Personal Mail ID',      // J - 9
+        'YOE - A (unused)',      // K - 10
+        'YOE - P',               // L - 11
+        'Skill Set *',           // M - 12
+        'YOP',                   // N - 13
+        'No of Interviews',      // O - 14
+        'Interview Mentor Name', // P - 15
+        'Client Name',           // Q - 16
+      ];
+      sampleData = [
+        [1, 'Batch-2024-Q1', 'Mentor A', 'B2B',    'RFD', 'ASSET',  'John Doe',     '9876543210', 'john@company.com', 'john@gmail.com', 5.5, 6.0, 'JAVA_SB',  2019, 2, 'Interview Mentor 1', 'TechCorp'],
+        [2, 'Batch-2024-Q1', 'Mentor B', 'BENCH',  'RFD', 'MEDIUM', 'Jane Smith',   '9876543211', 'jane@company.com', 'jane@gmail.com', 3.0, 4.0, 'REACT_JS', 2021, 1, 'Interview Mentor 2', 'StartupXYZ'],
+        [3, 'Batch-2024-Q2', 'Mentor A', 'MARKET', 'WFD', 'ASSET',  'Mike Johnson', '9876543212', 'mike@company.com', 'mike@gmail.com', 7.0, 8.0, 'JFSR',     2017, 0, '', ''],
+      ];
+      colWidths = [
+        { wch: 5 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 },
+        { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 10 }, { wch: 10 },
+        { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 20 }, { wch: 15 },
+      ];
+    } else {
+      // Compact template — CLIENTS columns removed; indices match COMPACT_COLUMN_MAPPING in ExcelParserService
+      headers = [
+        'No',               // A - 0
+        'Name *',           // B - 1
+        'Contact Number',   // C - 2
+        'Official Mail ID', // D - 3
+        'Personal Mail ID', // E - 4
+        'YOE - P',          // F - 5
+        'Skill Set *',      // G - 6
+        'YOP',              // H - 7
+        'No of Interviews', // I - 8
+      ];
+      sampleData = [
+        [1, 'John Doe',     '9876543210', 'john@company.com', 'john@gmail.com', 6.0, 'JAVA_SB',  2019, 2],
+        [2, 'Jane Smith',   '9876543211', 'jane@company.com', 'jane@gmail.com', 4.0, 'REACT_JS', 2021, 1],
+        [3, 'Mike Johnson', '9876543212', 'mike@company.com', 'mike@gmail.com', 8.0, 'JFSR',     2017, 0],
+      ];
+      colWidths = [
+        { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 25 },
+        { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 15 },
+      ];
+    }
 
-    // Combine headers and data
-    const wsData = [headers, ...sampleData];
-
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 5 },  // No
-      { wch: 18 }, // Batch (DOH) *
-      { wch: 15 }, // Batch Mentor
-      { wch: 12 }, // Source *
-      { wch: 10 }, // Status
-      { wch: 10 }, // Rating
-      { wch: 20 }, // Name *
-      { wch: 15 }, // Contact Number
-      { wch: 25 }, // Official Mail ID *
-      { wch: 25 }, // Personal Mail ID *
-      { wch: 10 }, // YOE - A
-      { wch: 10 }, // YOE - P
-      { wch: 15 }, // Skill Set *
-      { wch: 10 }, // YOP
-      { wch: 15 }, // No of Interviews
-      { wch: 20 }, // Interview Mentor Name
-      { wch: 15 }, // Client Name
-    ];
-
-    // Add worksheet to workbook with exact sheet name backend expects
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    ws['!cols'] = colWidths;
     XLSX.utils.book_append_sheet(wb, ws, 'Candidate');
 
-    // Generate buffer
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
-    // Return response
     return new NextResponse(buf, {
       status: 200,
       headers: {
@@ -78,9 +81,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Template download error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate template' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to generate template' }, { status: 500 });
   }
 }

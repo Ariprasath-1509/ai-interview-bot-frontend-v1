@@ -22,14 +22,18 @@ function QuotaCell({ org }: { org: OrgRow }) {
   );
 }
 
-function DeleteOrgButton({ id, name }: { id: string; name: string }) {
+function DeleteOrgButton({ code, name }: { code: string; name: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function handleDelete() {
     if (!window.confirm(`Delete organization "${name}"? This cannot be undone.`)) return;
     setPending(true);
-    await authFetch(`/api/admin/organizations/${id}`, { method: "DELETE" });
+    const res = await authFetch(`/api/admin/organizations/${code}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      window.alert(data?.error ?? "Failed to delete organization");
+    }
     router.refresh();
     setPending(false);
   }
@@ -109,7 +113,7 @@ export function OrgDirectoryTable({ orgs }: { orgs: OrgRow[] }) {
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             <EditOrgDialog org={row.original} />
-            <DeleteOrgButton id={row.original.id} name={row.original.name} />
+            <DeleteOrgButton code={row.original.code} name={row.original.name} />
           </div>
         ),
       },

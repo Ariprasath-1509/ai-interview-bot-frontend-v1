@@ -1,6 +1,7 @@
 import { isStaffReadRole } from '@/lib/staffRoles';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
+import { getEnabledFeatures } from '@/lib/orgFeatures';
 import { AppShell } from '@/app/components/AppShell';
 import { CreateInterviewClient } from './CreateInterviewClient';
 import Link from 'next/link';
@@ -18,7 +19,11 @@ export default async function CreateInterviewPage({ searchParams }: PageProps) {
     redirect('/login');
   }
 
-  const params = await searchParams;
+  const [params, features] = await Promise.all([
+    searchParams,
+    getEnabledFeatures(session),
+  ]);
+
   const candidateId = typeof params.candidateId === 'string' ? params.candidateId : undefined;
   const clientId = typeof params.clientId === 'string' ? params.clientId : undefined;
 
@@ -33,6 +38,7 @@ export default async function CreateInterviewPage({ searchParams }: PageProps) {
         candidateId={candidateId}
         clientId={clientId}
         searchParams={params}
+        features={features}
       />
     </AppShell>
   );

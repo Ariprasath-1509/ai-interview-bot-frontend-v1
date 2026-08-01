@@ -46,7 +46,7 @@ interface Candidate {
   email: string;
   resumeSummary?: string;
   skillSet?: string;
-  yoeActual?: number;
+  yoePortrayed?: number;
 }
 
 interface Client {
@@ -73,9 +73,12 @@ interface CreateInterviewClientProps {
   candidateId?: string;
   clientId?: string;
   searchParams: { [key: string]: string | string[] | undefined };
+  features?: Record<string, boolean>;
 }
 
-export function CreateInterviewClient({ candidateId, clientId, searchParams }: CreateInterviewClientProps) {
+export function CreateInterviewClient({ candidateId, clientId, searchParams, features = {} }: CreateInterviewClientProps) {
+  const clientsEnabled = features.CLIENTS !== false;
+  const questionBankEnabled = features.QUESTION_BANK !== false;
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -275,7 +278,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     setAutoFillConfidence('high');
     
     // Fetch matching clients for this candidate
-    fetchMatchingClients(candidate);
+    if (clientsEnabled) fetchMatchingClients(candidate);
     
     toast('Candidate selected and form auto-filled', 'success');
   };
@@ -286,7 +289,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
     try {
       const params = new URLSearchParams();
       if (candidate.skillSet) params.set('candidateSkillSet', candidate.skillSet);
-      if (candidate.yoeActual != null) params.set('candidateYoe', String(candidate.yoeActual));
+      if (candidate.yoePortrayed != null) params.set('candidateYoe', String(candidate.yoePortrayed));
 
       const response = await fetch(`/api/recruiter/clients/for-interview?${params.toString()}`, { credentials: 'include' });
       if (!response.ok) { setClientResults([]); return; }
@@ -306,7 +309,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         // We re-run the lightweight check client-side just for the label/reasons display
         const skillReqs: any[] = client.skillRequirements || [];
         const candidateSkill = candidate.skillSet ?? '';
-        const candidateYoe = candidate.yoeActual ?? 0;
+        const candidateYoe = candidate.yoePortrayed ?? 0;
 
         let label: 'STRONG' | 'GOOD' | 'PARTIAL' | 'AVAILABLE' = 'AVAILABLE';
         const reasons: string[] = [];
@@ -483,8 +486,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
       triggerAutoFillAsync();
     }
     
-    // Load all clients on component mount
-    fetchAllClientsForInterview();
+    // Load all clients on component mount (only if CLIENTS feature is enabled)
+    if (clientsEnabled) fetchAllClientsForInterview();
   }, []);
 
   const handleInputChange = (field: keyof InterviewFormData, value: string | number | boolean | null) => {
@@ -799,7 +802,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                           <p className="text-sm text-zinc-600 dark:text-zinc-400">{candidate.email}</p>
                           {candidate.skillSet && (
                             <p className="text-xs text-zinc-500 mt-1">
-                              {candidate.skillSet} • {candidate.yoeActual || 0} years exp
+                              {candidate.skillSet} • {candidate.yoePortrayed || 0} years exp
                             </p>
                           )}
                         </div>
@@ -832,7 +835,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
                 </p>
                 {selectedCandidate.skillSet && (
                   <p className="text-xs text-blue-600 mt-1 dark:text-blue-400">
-                    {selectedCandidate.skillSet} • {selectedCandidate.yoeActual || 0} years experience
+                    {selectedCandidate.skillSet} • {selectedCandidate.yoePortrayed || 0} years experience
                   </p>
                 )}
               </div>
@@ -841,7 +844,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         </Card>
 
         {/* Client Selection - Show all clients when no candidate selected */}
-        {!isOnboarding && !selectedCandidate && (
+        {clientsEnabled && !isOnboarding && !selectedCandidate && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -895,7 +898,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
         )}
 
         {/* Client Selection - Show matching clients for selected candidate */}
-        {!isOnboarding && selectedCandidate && (
+        {clientsEnabled && !isOnboarding && selectedCandidate && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1235,8 +1238,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams }: C
           </CardContent>
         </Card>
 
-        {/* Question Bank Selection — not applicable to onboarding (bank entries are JD-role scoped) */}
-        {!isOnboarding && (
+        {/* Question Bank Selection — not applicable to onboarding or when QUESTION_BANK feature is disabled */}
+        {questionBankEnabled && !isOnboarding && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

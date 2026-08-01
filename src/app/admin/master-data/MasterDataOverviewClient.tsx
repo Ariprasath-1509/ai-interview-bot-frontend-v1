@@ -24,38 +24,40 @@ interface OverviewData {
   companies: unknown[];
 }
 
-const quickLinks = [
-  {
-    href: "/admin/master-data/lookups",
-    label: "Lookup Values",
-    icon: ListTree,
-    desc: "Skill sets, statuses, sources, rounds, and other enums.",
-    accent: "indigo" as const,
-  },
-  {
-    href: "/admin/master-data/categories",
-    label: "QB Categories",
-    icon: Layers,
-    desc: "Question bank classification categories.",
-    accent: "purple" as const,
-  },
-  {
-    href: "/admin/master-data/tags",
-    label: "QB Tags",
-    icon: Tag,
-    desc: "Question tags used in digest and search.",
-    accent: "teal" as const,
-  },
-  {
-    href: "/admin/master-data/companies",
-    label: "QB Companies",
-    icon: Building2,
-    desc: "Company directory for interview sessions.",
-    accent: "amber" as const,
-  },
-];
+export default function MasterDataOverviewClient({ questionBankEnabled = true }: { questionBankEnabled?: boolean }) {
+  const quickLinks = [
+    {
+      href: "/admin/master-data/lookups",
+      label: "Lookup Values",
+      icon: ListTree,
+      desc: "Skill sets, statuses, sources, rounds, and other enums.",
+      accent: "indigo" as const,
+    },
+    ...(questionBankEnabled ? [
+      {
+        href: "/admin/master-data/categories",
+        label: "QB Categories",
+        icon: Layers,
+        desc: "Question bank classification categories.",
+        accent: "purple" as const,
+      },
+      {
+        href: "/admin/master-data/tags",
+        label: "QB Tags",
+        icon: Tag,
+        desc: "Question tags used in digest and search.",
+        accent: "teal" as const,
+      },
+      {
+        href: "/admin/master-data/companies",
+        label: "QB Companies",
+        icon: Building2,
+        desc: "Company directory for interview sessions.",
+        accent: "amber" as const,
+      },
+    ] : []),
+  ];
 
-export default function MasterDataOverviewClient() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -96,17 +98,15 @@ export default function MasterDataOverviewClient() {
         />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <MasterDataStatCard label="Lookup values" value={lookupCount} accent="indigo" />
-          <MasterDataStatCard
-            label="Categories"
-            value={data?.categories?.length ?? 0}
-            accent="purple"
-          />
-          <MasterDataStatCard label="Tags" value={data?.tags?.length ?? 0} accent="teal" />
-          <MasterDataStatCard
-            label="Companies"
-            value={data?.companies?.length ?? 0}
-            accent="amber"
-          />
+          {questionBankEnabled && (
+            <MasterDataStatCard label="Categories" value={data?.categories?.length ?? 0} accent="purple" />
+          )}
+          {questionBankEnabled && (
+            <MasterDataStatCard label="Tags" value={data?.tags?.length ?? 0} accent="teal" />
+          )}
+          {questionBankEnabled && (
+            <MasterDataStatCard label="Companies" value={data?.companies?.length ?? 0} accent="amber" />
+          )}
         </div>
       </div>
 

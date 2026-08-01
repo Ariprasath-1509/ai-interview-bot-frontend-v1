@@ -30,7 +30,7 @@ interface CandidateMatch {
   candidateName: string;
   candidateEmail: string;
   skillSet: string;
-  yoeActual: number;
+  yoePortrayed: number;
   rating: string;
   candidateStatus: string;
   noOfInterviews: number;
@@ -543,7 +543,7 @@ export default function AIMatchingClient() {
                           </Badge>
                           <Badge variant="outline">{candidate.skillSet}</Badge>
                           <span className="text-sm text-zinc-500">
-                            {candidate.yoeActual} years exp
+                            {candidate.yoePortrayed} years exp
                           </span>
                         </div>
                       </div>

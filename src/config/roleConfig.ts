@@ -195,9 +195,9 @@ const SIDEBAR_FEATURE_MAP: Record<string, FeatureKey> = {
   "/admin/compliance": "COMPLIANCE",
   "/admin/master-data": "MASTER_DATA",
   "/admin/master-data/lookups": "MASTER_DATA",
-  "/admin/master-data/categories": "MASTER_DATA",
-  "/admin/master-data/tags": "MASTER_DATA",
-  "/admin/master-data/companies": "MASTER_DATA",
+  "/admin/master-data/categories": "QUESTION_BANK",
+  "/admin/master-data/tags": "QUESTION_BANK",
+  "/admin/master-data/companies": "QUESTION_BANK",
   "/admin/questionbank": "QUESTION_BANK",
 };
 

@@ -25,10 +25,22 @@ type StaffRow = {
 
 const EDITABLE_ROLES = [
   { value: "RECRUITER", label: "Recruiter" },
-  { value: "TESTING_RECRUITER", label: "Testing Recruiter" },
   { value: "ADMIN", label: "Admin" },
-  { value: "TESTING_ADMIN", label: "Testing Admin" },
 ] as const;
+
+/** Maps stored role → display role (strips TESTING_ prefix) */
+function toBaseRole(role: string): string {
+  if (role === "TESTING_ADMIN") return "ADMIN";
+  if (role === "TESTING_RECRUITER") return "RECRUITER";
+  return role;
+}
+
+/** Maps display role + branch → actual stored role */
+function toActualRole(baseRole: string, branch: string): string {
+  const isTesting = branch.toUpperCase() === "TESTING";
+  if (baseRole === "ADMIN") return isTesting ? "TESTING_ADMIN" : "ADMIN";
+  return isTesting ? "TESTING_RECRUITER" : "RECRUITER";
+}
 
 export function EditStaffDialog({ staff }: { staff: StaffRow }) {
   const [open, setOpen] = useState(false);
@@ -36,8 +48,9 @@ export function EditStaffDialog({ staff }: { staff: StaffRow }) {
   const [pending, setPending] = useState(false);
 
   const isSuperAdmin = staff.role === "SUPER_ADMIN";
-  const [role, setRole] = useState(staff.role);
-  const showAdminSource = role === "ADMIN" || role === "TESTING_ADMIN";
+  const [role, setRole] = useState(toBaseRole(staff.role));
+  const [branch, setBranch] = useState(staff.branch ?? (staff.role.startsWith("TESTING") ? "TESTING" : "DEVELOPMENT"));
+  const showAdminSource = role === "ADMIN";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -49,9 +62,9 @@ export function EditStaffDialog({ staff }: { staff: StaffRow }) {
       name: String(form.get("name") ?? ""),
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
-      role: isSuperAdmin ? "SUPER_ADMIN" : String(form.get("role") ?? staff.role),
+      role: isSuperAdmin ? "SUPER_ADMIN" : toActualRole(role, branch),
       adminSource: showAdminSource ? String(form.get("adminSource") ?? "") : undefined,
-      branch: isSuperAdmin ? undefined : String(form.get("branch") ?? ""),
+      branch: isSuperAdmin ? undefined : branch,
     });
 
     setPending(false);
@@ -131,7 +144,9 @@ export function EditStaffDialog({ staff }: { staff: StaffRow }) {
                 <StaffBranchSelect
                   id={`edit-branch-${staff.id}`}
                   name="branch"
-                  defaultValue={staff.branch ?? "DEVELOPMENT"}
+                  defaultValue={branch}
+                  value={branch}
+                  onChange={setBranch}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </div>

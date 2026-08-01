@@ -14,7 +14,6 @@ interface Profile {
   candidateStatus: string | null;
   rating: string | null;
   skillSet: string | null;
-  yoeActual: number | null;
   yoePortrayed: number | null;
   noOfInterviews: number | null;
   yop: number | null;
@@ -162,8 +161,7 @@ export function CandidateProfileClient({ initialProfile }: Props) {
             <Field label="Source"><Value>{profile.source ? (SOURCE_LABEL[profile.source] ?? profile.source) : "—"}</Value></Field>
             <Field label="Skill Set"><Value>{profile.skillSet ? (SKILL_LABEL[profile.skillSet] ?? profile.skillSet) : "—"}</Value></Field>
             <Field label="Year of Passing"><Value>{profile.yop ?? "—"}</Value></Field>
-            <Field label="YOE (Actual)"><Value>{profile.yoeActual ?? "—"}</Value></Field>
-            <Field label="YOE (Portrayed)"><Value>{profile.yoePortrayed ?? "—"}</Value></Field>
+            <Field label="YOE"><Value>{profile.yoePortrayed ?? "—"}</Value></Field>
           </div>
         </div>
 

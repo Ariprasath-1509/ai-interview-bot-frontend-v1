@@ -32,7 +32,7 @@ interface CandidateMatchingResult {
   candidateName: string;
   candidateEmail: string;
   skillSet: string;
-  yoeActual: number;
+  yoePortrayed: number;
   rating: string;
   candidateStatus: string;
   systemInterviewCount: number;
@@ -249,7 +249,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                       {matchingResult.skillSet}
                     </Badge>
                     <span className="text-sm text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-700 px-3 py-1 rounded-full">
-                      {matchingResult.yoeActual} years exp • {matchingResult.systemInterviewCount} interviews
+                      {matchingResult.yoePortrayed} years exp • {matchingResult.systemInterviewCount} interviews
                     </span>
                   </div>
                 </div>

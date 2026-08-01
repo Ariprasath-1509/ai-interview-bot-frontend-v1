@@ -86,7 +86,6 @@ type ClientBriefContext = {
   totalMinutes?: number | null;
   verdict: string | null;
   skillSet: string | null;
-  yoeActual: number | null;
   yoePortrayed: number | null;
   reviewerName?: string;
   reviewerYoe?: string;

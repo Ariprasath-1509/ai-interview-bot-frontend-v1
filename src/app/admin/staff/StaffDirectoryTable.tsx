@@ -26,7 +26,7 @@ export function StaffDirectoryTable({ staff }: { staff: StaffRow[] }) {
         header: "Role",
         cell: ({ row }) => (
           <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-            {row.original.role.replace(/_/g, " ")}
+            {row.original.role.replace(/^TESTING_/, "").replace(/_/g, " ")}
           </span>
         ),
       },

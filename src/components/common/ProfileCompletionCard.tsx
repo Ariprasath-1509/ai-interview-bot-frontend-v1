@@ -10,7 +10,6 @@ type Profile = {
   batch?: string | null;
   source?: string | null;
   skillSet?: string | null;
-  yoeActual?: number | null;
   yoePortrayed?: number | null;
   yop?: number | null;
 };
@@ -24,8 +23,7 @@ export function ProfileCompletionCard({ profile }: { profile: Profile }) {
     { label: "Batch", filled: !!profile.batch },
     { label: "Source", filled: !!profile.source },
     { label: "Skill Set", filled: !!profile.skillSet },
-    { label: "YOE Actual", filled: profile.yoeActual != null },
-    { label: "YOE Portrayed", filled: profile.yoePortrayed != null },
+    { label: "YOE", filled: profile.yoePortrayed != null },
     { label: "Year of Passing", filled: profile.yop != null },
   ];
 

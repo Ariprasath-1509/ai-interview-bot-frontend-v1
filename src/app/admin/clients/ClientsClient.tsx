@@ -61,7 +61,7 @@ interface CandidateMatch {
   candidateName: string;
   candidateEmail: string;
   skillSet: string;
-  yoeActual: number;
+  yoePortrayed: number;
   rating: string;
   candidateStatus: string;
   noOfInterviews: number;
@@ -1618,7 +1618,7 @@ function CandidateMatchCard({ candidate, onCreateInterview }: {
             <Badge className={`text-[10px] px-1.5 py-0 ${candidate.rating === 'ASSET' ? 'bg-emerald-100 text-emerald-800' : candidate.rating === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
               {candidate.rating}
             </Badge>
-            <span className="text-[10px] text-zinc-500">{candidate.skillSet} • {candidate.yoeActual}y</span>
+            <span className="text-[10px] text-zinc-500">{candidate.skillSet} • {candidate.yoePortrayed}y</span>
           </div>
         </div>
         <div className={`text-lg font-bold px-2 py-0.5 rounded-lg ${candidate.matchScore >= 0.8 ? 'text-emerald-700 bg-emerald-50' : candidate.matchScore >= 0.6 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50'}`}>

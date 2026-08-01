@@ -31,7 +31,6 @@ export interface Candidate {
   candidateStatus: string | null;
   rating: string | null;
   skillSet: string | null;
-  yoeActual: number | null;
   yoePortrayed: number | null;
   noOfInterviews: number | null;
   yop: number | null;
@@ -50,7 +49,7 @@ export interface Candidate {
   active?: boolean | null;
 }
 
-interface Props { role: string; }
+interface Props { role: string; features?: Record<string, boolean>; }
 type TreeParent = 'all' | 'matched' | 'deployed';
 
 type ImportDetail = {
@@ -79,7 +78,6 @@ type AddCandidateForm = {
   candidateStatus: string;
   rating: string;
   skillSet: string;
-  yoeActual: string;
   yoePortrayed: string;
   yop: string;
   interviewMentorName: string;
@@ -98,7 +96,6 @@ const emptyAddForm = (): AddCandidateForm => ({
   candidateStatus: 'TRAINING',
   rating: '',
   skillSet: '',
-  yoeActual: '',
   yoePortrayed: '',
   yop: '',
   interviewMentorName: '',
@@ -110,9 +107,12 @@ function getEffectiveInterviewCount(candidate: Candidate): number {
   return Math.max(candidate.noOfInterviews ?? 0, candidate.systemInterviewCount ?? 0);
 }
 
-export default function CandidatesClient({ role }: Props) {
+export default function CandidatesClient({ role, features = {} }: Props) {
+  const clientsEnabled = features.CLIENTS !== false;
   const { options: branchOptions } = useBranchOptions();
   const [selectedParent, setSelectedParent] = useState<TreeParent>('all');
+  // If clients feature is disabled, always stay on 'all' view
+  const effectiveParent: TreeParent = !clientsEnabled ? 'all' : selectedParent;
   const [selectedSubParent, setSelectedSubParent] = useState<string>('ALL');
   const [openTreeGroups, setOpenTreeGroups] = useState<Record<TreeParent, boolean>>({
     all: true,
@@ -132,7 +132,7 @@ export default function CandidatesClient({ role }: Props) {
   const [editForm, setEditForm] = useState<CandidateEditForm>({
     name: '', email: '', officialEmail: '', personalEmail: '', contactNumber: '',
     batch: '', batchMentor: '', source: '', candidateStatus: '', rating: '',
-    skillSet: '', yoeActual: '', yoePortrayed: '', yop: '', noOfInterviews: '',
+    skillSet: '', yoePortrayed: '', yop: '', noOfInterviews: '',
     interviewMentorName: '', clientName: '', branch: 'DEVELOPMENT',
   });
   const [saving, setSaving] = useState(false);
@@ -351,7 +351,6 @@ export default function CandidatesClient({ role }: Props) {
       candidateStatus: c.candidateStatus ?? '',
       rating: c.rating ?? '',
       skillSet: c.skillSet ?? '',
-      yoeActual: c.yoeActual?.toString() ?? '',
       yoePortrayed: c.yoePortrayed?.toString() ?? '',
       yop: c.yop?.toString() ?? '',
       noOfInterviews: c.noOfInterviews?.toString() ?? '0',
@@ -374,7 +373,6 @@ export default function CandidatesClient({ role }: Props) {
       if (editForm.rating) payload.rating = editForm.rating;
       if (editForm.candidateStatus) payload.candidateStatus = editForm.candidateStatus;
       if (editForm.skillSet) payload.skillSet = editForm.skillSet;
-      if (editForm.yoeActual !== '') payload.yoeActual = parseFloat(editForm.yoeActual);
       if (editForm.yoePortrayed !== '') payload.yoePortrayed = parseFloat(editForm.yoePortrayed);
       if (editForm.yop !== '') payload.yop = parseInt(editForm.yop);
       if (editForm.noOfInterviews !== '') payload.noOfInterviews = parseInt(editForm.noOfInterviews);
@@ -419,8 +417,8 @@ export default function CandidatesClient({ role }: Props) {
       toast('Official or personal email is required', 'error');
       return;
     }
-    if (!addForm.contactNumber.trim() || !addForm.batch.trim() || !addForm.source || !addForm.skillSet) {
-      toast('Contact number, batch, source, and skill set are required', 'error');
+    if (!addForm.contactNumber.trim() || (!clientsEnabled ? false : (!addForm.batch.trim() || !addForm.source)) || !addForm.skillSet) {
+      toast('Contact number, skill set are required' + (clientsEnabled ? ', along with batch and source' : ''), 'error');
       return;
     }
 
@@ -437,7 +435,6 @@ export default function CandidatesClient({ role }: Props) {
         candidateStatus: addForm.candidateStatus || 'TRAINING',
         rating: addForm.rating || null,
         skillSet: addForm.skillSet,
-        yoeActual: addForm.yoeActual ? parseFloat(addForm.yoeActual) : null,
         yoePortrayed: addForm.yoePortrayed ? parseFloat(addForm.yoePortrayed) : null,
         yop: addForm.yop ? parseInt(addForm.yop, 10) : null,
         interviewMentorName: addForm.interviewMentorName.trim() || null,
@@ -583,9 +580,9 @@ export default function CandidatesClient({ role }: Props) {
     }
   };
 
-  const treeData = selectedParent === 'deployed'
+  const treeData = effectiveParent === 'deployed'
       ? deployedTreeFiltered
-      : selectedParent === 'matched'
+      : effectiveParent === 'matched'
           ? matchedTreeFiltered
           : allTreeFiltered;
 
@@ -642,10 +639,10 @@ export default function CandidatesClient({ role }: Props) {
             variant="teal"
         />
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className={`grid gap-4 ${clientsEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-1'}`}>
           <StatCard title="All Candidates" value={allCandidates.length} accent="blue" icon={Users} />
-          <StatCard title="Matched" value={matchedCandidates.length} accent="emerald" icon={UserCheck} />
-          <StatCard title="Deployed" value={deployedCandidates.length} accent="purple" icon={Briefcase} />
+          {clientsEnabled && <StatCard title="Matched" value={matchedCandidates.length} accent="emerald" icon={UserCheck} />}
+          {clientsEnabled && <StatCard title="Deployed" value={deployedCandidates.length} accent="purple" icon={Briefcase} />}
         </div>
 
         {/* Tree View Structure Wrapper */}
@@ -719,6 +716,8 @@ export default function CandidatesClient({ role }: Props) {
                     </div>
                 )}
 
+                {clientsEnabled && (
+                  <>
                 <button
                     type="button"
                     aria-expanded={openTreeGroups.matched}
@@ -780,12 +779,14 @@ export default function CandidatesClient({ role }: Props) {
                       ))}
                     </div>
                 )}
+                  </>
+                )}
               </div>
             </div>
 
             {/* Main Dashboard Panel Content */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-6 space-y-4">
-              {selectedParent !== 'deployed' ? (
+              {effectiveParent !== 'deployed' ? (
                   <div className="card p-6">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                       <div className="md:col-span-2">
@@ -840,7 +841,7 @@ export default function CandidatesClient({ role }: Props) {
                   {treeData.length !== 1 ? "s" : ""} found
                 </div>
                 <div className="flex items-center gap-2">
-                  {canAddCandidate && selectedParent !== 'deployed' && (
+                  {canAddCandidate && effectiveParent !== 'deployed' && (
                     <>
                       <Button
                           onClick={() => setShowAddDialog(true)}
@@ -849,16 +850,18 @@ export default function CandidatesClient({ role }: Props) {
                         <UserPlus className="mr-1 h-3.5 w-3.5" />
                         Add Candidate
                       </Button>
-                      <Button
-                          onClick={() => { setShowMarketCandidateDialog(true); setMarketCreated(null); setMarketForm({ name: '', email: '', contactNumber: '', branch: 'DEVELOPMENT' }); }}
-                          className="h-8 bg-violet-600 text-white shadow-sm hover:bg-violet-700"
-                      >
-                        <UserPlus className="mr-1 h-3.5 w-3.5" />
-                        Market Candidate
-                      </Button>
+                      {clientsEnabled && (
+                        <Button
+                            onClick={() => { setShowMarketCandidateDialog(true); setMarketCreated(null); setMarketForm({ name: '', email: '', contactNumber: '', branch: 'DEVELOPMENT' }); }}
+                            className="h-8 bg-violet-600 text-white shadow-sm hover:bg-violet-700"
+                        >
+                          <UserPlus className="mr-1 h-3.5 w-3.5" />
+                          Market Candidate
+                        </Button>
+                      )}
                     </>
                   )}
-                  {selectedParent === "deployed" && (
+                  {effectiveParent === "deployed" && (
                       <Button
                           onClick={() => setShowBulkImportDialog(true)}
                           className="h-8 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
@@ -870,7 +873,7 @@ export default function CandidatesClient({ role }: Props) {
                 </div>
               </div>
 
-              {selectedParent !== "deployed" ? (
+              {effectiveParent !== "deployed" ? (
                   <div className="card min-w-0 p-4">
                     <CandidatesMainTable
                         data={treeData}
@@ -900,6 +903,7 @@ export default function CandidatesClient({ role }: Props) {
                         }}
                         selectSmCls={selectSmCls}
                         showBranchColumn={isStaffReadRole(role)}
+                        clientsEnabled={clientsEnabled}
                     />
                   </div>
               ) : (
@@ -1213,7 +1217,8 @@ export default function CandidatesClient({ role }: Props) {
                   </div>
                 </div>
 
-                {/* Organization Details */}
+                {/* Organization Details — hidden when CLIENTS feature is disabled */}
+                {clientsEnabled && (
                 <div>
                   <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <div className="h-3 w-1 bg-emerald-500 rounded-full"></div>
@@ -1269,6 +1274,7 @@ export default function CandidatesClient({ role }: Props) {
                     </label>
                   </div>
                 </div>
+                )}
 
                 {/* Skills & Experience */}
                 <div>
@@ -1291,11 +1297,7 @@ export default function CandidatesClient({ role }: Props) {
                       <input className={inputCls} placeholder="Current/target client name" value={addForm.clientName} onChange={(e) => setAddForm((f) => ({ ...f, clientName: e.target.value }))} />
                     </label>
                     <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">YOE Actual</span>
-                      <input className={inputCls} type="number" step="0.1" placeholder="e.g., 3.5" value={addForm.yoeActual} onChange={(e) => setAddForm((f) => ({ ...f, yoeActual: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">YOE Portrayed</span>
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">YOE</span>
                       <input className={inputCls} type="number" step="0.1" placeholder="e.g., 5.0" value={addForm.yoePortrayed} onChange={(e) => setAddForm((f) => ({ ...f, yoePortrayed: e.target.value }))} />
                     </label>
                     <label className="grid gap-1.5">

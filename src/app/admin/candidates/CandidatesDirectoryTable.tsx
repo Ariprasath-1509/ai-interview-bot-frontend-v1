@@ -88,7 +88,6 @@ export type CandidateEditForm = {
   candidateStatus: string;
   rating: string;
   skillSet: string;
-  yoeActual: string;
   yoePortrayed: string;
   yop: string;
   noOfInterviews: string;
@@ -115,6 +114,7 @@ function CandidateEditRow({
   onSave,
   onCancel,
   selectSmCls,
+  clientsEnabled = true,
 }: {
   role: string;
   editForm: CandidateEditForm;
@@ -123,6 +123,7 @@ function CandidateEditRow({
   onSave: () => void;
   onCancel: () => void;
   selectSmCls: string;
+  clientsEnabled?: boolean;
 }) {
   const { options: branchOptions } = useBranchOptions();
   const { options: skillSetOptions } = useSkillSetOptions();
@@ -164,67 +165,77 @@ function CandidateEditRow({
           placeholder="Personal Email"
         />
       </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">Batch (DOH)</span>
-        <input
-          className={selectSmCls}
-          value={editForm.batch}
-          onChange={(e) => setEditForm((p) => ({ ...p, batch: e.target.value }))}
-          placeholder="Batch"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">Batch Mentor</span>
-        <input
-          className={selectSmCls}
-          value={editForm.batchMentor}
-          onChange={(e) => setEditForm((p) => ({ ...p, batchMentor: e.target.value }))}
-          placeholder="Batch Mentor"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">
-          Source {role !== "SUPER_ADMIN" && <span className="text-zinc-300">(locked)</span>}
-        </span>
-        <select
-          className={selectSmCls}
-          value={editForm.source}
-          disabled={role !== "SUPER_ADMIN"}
-          onChange={(e) => setEditForm((p) => ({ ...p, source: e.target.value }))}
-        >
-          <option value="">—</option>
-          <option value="B2B">B2B</option>
-          <option value="BENCH">Bench</option>
-          <option value="MARKET">Market</option>
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">Status</span>
-        <select
-          className={selectSmCls}
-          value={editForm.candidateStatus}
-          onChange={(e) => setEditForm((p) => ({ ...p, candidateStatus: e.target.value }))}
-        >
-          <option value="">—</option>
-          <option value="RFD">RFD</option>
-          <option value="WFD">WFD</option>
-          <option value="DOB">DOB</option>
-          <option value="TRAINING">Training</option>
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">Rating</span>
-        <select
-          className={selectSmCls}
-          value={editForm.rating}
-          onChange={(e) => setEditForm((p) => ({ ...p, rating: e.target.value }))}
-        >
-          <option value="">—</option>
-          <option value="ASSET">Asset</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="LIABILITY">Liability</option>
-        </select>
-      </div>
+      {clientsEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">Batch (DOH)</span>
+          <input
+            className={selectSmCls}
+            value={editForm.batch}
+            onChange={(e) => setEditForm((p) => ({ ...p, batch: e.target.value }))}
+            placeholder="Batch"
+          />
+        </div>
+      )}
+      {clientsEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">Batch Mentor</span>
+          <input
+            className={selectSmCls}
+            value={editForm.batchMentor}
+            onChange={(e) => setEditForm((p) => ({ ...p, batchMentor: e.target.value }))}
+            placeholder="Batch Mentor"
+          />
+        </div>
+      )}
+      {clientsEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">
+            Source {role !== "SUPER_ADMIN" && <span className="text-zinc-300">(locked)</span>}
+          </span>
+          <select
+            className={selectSmCls}
+            value={editForm.source}
+            disabled={role !== "SUPER_ADMIN"}
+            onChange={(e) => setEditForm((p) => ({ ...p, source: e.target.value }))}
+          >
+            <option value="">—</option>
+            <option value="B2B">B2B</option>
+            <option value="BENCH">Bench</option>
+            <option value="MARKET">Market</option>
+          </select>
+        </div>
+      )}
+      {clientsEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">Status</span>
+          <select
+            className={selectSmCls}
+            value={editForm.candidateStatus}
+            onChange={(e) => setEditForm((p) => ({ ...p, candidateStatus: e.target.value }))}
+          >
+            <option value="">—</option>
+            <option value="RFD">RFD</option>
+            <option value="WFD">WFD</option>
+            <option value="DOB">DOB</option>
+            <option value="TRAINING">Training</option>
+          </select>
+        </div>
+      )}
+      {clientsEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">Rating</span>
+          <select
+            className={selectSmCls}
+            value={editForm.rating}
+            onChange={(e) => setEditForm((p) => ({ ...p, rating: e.target.value }))}
+          >
+            <option value="">—</option>
+            <option value="ASSET">Asset</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LIABILITY">Liability</option>
+          </select>
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         <span className="text-[10px] text-zinc-400">Skill Set</span>
         <select
@@ -239,18 +250,7 @@ function CandidateEditRow({
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">YOE Actual</span>
-        <input
-          type="number"
-          step="0.1"
-          className={selectSmCls}
-          value={editForm.yoeActual}
-          onChange={(e) => setEditForm((p) => ({ ...p, yoeActual: e.target.value }))}
-          placeholder="0.0"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">YOE Portrayed</span>
+        <span className="text-[10px] text-zinc-400">YOE</span>
         <input
           type="number"
           step="0.1"
@@ -280,24 +280,28 @@ function CandidateEditRow({
           onChange={(e) => setEditForm((p) => ({ ...p, noOfInterviews: e.target.value }))}
         />
       </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">Interview Mentor</span>
-        <input
-          className={selectSmCls}
-          value={editForm.interviewMentorName}
-          onChange={(e) => setEditForm((p) => ({ ...p, interviewMentorName: e.target.value }))}
-          placeholder="Mentor"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-400">Client</span>
-        <input
-          className={selectSmCls}
-          value={editForm.clientName}
-          onChange={(e) => setEditForm((p) => ({ ...p, clientName: e.target.value }))}
-          placeholder="Client"
-        />
-      </div>
+      {clientsEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">Interview Mentor</span>
+          <input
+            className={selectSmCls}
+            value={editForm.interviewMentorName}
+            onChange={(e) => setEditForm((p) => ({ ...p, interviewMentorName: e.target.value }))}
+            placeholder="Mentor"
+          />
+        </div>
+      )}
+      {clientsEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-400">Client</span>
+          <input
+            className={selectSmCls}
+            value={editForm.clientName}
+            onChange={(e) => setEditForm((p) => ({ ...p, clientName: e.target.value }))}
+            placeholder="Client"
+          />
+        </div>
+      )}
       {role === "SUPER_ADMIN" && (
         <div className="flex flex-col gap-1">
           <span className="text-[10px] text-zinc-400">Branch</span>
@@ -356,6 +360,7 @@ export function CandidatesMainTable({
   handlers,
   selectSmCls,
   showBranchColumn = false,
+  clientsEnabled = true,
 }: {
   data: Candidate[];
   role: string;
@@ -368,6 +373,7 @@ export function CandidatesMainTable({
   handlers: RowHandlers;
   selectSmCls: string;
   showBranchColumn?: boolean;
+  clientsEnabled?: boolean;
 }) {
   const handlersRef = useRef(handlers);
   useEffect(() => {
@@ -414,9 +420,11 @@ export function CandidatesMainTable({
           <span className="text-xs text-zinc-600 dark:text-zinc-400">{(getValue() as string | null) || "—"}</span>
         ),
       },
-      { accessorKey: "batch", header: "Batch (DOH)" },
-      { accessorKey: "batchMentor", header: "Batch Mentor" },
-      {
+      ...(clientsEnabled ? [
+        { accessorKey: "batch", header: "Batch (DOH)" } satisfies ColumnDef<Candidate, unknown>,
+        { accessorKey: "batchMentor", header: "Batch Mentor" } satisfies ColumnDef<Candidate, unknown>,
+      ] : []),
+      ...(clientsEnabled ? [{
         accessorKey: "source",
         header: "Source",
         accessorFn: (r) => (r.source ? SOURCE_LABEL[r.source] ?? r.source : ""),
@@ -428,7 +436,7 @@ export function CandidatesMainTable({
           ) : (
             "—"
           ),
-      },
+      } satisfies ColumnDef<Candidate, unknown>] : []),
       {
         accessorKey: "skillSet",
         header: "Skill",
@@ -444,14 +452,11 @@ export function CandidatesMainTable({
       },
       {
         id: "yoe",
-        header: "YOE (A/P)",
-        accessorFn: (r) =>
-          r.yoeActual != null ? `${r.yoeActual} / ${r.yoePortrayed ?? "—"}` : "",
+        header: "YOE",
+        accessorFn: (r) => r.yoePortrayed ?? "",
         cell: ({ row }) => (
           <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400">
-            {row.original.yoeActual != null
-              ? `${row.original.yoeActual} / ${row.original.yoePortrayed ?? "—"}`
-              : "—"}
+            {row.original.yoePortrayed ?? "—"}
           </span>
         ),
       },
@@ -500,11 +505,11 @@ export function CandidatesMainTable({
           );
         },
       },
-      {
+      ...(clientsEnabled ? [{
         accessorKey: "candidateStatus",
         header: "Status",
-        accessorFn: (r) => r.candidateStatus ?? "",
-        cell: ({ row }) =>
+        accessorFn: (r: Candidate) => r.candidateStatus ?? "",
+        cell: ({ row }: { row: { original: Candidate } }) =>
           row.original.candidateStatus ? (
             <span
               className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
@@ -516,12 +521,12 @@ export function CandidatesMainTable({
           ) : (
             <span className="text-xs text-zinc-400">—</span>
           ),
-      },
-      {
+      } satisfies ColumnDef<Candidate, unknown>] : []),
+      ...(clientsEnabled ? [{
         accessorKey: "rating",
         header: "Rating",
-        accessorFn: (r) => r.rating ?? "",
-        cell: ({ row }) =>
+        accessorFn: (r: Candidate) => r.rating ?? "",
+        cell: ({ row }: { row: { original: Candidate } }) =>
           row.original.rating ? (
             <span
               className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
@@ -533,7 +538,7 @@ export function CandidatesMainTable({
           ) : (
             <span className="text-xs text-zinc-400">—</span>
           ),
-      },
+      } satisfies ColumnDef<Candidate, unknown>] : []),
       {
         accessorKey: "noOfInterviews",
         header: "Ext. Interviews",
@@ -572,48 +577,50 @@ export function CandidatesMainTable({
           );
         },
       },
-      {
-        accessorKey: "interviewMentorName",
-        header: "Interview Mentor",
-        cell: ({ getValue }) => (getValue() as string | null) || "—",
-      },
-      { accessorKey: "clientName", header: "Client" },
-      {
-        id: "matching",
-        header: "Matching",
-        enableSorting: false,
-        enableColumnFilter: false,
-        cell: ({ row }) => (
-          <ViewMatchesButton
-            candidateId={row.original.id}
-            candidateStatus={row.original.candidateStatus}
-            systemInterviewCount={row.original.systemInterviewCount ?? null}
-          />
-        ),
-      },
-      {
-        id: "reviewHistory",
-        header: "Review Summary",
-        enableSorting: false,
-        enableColumnFilter: false,
-        cell: ({ row }) => {
-          const c = row.original;
-          if ((c.systemInterviewCount ?? 0) < 1 || !handlersRef.current.onDownloadPdf) {
-            return <span className="text-xs text-zinc-400">—</span>;
-          }
-          return (
-            <button
-              type="button"
-              onClick={() => handlersRef.current.onDownloadPdf!(c.id, c.name || "Candidate")}
-              className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 px-2 py-1 text-xs font-medium text-white shadow-sm transition-all duration-200 hover:from-indigo-600 hover:to-violet-600 hover:shadow-md hover:scale-105"
-              title="Download last 5 interviews as PDF"
-            >
-              <FileDown className="h-3 w-3" />
-              Download PDF
-            </button>
-          );
-        },
-      },
+      ...(clientsEnabled ? [
+        {
+          accessorKey: "interviewMentorName",
+          header: "Interview Mentor",
+          cell: ({ getValue }: { getValue: () => unknown }) => (getValue() as string | null) || "—",
+        } satisfies ColumnDef<Candidate, unknown>,
+        { accessorKey: "clientName", header: "Client" } satisfies ColumnDef<Candidate, unknown>,
+        {
+          id: "matching",
+          header: "Matching",
+          enableSorting: false,
+          enableColumnFilter: false,
+          cell: ({ row }: { row: { original: Candidate } }) => (
+            <ViewMatchesButton
+              candidateId={row.original.id}
+              candidateStatus={row.original.candidateStatus}
+              systemInterviewCount={row.original.systemInterviewCount ?? null}
+            />
+          ),
+        } satisfies ColumnDef<Candidate, unknown>,
+        {
+          id: "reviewHistory",
+          header: "Review Summary",
+          enableSorting: false,
+          enableColumnFilter: false,
+          cell: ({ row }: { row: { original: Candidate } }) => {
+            const c = row.original;
+            if ((c.systemInterviewCount ?? 0) < 1 || !handlersRef.current.onDownloadPdf) {
+              return <span className="text-xs text-zinc-400">—</span>;
+            }
+            return (
+              <button
+                type="button"
+                onClick={() => handlersRef.current.onDownloadPdf!(c.id, c.name || "Candidate")}
+                className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 px-2 py-1 text-xs font-medium text-white shadow-sm transition-all duration-200 hover:from-indigo-600 hover:to-violet-600 hover:shadow-md hover:scale-105"
+                title="Download last 5 interviews as PDF"
+              >
+                <FileDown className="h-3 w-3" />
+                Download PDF
+              </button>
+            );
+          },
+        } satisfies ColumnDef<Candidate, unknown>,
+      ] : []),
       {
         id: "actions",
         header: "Actions",
@@ -666,7 +673,7 @@ export function CandidatesMainTable({
         },
       },
     ],
-    [showBranchColumn]
+    [showBranchColumn, clientsEnabled]
   );
 
   return (
@@ -688,6 +695,7 @@ export function CandidatesMainTable({
             onSave={() => onSaveEdit(r.id)}
             onCancel={onCancelEdit}
             selectSmCls={selectSmCls}
+            clientsEnabled={clientsEnabled}
           />
         ),
       }}
@@ -748,7 +756,7 @@ export function DeployedCandidatesTable({
       { accessorKey: "officialEmail", header: "Official Email" },
       { accessorKey: "personalEmail", header: "Personal Email" },
       {
-        accessorKey: "yoeActual",
+        accessorKey: "yoePortrayed",
         header: "YOE",
         cell: ({ getValue }) => (getValue() as number | null) ?? "—",
       },

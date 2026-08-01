@@ -35,7 +35,6 @@ type CandidateProfile = {
   batch?: string | null;
   source?: string | null;
   skillSet?: string | null;
-  yoeActual?: number | null;
   yoePortrayed?: number | null;
   yop?: number | null;
 };

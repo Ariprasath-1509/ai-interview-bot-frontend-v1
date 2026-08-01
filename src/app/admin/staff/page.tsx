@@ -24,16 +24,19 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
     const name = formData.get("name");
     const email = formData.get("email");
     const password = formData.get("password");
-    const role = formData.get("role");
+    const baseRole = String(formData.get("role") ?? "RECRUITER");
+    const branch = String(formData.get("branch") || "DEVELOPMENT");
     const adminSource = formData.get("adminSource") || undefined;
-    const branch = formData.get("branch") || undefined;
 
-    const body: Record<string, unknown> = { name, email, password, role };
+    // Map base role + branch → actual stored role
+    const isTesting = branch.toUpperCase() === "TESTING";
+    const role = baseRole === "ADMIN"
+      ? (isTesting ? "TESTING_ADMIN" : "ADMIN")
+      : (isTesting ? "TESTING_RECRUITER" : "RECRUITER");
+
+    const body: Record<string, unknown> = { name, email, password, role, branch };
     if ((role === "ADMIN" || role === "TESTING_ADMIN") && adminSource) {
       body.adminSource = adminSource;
-    }
-    if (branch) {
-      body.branch = branch;
     }
 
     const r = await apiServer("/auth/staff", s.token, {
@@ -84,8 +87,6 @@ export default async function StaffPage({ searchParams }: { searchParams?: Promi
               <select required name="role" className="input-base" defaultValue="RECRUITER">
                 <option value="RECRUITER">Recruiter</option>
                 <option value="ADMIN">Admin</option>
-                <option value="TESTING_RECRUITER">Testing Recruiter</option>
-                <option value="TESTING_ADMIN">Testing Admin</option>
               </select>
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">

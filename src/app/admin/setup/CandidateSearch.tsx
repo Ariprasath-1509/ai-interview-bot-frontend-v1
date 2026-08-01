@@ -9,7 +9,6 @@ type Candidate = {
   batch?: string;
   source?: string;
   skillSet?: string;
-  yoeActual?: number;
   yoePortrayed?: number;
   candidateStatus?: string;
   rating?: string;
@@ -128,7 +127,7 @@ export function CandidateSearch({
                   <span>{c.email}</span>
                   {c.batch && <span>• {c.batch}</span>}
                   {c.source && <span>• {c.source}</span>}
-                  {c.yoeActual != null && <span>• {c.yoeActual}y (actual) / {c.yoePortrayed ?? "—"}y (portrayed)</span>}
+                  {c.yoePortrayed != null && <span>• {c.yoePortrayed}y</span>}
                   {c.candidateStatus && <span>• {c.candidateStatus === "RFD" ? "RFD" : "Not RFD"}</span>}
                 </div>
               </button>

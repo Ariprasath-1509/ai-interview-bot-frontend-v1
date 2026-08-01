@@ -47,7 +47,7 @@ interface ImportResult {
   sessionId: string;
 }
 
-export default function BulkImportClient({ userRole, userBranch }: { userRole: string; userBranch?: string }) {
+export default function BulkImportClient({ userRole, userBranch, clientsEnabled = true }: { userRole: string; userBranch?: string; clientsEnabled?: boolean }) {
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
   const staffDefaultBranch = defaultStaffBranch(userRole, userBranch);
   const { options: branchOptions } = useBranchOptions();
@@ -183,7 +183,7 @@ export default function BulkImportClient({ userRole, userBranch }: { userRole: s
         <div className="mt-4">
           <Button 
             variant="outline" 
-            onClick={() => window.open('/api/admin/bulk-import/template', '_blank')}
+            onClick={() => window.open(`/api/admin/bulk-import/template?clientsEnabled=${clientsEnabled}`, '_blank')}
             className="flex items-center gap-2"
           >
             <Download className="h-4 w-4" />
