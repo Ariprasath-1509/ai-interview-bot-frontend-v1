@@ -55,6 +55,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase", navGroup: "candidates" },
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
+      { href: "/admin/profile", label: "Profile", icon: "User" },
       { href: "/admin/organizations", label: "Organizations", icon: "Globe" },
       { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
       { href: "/admin/settings", label: "Settings", icon: "Settings" },
@@ -72,6 +73,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       "interviews.signoff", "interviews.observe", "interviews.inject", "interviews.flag",
       "candidates.view", "candidates.update", "candidates.bulk_import", "clients.manage", "matching.view",
       "staff.manage", "tokens.manage", "compliance.view", "masterdata.view", "masterdata.manage", "analytics.view", "calendar.view",
+      "profile.view", "profile.edit",
     ],
   },
   ADMIN: {
@@ -86,6 +88,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/candidates/deployment-bulk-import", label: "Deployment Import", icon: "Briefcase", navGroup: "candidates" },
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
+      { href: "/admin/profile", label: "Profile", icon: "User" },
       { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
       { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
@@ -101,6 +104,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       "interviews.signoff", "interviews.observe", "interviews.inject", "interviews.flag",
       "candidates.view", "candidates.update", "candidates.bulk_import", "clients.manage", "matching.view",
       "staff.manage", "compliance.view", "masterdata.view", "analytics.view", "calendar.view",
+      "profile.view", "profile.edit",
     ],
   },
   TESTING_ADMIN: {
@@ -114,6 +118,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/candidates/bulk-import", label: "Bulk Import", icon: "Upload", navGroup: "candidates" },
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
+      { href: "/admin/profile", label: "Profile", icon: "User" },
       { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
       { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
       { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
@@ -128,6 +133,7 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       "interviews.signoff", "interviews.observe", "interviews.inject", "interviews.flag",
       "candidates.view", "candidates.update", "candidates.bulk_import", "clients.manage", "matching.view",
       "compliance.view", "masterdata.view", "analytics.view", "calendar.view",
+      "profile.view", "profile.edit",
     ],
   },
   RECRUITER: {
@@ -141,11 +147,12 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/recruiter-bot", label: "JD Assistant", icon: "Bot", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
+      { href: "/admin/profile", label: "Profile", icon: "User" },
     ],
     permissions: [
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
       "interviews.observe", "interviews.inject", "candidates.view", "clients.manage",
-      "matching.view", "analytics.view", "calendar.view",
+      "matching.view", "analytics.view", "calendar.view", "profile.view", "profile.edit",
     ],
   },
   TESTING_RECRUITER: {
@@ -159,11 +166,12 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/recruiter-bot", label: "JD Assistant", icon: "Bot", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
+      { href: "/admin/profile", label: "Profile", icon: "User" },
     ],
     permissions: [
       "dashboard.view", "interviews.create", "interviews.review", "interviews.delete",
       "interviews.observe", "interviews.inject", "candidates.view", "clients.manage",
-      "matching.view", "analytics.view", "calendar.view",
+      "matching.view", "analytics.view", "calendar.view", "profile.view", "profile.edit",
     ],
   },
   CANDIDATE: {
