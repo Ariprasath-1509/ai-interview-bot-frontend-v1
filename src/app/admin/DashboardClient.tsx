@@ -30,6 +30,10 @@ interface TokenData {
   usage: number; limit: number; warningThreshold: number; nearLimit: boolean; overLimit: boolean; remainingTokens: number;
 }
 
+interface TokenBucket { date: string; label: string; tokens: number; costUsd: number; }
+interface WeeklyTokenData { totalTokens: number; avgDailyTokens: number; totalCostUsd: number; buckets: TokenBucket[]; dailyLimit: number; }
+interface PerInterviewTokenData { count: number; avgTotalTokens: number; avgQuestionTokens: number; avgAssessmentTokens: number; avgRubricTokens: number; maxTotalTokens: number; totalCostUsd: number; avgCostPerInterviewUsd: number; }
+
 interface ModeAnalytics {
   modeDistribution: Record<string, number>;
   totalInterviews: number;
@@ -60,6 +64,9 @@ export default function DashboardClient() {
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
+  const [weeklyTokens, setWeeklyTokens] = useState<WeeklyTokenData | null>(null);
+  const [monthlyTokens, setMonthlyTokens] = useState<WeeklyTokenData | null>(null);
+  const [perInterviewTokens, setPerInterviewTokens] = useState<PerInterviewTokenData | null>(null);
   const [modeAnalytics, setModeAnalytics] = useState<ModeAnalytics | null>(null);
   const [verdicts, setVerdicts] = useState<VerdictAnalytics | null>(null);
   const [candidateAnalytics, setCandidateAnalytics] = useState<CandidateAnalytics | null>(null);
@@ -69,7 +76,8 @@ export default function DashboardClient() {
 
   const fetchAnalytics = async () => {
     try {
-      const [analyticsRes, tokenRes, modeRes, verdictsRes, candidatesRes, trendsRes, reviewRes] = await Promise.all([
+      const [analyticsRes, tokenRes, modeRes, verdictsRes, candidatesRes, trendsRes, reviewRes,
+             weeklyTokenRes, monthlyTokenRes, perInterviewTokenRes] = await Promise.all([
         fetch('/api/analytics/realtime').catch(() => null),
         fetch('/api/tokens/check-limit').catch(() => null),
         fetch('/api/analytics/modes').catch(() => null),
@@ -77,10 +85,16 @@ export default function DashboardClient() {
         fetch('/api/analytics/candidates').catch(() => null),
         fetch('/api/analytics/trends').catch(() => null),
         fetch('/api/interviews/summary').catch(() => null),
+        fetch('/api/tokens/analytics/weekly').catch(() => null),
+        fetch('/api/tokens/analytics/monthly').catch(() => null),
+        fetch('/api/tokens/analytics/per-interview').catch(() => null),
       ]);
 
       if (analyticsRes?.ok) setAnalytics(await analyticsRes.json());
       if (tokenRes?.ok) setTokenData(await tokenRes.json());
+      if (weeklyTokenRes?.ok) setWeeklyTokens(await weeklyTokenRes.json());
+      if (monthlyTokenRes?.ok) setMonthlyTokens(await monthlyTokenRes.json());
+      if (perInterviewTokenRes?.ok) setPerInterviewTokens(await perInterviewTokenRes.json());
       if (modeRes?.ok) setModeAnalytics(await modeRes.json());
       if (verdictsRes?.ok) {
         const vData = await verdictsRes.json();
@@ -277,40 +291,132 @@ export default function DashboardClient() {
 
           {/* TOKENS TAB */}
           {activeTab === 'tokens' && (
-              <div className="card p-6 max-w-2xl">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Daily Token Usage</h3>
-                  <Link href="/admin/settings/tokens" className="text-sm text-blue-600 hover:underline">Manage Settings</Link>
+            <div className="space-y-6">
+              {/* Today's usage bar */}
+              <div className="card p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Today&apos;s Token Budget</h3>
+                  <Link href="/admin/settings/tokens" className="text-sm text-blue-600 hover:underline">Manage Limits</Link>
                 </div>
-
                 {tokenData ? (
-                    <div className="space-y-6">
-                      <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-4 overflow-hidden">
-                        <div
-                            className={`h-full transition-all duration-500 ${tokenData.overLimit ? 'bg-red-500' : tokenData.nearLimit ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(100, (tokenData.usage / tokenData.limit) * 100)}%` }}
-                        ></div>
+                  <div className="space-y-4">
+                    <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 ${tokenData.overLimit ? 'bg-red-500' : tokenData.nearLimit ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(100, (tokenData.usage / tokenData.limit) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wide">Used Today</div>
+                        <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100">{tokenData.usage.toLocaleString()}</div>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                          <div className="text-sm text-zinc-500 mb-1">Tokens Used Today</div>
-                          <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100">{tokenData.usage.toLocaleString()}</div>
-                        </div>
-                        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                          <div className="text-sm text-zinc-500 mb-1">Tokens Remaining</div>
-                          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{tokenData.remainingTokens.toLocaleString()}</div>
-                        </div>
-                        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800 col-span-2">
-                          <div className="text-sm text-zinc-500 mb-1">Daily Limit (Hard Cap)</div>
-                          <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100">{tokenData.limit.toLocaleString()}</div>
-                        </div>
+                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wide">Remaining</div>
+                        <div className={`text-2xl font-bold font-mono ${tokenData.overLimit ? 'text-red-600' : tokenData.nearLimit ? 'text-amber-600' : 'text-emerald-600'}`}>{tokenData.remainingTokens.toLocaleString()}</div>
+                      </div>
+                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wide">Daily Limit</div>
+                        <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100">{tokenData.limit.toLocaleString()}</div>
                       </div>
                     </div>
-                ) : (
-                    <div className="text-zinc-500">Token data unavailable</div>
-                )}
+                  </div>
+                ) : <div className="text-zinc-400 text-sm">Token data unavailable</div>}
               </div>
+
+              {/* Weekly + Monthly KPIs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="card p-6">
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">This Week (7 days)</h3>
+                  {weeklyTokens ? (
+                    <div className="space-y-3">
+                      <div className="flex justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="text-sm text-zinc-500">Total tokens</span>
+                        <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{weeklyTokens.totalTokens.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="text-sm text-zinc-500">Avg / day</span>
+                        <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{weeklyTokens.avgDailyTokens.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-sm text-zinc-500">Est. cost</span>
+                        <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">${Number(weeklyTokens.totalCostUsd).toFixed(4)}</span>
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        {weeklyTokens.buckets.map(b => (
+                          <div key={b.date} className="flex items-center gap-2">
+                            <span className="text-xs text-zinc-400 w-14 shrink-0">{b.label}</span>
+                            <div className="flex-1 bg-zinc-100 dark:bg-zinc-800 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 rounded-full"
+                                style={{ width: weeklyTokens.dailyLimit > 0 ? `${Math.min(100, (b.tokens / weeklyTokens.dailyLimit) * 100)}%` : '0%' }}
+                              />
+                            </div>
+                            <span className="text-xs text-zinc-500 w-16 text-right shrink-0">{b.tokens.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : <div className="text-zinc-400 text-sm">Loading…</div>}
+                </div>
+
+                <div className="card p-6">
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">This Month (30 days)</h3>
+                  {monthlyTokens ? (
+                    <div className="space-y-3">
+                      <div className="flex justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="text-sm text-zinc-500">Total tokens</span>
+                        <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{monthlyTokens.totalTokens.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="text-sm text-zinc-500">Avg / day</span>
+                        <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{monthlyTokens.avgDailyTokens.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="text-sm text-zinc-500">Est. cost</span>
+                        <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">${Number(monthlyTokens.totalCostUsd).toFixed(4)}</span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-sm text-zinc-500">Daily cap</span>
+                        <span className="font-mono text-zinc-500">{monthlyTokens.dailyLimit.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ) : <div className="text-zinc-400 text-sm">Loading…</div>}
+                </div>
+              </div>
+
+              {/* Per-interview breakdown */}
+              {perInterviewTokens && perInterviewTokens.count > 0 && (
+                <div className="card p-6">
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+                    Per-Interview Averages <span className="text-sm font-normal text-zinc-400">({perInterviewTokens.count.toLocaleString()} interviews)</span>
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Avg Total', value: perInterviewTokens.avgTotalTokens, color: 'text-zinc-900 dark:text-zinc-100' },
+                      { label: 'Avg Assessment', value: perInterviewTokens.avgAssessmentTokens, color: 'text-blue-700 dark:text-blue-400' },
+                      { label: 'Avg Questions', value: perInterviewTokens.avgQuestionTokens, color: 'text-purple-700 dark:text-purple-400' },
+                      { label: 'Avg Rubric', value: perInterviewTokens.avgRubricTokens, color: 'text-teal-700 dark:text-teal-400' },
+                    ].map(stat => (
+                      <div key={stat.label} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wide">{stat.label}</div>
+                        <div className={`text-xl font-bold font-mono ${stat.color}`}>{stat.value.toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex gap-6 text-sm">
+                    <div><span className="text-zinc-500">Avg cost / interview: </span><span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">${Number(perInterviewTokens.avgCostPerInterviewUsd).toFixed(6)}</span></div>
+                    <div><span className="text-zinc-500">Max single interview: </span><span className="font-mono font-semibold text-zinc-700 dark:text-zinc-300">{perInterviewTokens.maxTotalTokens.toLocaleString()}</span></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Link href="/admin/reports" className="text-sm text-blue-600 hover:underline font-medium">
+                  Download full management report →
+                </Link>
+              </div>
+            </div>
           )}
 
         </div>
