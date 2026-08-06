@@ -7,27 +7,19 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const session = await getSessionOrRefresh();
-  if (!session) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
+  if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
   try {
-    const response = await fetch(`${GATEWAY}/tokens/check-limit`, {
+    const response = await fetch(`${GATEWAY}/tokens/analytics/monthly`, {
       headers: {
         "Authorization": `Bearer ${session.token}`,
         "X-User-Id": session.userId ?? "system",
-        "Content-Type": "application/json"
       }
     });
-
-    if (!response.ok) {
-      return new NextResponse("Backend error", { status: response.status });
-    }
-
-    const data = await response.json();
-    return NextResponse.json(data);
+    if (!response.ok) return new NextResponse("Backend error", { status: response.status });
+    return NextResponse.json(await response.json());
   } catch (error) {
-    console.error("Token check error:", error);
+    console.error("Monthly token analytics error:", error);
     return new NextResponse("Service unavailable", { status: 503 });
   }
 }
