@@ -14,11 +14,12 @@ import { TourButton } from "@/components/tour/TourButton";
 
 const NAV_GROUP_LABEL: Record<string, string> = {
   candidates: "Candidates",
-  clients: "Clients",
+  clients:    "Clients",
   masterData: "Data",
+  admin:      "Admin",
 };
 
-/* Items shown directly in the topbar (not requiring a dropdown). */
+/* Items shown directly in the topbar as standalone links. */
 const TOP_HREFS = new Set([
   "/admin",
   "/admin/interviews/create",
@@ -34,8 +35,6 @@ const TOP_HREFS = new Set([
   "/talent/rubrics",
   "/engineer",
   "/dashboard",
-  "/admin/matching",
-  "/admin/drives",
 ]);
 
 /* Items displayed near the user avatar rather than inline nav. */
@@ -54,7 +53,7 @@ function buildNav(items: SidebarItem[]) {
   const primary: SidebarItem[] = [];
   const groupMap = new Map<string, NavGroup>();
   const groupOrder: string[] = [];
-  const more: SidebarItem[] = [];
+  const overflow: SidebarItem[] = [];
 
   for (const item of items) {
     if (USER_AREA_HREFS.has(item.href)) continue;
@@ -72,12 +71,12 @@ function buildNav(items: SidebarItem[]) {
     } else if (TOP_HREFS.has(item.href)) {
       primary.push(item);
     } else {
-      more.push(item);
+      overflow.push(item);
     }
   }
 
   const groups = groupOrder.map((id) => groupMap.get(id)!);
-  return { primary, groups, more };
+  return { primary, groups, overflow };
 }
 
 const TOPBAR_BG = "#5B2D8E";
@@ -124,7 +123,7 @@ export function SidebarLayout({
     setOpenDropdown(null);
   }, [pathname]);
 
-  const { primary, groups, more } = useMemo(() => buildNav(items), [items]);
+  const { primary, groups, overflow } = useMemo(() => buildNav(items), [items]);
 
   const isActive = (href: string) => {
     if (pathname === href) return true;
@@ -276,7 +275,7 @@ export function SidebarLayout({
         <nav className="hidden lg:flex flex-1 items-center gap-0.5 overflow-x-auto min-w-0">
           {primary.map((item) => renderLink(item))}
           {groups.map((g) => renderDropdown(g.id, g.label, g.items))}
-          {more.length > 0 && renderDropdown("__more__", "More", more, "MoreHorizontal")}
+          {overflow.length > 0 && renderDropdown("__more__", "More", overflow, "MoreHorizontal")}
         </nav>
 
         {/* Right side: notifications, tour, user */}

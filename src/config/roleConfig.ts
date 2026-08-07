@@ -6,7 +6,7 @@ export type SidebarItem = {
   label: string;
   icon: string; // Changed to string icon name
   /** Consecutive items with the same key render in one collapsible group */
-  navGroup?: "candidates" | "clients" | "masterData";
+  navGroup?: "candidates" | "clients" | "masterData" | "admin";
 };
 
 export type Permission =
@@ -56,17 +56,17 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/admin/profile", label: "Profile", icon: "User" },
-      { href: "/admin/organizations", label: "Organizations", icon: "Globe" },
-      { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
-      { href: "/admin/settings", label: "Settings", icon: "Settings" },
-      { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
-      { href: "/admin/reports", label: "Reports", icon: "FileDown" },
       { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
       { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
       { href: "/admin/master-data/categories", label: "QB Categories", icon: "Layers", navGroup: "masterData" },
       { href: "/admin/master-data/tags", label: "QB Tags", icon: "Tag", navGroup: "masterData" },
       { href: "/admin/master-data/companies", label: "QB Companies", icon: "Building2", navGroup: "masterData" },
-      { href: "/admin/questionbank", label: "QuestionBank", icon: "Database" },
+      { href: "/admin/questionbank", label: "Question Bank", icon: "Database", navGroup: "masterData" },
+      { href: "/admin/reports", label: "Reports", icon: "FileDown", navGroup: "admin" },
+      { href: "/admin/compliance", label: "Compliance", icon: "Eye", navGroup: "admin" },
+      { href: "/admin/staff", label: "Manage Staff", icon: "Shield", navGroup: "admin" },
+      { href: "/admin/organizations", label: "Organizations", icon: "Globe", navGroup: "admin" },
+      { href: "/admin/settings", label: "Settings", icon: "Settings", navGroup: "admin" },
     ],
     // Question bank content is shared globally across branches (initial rollout).
     permissions: [
@@ -90,15 +90,15 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/admin/profile", label: "Profile", icon: "User" },
-      { href: "/admin/staff", label: "Manage Staff", icon: "Shield" },
-      { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
-      { href: "/admin/reports", label: "Reports", icon: "FileDown" },
       { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
       { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
       { href: "/admin/master-data/categories", label: "QB Categories", icon: "Layers", navGroup: "masterData" },
       { href: "/admin/master-data/tags", label: "QB Tags", icon: "Tag", navGroup: "masterData" },
       { href: "/admin/master-data/companies", label: "QB Companies", icon: "Building2", navGroup: "masterData" },
-      { href: "/admin/questionbank", label: "QuestionBank", icon: "Database" },
+      { href: "/admin/questionbank", label: "Question Bank", icon: "Database", navGroup: "masterData" },
+      { href: "/admin/reports", label: "Reports", icon: "FileDown", navGroup: "admin" },
+      { href: "/admin/compliance", label: "Compliance", icon: "Eye", navGroup: "admin" },
+      { href: "/admin/staff", label: "Manage Staff", icon: "Shield", navGroup: "admin" },
     ],
     // Question bank content is shared globally across branches (initial rollout).
     permissions: [
@@ -121,14 +121,14 @@ export const roleConfig: Record<UserRole, RoleConfigEntry> = {
       { href: "/admin/clients", label: "Clients", icon: "Building2", navGroup: "clients" },
       { href: "/admin/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/admin/profile", label: "Profile", icon: "User" },
-      { href: "/admin/compliance", label: "Compliance", icon: "Eye" },
-      { href: "/admin/reports", label: "Reports", icon: "FileDown" },
       { href: "/admin/master-data", label: "Overview", icon: "SlidersHorizontal", navGroup: "masterData" },
       { href: "/admin/master-data/lookups", label: "Lookup Values", icon: "ListTree", navGroup: "masterData" },
       { href: "/admin/master-data/categories", label: "QB Categories", icon: "Layers", navGroup: "masterData" },
       { href: "/admin/master-data/tags", label: "QB Tags", icon: "Tag", navGroup: "masterData" },
       { href: "/admin/master-data/companies", label: "QB Companies", icon: "Building2", navGroup: "masterData" },
-      { href: "/admin/questionbank", label: "QuestionBank", icon: "Database" },
+      { href: "/admin/questionbank", label: "Question Bank", icon: "Database", navGroup: "masterData" },
+      { href: "/admin/reports", label: "Reports", icon: "FileDown", navGroup: "admin" },
+      { href: "/admin/compliance", label: "Compliance", icon: "Eye", navGroup: "admin" },
     ],
     // Question bank content is shared globally across branches (initial rollout).
     permissions: [
