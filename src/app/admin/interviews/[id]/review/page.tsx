@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
-import { TranscriptView } from "./TranscriptView";
 import { ReviewPageScrollReset } from "./ReviewPageScrollReset";
 import { ProctoringTimelinePanel } from "./ProctoringTimelinePanel";
 import { RerunAssessmentButton } from "./RerunAssessmentButton";
@@ -50,14 +49,6 @@ function fmtDatetime(iso: string | null | undefined): string {
     month: "short", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
-}
-
-function parseTranscript(transcriptJson: string | null): { speaker: string; text: string; at: string }[] {
-  if (!transcriptJson) return [];
-  try {
-    const doc = JSON.parse(transcriptJson) as { utterances?: { speaker: string; text: string; at: string }[] };
-    return Array.isArray(doc.utterances) ? doc.utterances : [];
-  } catch { return []; }
 }
 
 function parseCodeSubmissions(transcriptJson: string | null): Record<string, unknown>[] {
@@ -152,7 +143,6 @@ export default async function InterviewReviewPage({
     }
   } catch {}
   const ai = parseAiAssessment(interview.transcriptJson);
-  const utterances = parseTranscript(interview.transcriptJson);
   const speech = ai?.speechAnalytics ?? null;
   const codeSubmissions = parseCodeSubmissions(interview.transcriptJson);
   const assessFailed = Boolean((ai as { assessFailed?: boolean } | null)?.assessFailed);
@@ -523,55 +513,43 @@ export default async function InterviewReviewPage({
         />
       </div>
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-3">
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 lg:col-span-2">
-          <div className="flex items-center gap-2 font-medium mb-4">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">💬</span>
-            Transcript
-          </div>
-          <div className="max-h-[480px] overflow-y-auto pr-1">
-            <TranscriptView utterances={utterances} />
-          </div>
+      <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-center gap-2 font-medium mb-4">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">🎯</span>
+          Scores
         </div>
-
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex items-center gap-2 font-medium mb-4">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">🎯</span>
-            Scores
-          </div>
-          <div className="max-h-[600px] overflow-y-auto pr-2 space-y-3">
-            {scores.length ? scores.map((s) => (
-              <div key={s.id} className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/30 text-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">{s.dimension}</span>
-                  <div className="flex items-center gap-2 text-xs">
-                    {s.confidence && (
-                      <span className={`flex items-center gap-1 ${
-                        s.confidence === 'high' ? 'text-emerald-600 dark:text-emerald-400' :
-                        s.confidence === 'medium' ? 'text-blue-600 dark:text-blue-400' :
-                        'text-zinc-500 dark:text-zinc-400'
-                      }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${
-                          s.confidence === 'high' ? 'bg-emerald-500' :
-                          s.confidence === 'medium' ? 'bg-blue-500' :
-                          'bg-zinc-400'
-                        }`} />
-                        {s.confidence}
-                      </span>
-                    )}
-                    <span className="rounded bg-zinc-200/50 px-2 py-0.5 font-medium dark:bg-zinc-800">{s.value}/{scoreMax}</span>
-                  </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {scores.length ? scores.map((s) => (
+            <div key={s.id} className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/30 text-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{s.dimension}</span>
+                <div className="flex items-center gap-2 text-xs">
+                  {s.confidence && (
+                    <span className={`flex items-center gap-1 ${
+                      s.confidence === 'high' ? 'text-emerald-600 dark:text-emerald-400' :
+                      s.confidence === 'medium' ? 'text-blue-600 dark:text-blue-400' :
+                      'text-zinc-500 dark:text-zinc-400'
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${
+                        s.confidence === 'high' ? 'bg-emerald-500' :
+                        s.confidence === 'medium' ? 'bg-blue-500' :
+                        'bg-zinc-400'
+                      }`} />
+                      {s.confidence}
+                    </span>
+                  )}
+                  <span className="rounded bg-zinc-200/50 px-2 py-0.5 font-medium dark:bg-zinc-800">{s.value}/{scoreMax}</span>
                 </div>
-                {s.rationale && <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{cleanText(s.rationale)}</p>}
-                {s.evidence && <p className="mt-1.5 text-[11px] italic text-zinc-500 dark:text-zinc-500">"{s.evidence}"</p>}
-                {s.gap && (
-                  <div className="mt-2 rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-900/20 dark:text-red-200">
-                    <span className="font-semibold">Gap:</span> {s.gap}
-                  </div>
-                )}
               </div>
-            )) : <p className="text-zinc-500 text-sm">No scores yet.</p>}
-          </div>
+              {s.rationale && <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{cleanText(s.rationale)}</p>}
+              {s.evidence && <p className="mt-1.5 text-[11px] italic text-zinc-500 dark:text-zinc-500">"{s.evidence}"</p>}
+              {s.gap && (
+                <div className="mt-2 rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-900/20 dark:text-red-200">
+                  <span className="font-semibold">Gap:</span> {s.gap}
+                </div>
+              )}
+            </div>
+          )) : <p className="text-zinc-500 text-sm">No scores yet.</p>}
         </div>
       </div>
 

@@ -50,7 +50,7 @@ export interface Candidate {
 }
 
 interface Props { role: string; features?: Record<string, boolean>; }
-type TreeParent = 'all' | 'matched' | 'deployed';
+type TreeParent = 'all' | 'deployed';
 
 type ImportDetail = {
   row?: number;
@@ -103,10 +103,6 @@ const emptyAddForm = (): AddCandidateForm => ({
   branch: 'DEVELOPMENT',
 });
 
-function getEffectiveInterviewCount(candidate: Candidate): number {
-  return Math.max(candidate.noOfInterviews ?? 0, candidate.systemInterviewCount ?? 0);
-}
-
 export default function CandidatesClient({ role, features = {} }: Props) {
   const clientsEnabled = features.CLIENTS !== false;
   const { options: branchOptions } = useBranchOptions();
@@ -116,7 +112,6 @@ export default function CandidatesClient({ role, features = {} }: Props) {
   const [selectedSubParent, setSelectedSubParent] = useState<string>('ALL');
   const [openTreeGroups, setOpenTreeGroups] = useState<Record<TreeParent, boolean>>({
     all: true,
-    matched: true,
     deployed: true,
   });
   const [masterPaneCollapsed, setMasterPaneCollapsed] = useState(false);
@@ -296,22 +291,12 @@ export default function CandidatesClient({ role, features = {} }: Props) {
     return matchesSearch && matchesSkill && matchesSource && matchesStatus && matchesRating;
   });
 
-  const matchedCandidates = allCandidates.filter(c => (c.systemInterviewCount ?? 0) > 0);
-  const effectiveBandFor = (candidate: Candidate) => {
-    const count = getEffectiveInterviewCount(candidate);
-    if (count >= 7) return 'REVIEW_NEEDED';
-    if (count >= 5) return 'HIGH_ATTEMPTS';
-    if (count >= 3) return 'ELIGIBLE';
-    return 'EARLY_STAGE';
-  };
-
   const allStatusGroups = ['ALL', ...Array.from(new Set(allCandidates.map(c => c.candidateStatus || 'UNKNOWN')))];
   const allStatusCounts = allCandidates.reduce<Record<string, number>>((acc, c) => {
     const key = c.candidateStatus || 'UNKNOWN';
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, { ALL: allCandidates.length });
-  const matchedSubGroups = ['ALL', 'ELIGIBLE', 'HIGH_ATTEMPTS', 'REVIEW_NEEDED', 'EARLY_STAGE'];
   const deployedClientGroups = ['ALL', ...Array.from(new Set(deployedCandidates.map(c => c.deployedClientName || 'UNASSIGNED')))];
 
   const deployedFilteredBySearch = deployedCandidates.filter(c => {
@@ -328,10 +313,6 @@ export default function CandidatesClient({ role, features = {} }: Props) {
   const allTreeFiltered = selectedSubParent === 'ALL'
       ? allCandidates
       : allCandidates.filter(c => (c.candidateStatus || 'UNKNOWN') === selectedSubParent);
-
-  const matchedTreeFiltered = selectedSubParent === 'ALL'
-      ? matchedCandidates
-      : matchedCandidates.filter(c => effectiveBandFor(c) === selectedSubParent);
 
   const deployedTreeFiltered = selectedSubParent === 'ALL'
       ? deployedFilteredBySearch
@@ -582,9 +563,7 @@ export default function CandidatesClient({ role, features = {} }: Props) {
 
   const treeData = effectiveParent === 'deployed'
       ? deployedTreeFiltered
-      : effectiveParent === 'matched'
-          ? matchedTreeFiltered
-          : allTreeFiltered;
+      : allTreeFiltered;
 
   const toggleTreeGroup = useCallback((key: TreeParent) => {
     setOpenTreeGroups((prev) => {
@@ -608,7 +587,7 @@ export default function CandidatesClient({ role, features = {} }: Props) {
 
   useEffect(() => {
     try {
-      const keys: TreeParent[] = ['all', 'matched', 'deployed'];
+      const keys: TreeParent[] = ['all', 'deployed'];
       setOpenTreeGroups((prev) => {
         const next = { ...prev };
         for (const k of keys) {
@@ -635,13 +614,12 @@ export default function CandidatesClient({ role, features = {} }: Props) {
         <PageHero
             icon={Users}
             title="Candidate Directory"
-            description="Browse, filter, and manage candidates across pipeline, matched, and deployed groups."
+            description="Browse, filter, and manage candidates across the pipeline and deployed groups."
             variant="teal"
         />
 
-        <div className={`grid gap-4 ${clientsEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-1'}`}>
+        <div className={`grid gap-4 ${clientsEnabled ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}>
           <StatCard title="All Candidates" value={allCandidates.length} accent="blue" icon={Users} />
-          {clientsEnabled && <StatCard title="Matched" value={matchedCandidates.length} accent="emerald" icon={UserCheck} />}
           {clientsEnabled && <StatCard title="Deployed" value={deployedCandidates.length} accent="purple" icon={Briefcase} />}
         </div>
 
@@ -654,13 +632,13 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                       : 'xl:grid-cols-[240px_minmax(0,1fr)]'
               }`}
           >
-            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col border-r border-zinc-200 dark:border-zinc-800">
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col border-r border-zinc-200 dark:border-[#2e224e]">
               {!masterPaneCollapsed && (
-                  <div className="hidden shrink-0 items-center justify-end border-b border-zinc-200 bg-zinc-50/70 px-1 py-1 dark:border-zinc-800 dark:bg-zinc-900/50 xl:flex">
+                  <div className="hidden shrink-0 items-center justify-end border-b border-zinc-200 bg-zinc-50/70 px-1 py-1 dark:border-[#2e224e] dark:bg-[#1f1839]/50 xl:flex">
                     <button
                         type="button"
                         onClick={toggleMasterPane}
-                        className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                        className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:text-[#9585b3] dark:hover:bg-[#2e224e]/60 dark:hover:text-[#ede8f5]"
                         aria-label="Collapse candidate list"
                         title="Collapse list"
                     >
@@ -669,11 +647,11 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                   </div>
               )}
               {masterPaneCollapsed && (
-                  <div className="hidden shrink-0 flex-col items-center border-b border-zinc-200 bg-zinc-50/70 py-3 dark:border-zinc-800 dark:bg-zinc-900/50 xl:flex">
+                  <div className="hidden shrink-0 flex-col items-center border-b border-zinc-200 bg-zinc-50/70 py-3 dark:border-[#2e224e] dark:bg-[#1f1839]/50 xl:flex">
                     <button
                         type="button"
                         onClick={toggleMasterPane}
-                        className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                        className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:text-[#9585b3] dark:hover:bg-[#2e224e]/60 dark:hover:text-[#ede8f5]"
                         aria-label="Expand candidate list"
                         title="Expand list"
                     >
@@ -687,13 +665,13 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                     type="button"
                     aria-expanded={openTreeGroups.all}
                     onClick={() => toggleTreeGroup('all')}
-                    className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-100/80 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 dark:hover:bg-zinc-900/70"
+                    className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-purple-50/80 dark:border-[#2e224e] dark:bg-[#1f1839]/40 dark:text-[#9585b3] dark:hover:bg-[#1f1839]/70"
                 >
                   <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.all ? 'rotate-90' : ''}`} />
                   <span className="flex-1">All Candidates ({allCandidates.length})</span>
                 </button>
                 {openTreeGroups.all && (
-                    <div className="border-b border-zinc-200 dark:border-zinc-800">
+                    <div className="border-b border-zinc-200 dark:border-[#2e224e]">
                       {allStatusGroups.map(group => (
                           <button
                               type="button"
@@ -704,13 +682,13 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                               }}
                               className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
                                   selectedParent === 'all' && selectedSubParent === group
-                                      ? 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300'
-                                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900/60'
+                                      ? 'bg-purple-50 dark:bg-purple-950/25 text-purple-700 dark:text-purple-300 font-medium'
+                                      : 'text-zinc-700 dark:text-[#c4b8d8] hover:bg-purple-50/50 dark:hover:bg-[#1f1839]/60'
                               }`}
                           >
                             {group === 'ALL' ? 'All' : group}
                             {' '}
-                            <span className="text-zinc-400">({allStatusCounts[group] ?? 0})</span>
+                            <span className="text-zinc-400 dark:text-[#6e5f8a]">({allStatusCounts[group] ?? 0})</span>
                           </button>
                       ))}
                     </div>
@@ -720,40 +698,9 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                   <>
                 <button
                     type="button"
-                    aria-expanded={openTreeGroups.matched}
-                    onClick={() => toggleTreeGroup('matched')}
-                    className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-100/80 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 dark:hover:bg-zinc-900/70"
-                >
-                  <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.matched ? 'rotate-90' : ''}`} />
-                  <span className="flex-1">Matched Candidates ({matchedCandidates.length})</span>
-                </button>
-                {openTreeGroups.matched && (
-                    <div className="border-b border-zinc-200 dark:border-zinc-800">
-                      {matchedSubGroups.map(group => (
-                          <button
-                              type="button"
-                              key={`matched-${group}`}
-                              onClick={() => {
-                                setSelectedParent('matched');
-                                setSelectedSubParent(group);
-                              }}
-                              className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
-                                  selectedParent === 'matched' && selectedSubParent === group
-                                      ? 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300'
-                                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900/60'
-                              }`}
-                          >
-                            {group.replaceAll('_', ' ')}
-                          </button>
-                      ))}
-                    </div>
-                )}
-
-                <button
-                    type="button"
                     aria-expanded={openTreeGroups.deployed}
                     onClick={() => toggleTreeGroup('deployed')}
-                    className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-100/80 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 dark:hover:bg-zinc-900/70"
+                    className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-purple-50/80 dark:border-[#2e224e] dark:bg-[#1f1839]/40 dark:text-[#9585b3] dark:hover:bg-[#1f1839]/70"
                 >
                   <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.deployed ? 'rotate-90' : ''}`} />
                   <span className="flex-1">Deployed Candidates ({deployedCandidates.length})</span>
@@ -770,8 +717,8 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                               }}
                               className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
                                   selectedParent === 'deployed' && selectedSubParent === group
-                                      ? 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300'
-                                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900/60'
+                                      ? 'bg-purple-50 dark:bg-purple-950/25 text-purple-700 dark:text-purple-300 font-medium'
+                                      : 'text-zinc-700 dark:text-[#c4b8d8] hover:bg-purple-50/50 dark:hover:bg-[#1f1839]/60'
                               }`}
                           >
                             {group === 'ALL' ? 'All' : group}
@@ -836,8 +783,8 @@ export default function CandidatesClient({ role, features = {} }: Props) {
               )}
 
               <div className="flex items-center justify-between">
-                <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">{treeData.length}</span> candidate
+                <div className="text-sm text-zinc-600 dark:text-[#9585b3]">
+                  <span className="font-semibold text-zinc-900 dark:text-[#ede8f5]">{treeData.length}</span> candidate
                   {treeData.length !== 1 ? "s" : ""} found
                 </div>
                 <div className="flex items-center gap-2">
@@ -845,15 +792,16 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                     <>
                       <Button
                           onClick={() => setShowAddDialog(true)}
-                          className="h-8 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                          className="h-8 rounded-full bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                       >
                         <UserPlus className="mr-1 h-3.5 w-3.5" />
-                        Add Candidate
+                        Bench/B2B Candidate
                       </Button>
                       {clientsEnabled && (
                         <Button
                             onClick={() => { setShowMarketCandidateDialog(true); setMarketCreated(null); setMarketForm({ name: '', email: '', contactNumber: '', branch: 'DEVELOPMENT' }); }}
-                            className="h-8 bg-violet-600 text-white shadow-sm hover:bg-violet-700"
+                            className="h-8 rounded-full text-white shadow-sm"
+                            style={{ backgroundColor: '#7B3FA0' }}
                         >
                           <UserPlus className="mr-1 h-3.5 w-3.5" />
                           Market Candidate
@@ -864,7 +812,7 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                   {effectiveParent === "deployed" && (
                       <Button
                           onClick={() => setShowBulkImportDialog(true)}
-                          className="h-8 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                          className="h-8 rounded-full bg-blue-600 text-white shadow-sm hover:bg-blue-700"
                       >
                         <Upload className="mr-1 h-3.5 w-3.5" />
                         Bulk Import
@@ -917,9 +865,9 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                         }}
                     />
                     {treeData.length === 0 && (
-                        <div className="mt-6 border-t border-zinc-200 pt-6 text-center dark:border-zinc-800">
-                          <Briefcase className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-700" />
-                          <p className="text-sm text-zinc-500 dark:text-zinc-400">No deployed candidates found.</p>
+                        <div className="mt-6 border-t border-zinc-200 pt-6 text-center dark:border-[#2e224e]">
+                          <Briefcase className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-[#2e224e]" />
+                          <p className="text-sm text-zinc-500 dark:text-[#9585b3]">No deployed candidates found.</p>
                         </div>
                     )}
                   </div>
