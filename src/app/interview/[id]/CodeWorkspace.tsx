@@ -189,6 +189,7 @@ export function CodeWorkspace({
   const splitDragStartW = useRef(LEFT_DEFAULT);
 
   const lastSlotRef = useRef<number>(-1);
+  const testsAbortRef = useRef<AbortController | null>(null);
   // Track whether the code has been modified by the candidate
   const codeIsPristineRef = useRef(true);
 
@@ -233,27 +234,37 @@ export function CodeWorkspace({
 
   // ── Fetch test cases ────────────────────────────────────────────────────
   const generateTestCases = useCallback(async (q: string, language: string) => {
-    if (!q || generatingTests) return;
+    if (!q) return;
+    // Cancel any in-flight request for a previous question
+    testsAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    testsAbortRef.current = ctrl;
+
     setGeneratingTests(true);
     try {
       const res = await fetch("/api/code/generate-tests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q, language }),
+        signal: ctrl.signal,
       });
       const data = await res.json() as { testCases?: TestCase[] };
-      setTestCases(data.testCases ?? []);
-    } catch {
-      // ignore
+      if (!ctrl.signal.aborted) setTestCases(data.testCases ?? []);
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
     } finally {
-      setGeneratingTests(false);
+      if (!ctrl.signal.aborted) setGeneratingTests(false);
     }
-  }, [generatingTests]);
+  }, []);
 
   // ── Reset on new slot ─────────────────────────────────────────────────
   useEffect(() => {
     if (slot === lastSlotRef.current) return;
     lastSlotRef.current = slot;
+    // Cancel any in-flight test case generation for the previous slot
+    testsAbortRef.current?.abort();
+    testsAbortRef.current = null;
+    setGeneratingTests(false);
     const nextLang = preferredLanguage || "python";
 
     // Restore draft from localStorage if one exists for this slot

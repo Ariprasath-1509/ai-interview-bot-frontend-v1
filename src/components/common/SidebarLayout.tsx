@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useMemo, type ComponentType } from "react";
-import { Menu, X, ChevronLeft, ChevronDown } from "lucide-react";
+import { useState, useEffect, useRef, useMemo, type ComponentType } from "react";
+import { Menu, X, ChevronDown } from "lucide-react";
 import { LogoutButton } from "@/app/components/LogoutButton";
 import { NotificationCenter } from "@/components/common/NotificationCenter";
 import { entityBranchBadgeClass, entityBranchLabel } from "@/lib/staffRoles";
@@ -15,64 +15,72 @@ import { TourButton } from "@/components/tour/TourButton";
 const NAV_GROUP_LABEL: Record<string, string> = {
   candidates: "Candidates",
   clients: "Clients",
-  masterData: "Master Data",
+  masterData: "Data",
 };
 
-type NavChunk =
-  | { type: "flat"; items: SidebarItem[] }
-  | { type: "group"; id: string; label: string; items: SidebarItem[] };
+/* Items shown directly in the topbar (not requiring a dropdown). */
+const TOP_HREFS = new Set([
+  "/admin",
+  "/admin/interviews/create",
+  "/admin/review",
+  "/admin/screening",
+  "/admin/calendar",
+  "/candidate/dashboard",
+  "/candidate/profile",
+  "/candidate/resume",
+  "/candidate/notifications",
+  "/talent",
+  "/talent/questions",
+  "/talent/rubrics",
+  "/engineer",
+  "/dashboard",
+  "/admin/matching",
+  "/admin/drives",
+]);
 
-function chunkSidebarNav(items: SidebarItem[]): NavChunk[] {
-  const chunks: NavChunk[] = [];
-  let flat: SidebarItem[] = [];
-  let groupId: string | null = null;
-  let groupItems: SidebarItem[] = [];
+/* Items displayed near the user avatar rather than inline nav. */
+const USER_AREA_HREFS = new Set([
+  "/admin/profile",
+]);
 
-  const flushFlat = () => {
-    if (flat.length) {
-      chunks.push({ type: "flat", items: [...flat] });
-      flat = [];
-    }
-  };
-  const flushGroup = () => {
-    if (groupId && groupItems.length) {
-      chunks.push({
-        type: "group",
-        id: groupId,
-        label: NAV_GROUP_LABEL[groupId] ?? groupId,
-        items: [...groupItems],
-      });
-      groupItems = [];
-      groupId = null;
-    }
-  };
+const getIcon = (iconName: string) => {
+  const Ic = (LucideIcons as unknown as Record<string, ComponentType<{ size?: number; className?: string }>>)[iconName];
+  return Ic ?? LucideIcons.Circle;
+};
+
+type NavGroup = { id: string; label: string; items: SidebarItem[] };
+
+function buildNav(items: SidebarItem[]) {
+  const primary: SidebarItem[] = [];
+  const groupMap = new Map<string, NavGroup>();
+  const groupOrder: string[] = [];
+  const more: SidebarItem[] = [];
 
   for (const item of items) {
-    const g = item.navGroup;
-    if (!g) {
-      flushGroup();
-      flat.push(item);
-    } else {
-      flushFlat();
-      if (groupId !== g) {
-        flushGroup();
-        groupId = g;
+    if (USER_AREA_HREFS.has(item.href)) continue;
+
+    if (item.navGroup) {
+      if (!groupMap.has(item.navGroup)) {
+        groupOrder.push(item.navGroup);
+        groupMap.set(item.navGroup, {
+          id: item.navGroup,
+          label: NAV_GROUP_LABEL[item.navGroup] ?? item.navGroup,
+          items: [],
+        });
       }
-      groupItems.push(item);
+      groupMap.get(item.navGroup)!.items.push(item);
+    } else if (TOP_HREFS.has(item.href)) {
+      primary.push(item);
+    } else {
+      more.push(item);
     }
   }
-  flushFlat();
-  flushGroup();
-  return chunks;
+
+  const groups = groupOrder.map((id) => groupMap.get(id)!);
+  return { primary, groups, more };
 }
 
-// Icon mapping for dynamic icon rendering
-const getIcon = (iconName: string) => {
-  const IconComponent = (
-    LucideIcons as unknown as Record<string, ComponentType<{ size?: number; className?: string }>>
-  )[iconName];
-  return IconComponent || LucideIcons.Circle;
-};
+const TOPBAR_BG = "#5B2D8E";
 
 export function SidebarLayout({
   title,
@@ -91,248 +99,254 @@ export function SidebarLayout({
   role?: string;
   branch?: string;
 }) {
-  const [pathname, setPathname] = useState("/");
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  /** Defaults only until after mount — avoids SSR/client localStorage mismatch. */
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    candidates: true,
-    clients: true,
-    masterData: true,
-  });
-
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      try {
-        setOpenGroups((prev) => {
-          const next = { ...prev };
-          for (const id of Object.keys(next)) {
-            const v = localStorage.getItem(`navgrp-${id}`);
-            if (v !== null) next[id] = v === "1";
-          }
-          return next;
-        });
-      } catch {
-        /* ignore */
-      }
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, []);
-
-  const navChunks = useMemo(() => chunkSidebarNav(items), [items]);
-
-  // Safe pathname hook with fallback
   const currentPathname = usePathname();
-  
+  const [pathname, setPathname] = useState("/");
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
-    if (!currentPathname) return;
-    const t = window.setTimeout(() => {
-      setPathname(currentPathname);
-    }, 0);
-    return () => window.clearTimeout(t);
+    if (currentPathname) setPathname(currentPathname);
   }, [currentPathname]);
 
-  const isActive = (href: string) => {
-    // Exact match always wins
-    if (pathname === href) return true;
-
-    // /admin/interviews/:id/review should highlight "Review" (/admin/review)
-    if (href === "/admin/review" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) {
-      return true;
-    }
-
-    // For prefix matches, only highlight if no other nav item is a longer
-    // prefix of the current pathname (i.e. a more-specific sibling is active)
-    if (pathname.startsWith(href + "/") || pathname.startsWith(href + "?")) {
-      // Don't let /admin match when on an interview review page
-      if (href === "/admin" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) {
-        return false;
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
       }
-      const hasMoreSpecificMatch = items.some(
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setOpenDropdown(null);
+  }, [pathname]);
+
+  const { primary, groups, more } = useMemo(() => buildNav(items), [items]);
+
+  const isActive = (href: string) => {
+    if (pathname === href) return true;
+    if (href === "/admin/review" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) return true;
+    if (pathname.startsWith(href + "/") || pathname.startsWith(href + "?")) {
+      if (href === "/admin" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) return false;
+      const hasSpecific = items.some(
         (item) =>
           item.href !== href &&
           item.href.startsWith(href) &&
-          (pathname === item.href ||
-            pathname.startsWith(item.href + "/") ||
-            pathname.startsWith(item.href + "?"))
+          (pathname === item.href || pathname.startsWith(item.href + "/") || pathname.startsWith(item.href + "?"))
       );
-      return !hasMoreSpecificMatch;
+      return !hasSpecific;
     }
-
     return false;
   };
 
-  const renderNavLink = (item: SidebarItem) => {
+  const isGroupActive = (groupItems: SidebarItem[]) => groupItems.some((item) => isActive(item.href));
+
+  const linkCls = (active: boolean) =>
+    `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 ${
+      active
+        ? "bg-white/20 text-white font-semibold"
+        : "text-white/75 hover:text-white hover:bg-white/12"
+    }`;
+
+  const dropdownTriggerCls = (active: boolean) =>
+    `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 ${
+      active
+        ? "bg-white/20 text-white font-semibold"
+        : "text-white/75 hover:text-white hover:bg-white/12"
+    }`;
+
+  const renderLink = (item: SidebarItem) => {
     const Icon = getIcon(item.icon);
-    const active = isActive(item.href);
     return (
-      <Link
-        key={item.href}
-        href={item.href}
-        onClick={() => setMobileOpen(false)}
-        title={collapsed ? item.label : undefined}
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-200 ${
-          active
-            ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-100/10 dark:border-indigo-900/10 shadow-sm"
-            : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100/60 dark:hover:bg-zinc-900/35 hover:translate-x-0.5"
-        } ${collapsed ? "justify-center px-2 hover:translate-x-0" : ""}`}
-      >
-        <Icon size={18} className={`shrink-0 transition-transform duration-200 ${active ? "scale-105" : "group-hover:scale-105"}`} />
-        {!collapsed && <span>{item.label}</span>}
+      <Link key={item.href} href={item.href} className={linkCls(isActive(item.href))}>
+        <Icon size={15} className="shrink-0" />
+        <span>{item.label}</span>
       </Link>
     );
   };
 
-  const toggleNavGroup = (id: string) => {
-    setOpenGroups((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
-      try {
-        localStorage.setItem(`navgrp-${id}`, next[id] ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  };
-
-  const sidebarContent = (
-    <div className="flex h-full flex-col">
-      {/* Logo */}
-      <div className="flex h-14 items-center justify-between border-b border-zinc-200/50 bg-white/40 dark:bg-zinc-950/20 px-4 dark:border-zinc-800/40">
-        {!collapsed && (
-          <Link href="/" className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-indigo-500 to-violet-650 bg-clip-text text-transparent transition-opacity hover:opacity-90">
-            Bench Readiness
-          </Link>
-        )}
+  const renderDropdown = (id: string, label: string, dropItems: SidebarItem[], triggerIcon?: string) => {
+    const active = isGroupActive(dropItems);
+    const open = openDropdown === id;
+    const TriggerIcon = triggerIcon ? getIcon(triggerIcon) : (getIcon(dropItems[0]?.icon ?? "MoreHorizontal"));
+    return (
+      <div key={id} className="relative">
         <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="hidden rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 lg:flex"
+          type="button"
+          onClick={() => setOpenDropdown(open ? null : id)}
+          className={dropdownTriggerCls(active)}
         >
-          <ChevronLeft size={16} className={`transition-transform ${collapsed ? "rotate-180" : ""}`} />
+          <TriggerIcon size={15} className="shrink-0" />
+          <span>{label}</span>
+          <ChevronDown size={12} className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
         </button>
-      </div>
-
-      {/* Nav items */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {navChunks.map((chunk) => {
-          if (chunk.type === "flat") {
-            return chunk.items.map((item) => renderNavLink(item));
-          }
-          const open = openGroups[chunk.id] ?? true;
-          return (
-            <div key={chunk.id} className="space-y-0.5">
-              {!collapsed && (
-                <button
-                  type="button"
-                  data-navgroup-toggle={chunk.id}
-                  data-navgroup-open={open ? "true" : "false"}
-                  onClick={() => toggleNavGroup(chunk.id)}
-                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        {open && (
+          <div className="absolute left-0 top-full mt-1 z-50 min-w-[192px] rounded-xl border border-zinc-200 bg-white shadow-lg py-1.5 animate-dropdown">
+            {dropItems.map((item) => {
+              const ItemIcon = getIcon(item.icon);
+              const a = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
+                    a
+                      ? "bg-purple-50 text-purple-800 font-semibold"
+                      : "text-zinc-700 hover:bg-purple-50/70 hover:text-purple-800"
+                  }`}
                 >
-                  <span>{chunk.label}</span>
-                  <ChevronDown
-                    size={14}
-                    className={`shrink-0 transition-transform ${open ? "rotate-0" : "-rotate-90"}`}
-                  />
-                </button>
-              )}
-              {(collapsed || open) && (
-                <div className={collapsed ? "space-y-0.5" : "space-y-0.5 pl-1 border-l border-zinc-200 ml-2 dark:border-zinc-800"}>
-                  {chunk.items.map((item) => renderNavLink(item))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </nav>
-
-      {/* User info */}
-      <div className="border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
-        {!collapsed && username && (
-          <div className="mb-2 truncate text-xs text-zinc-500 dark:text-zinc-400">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">{username}</span>
-            <br />
-            <span>{role}</span>
-            {branch && (
-              <span className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
-                {entityBranchLabel(branch)}
-              </span>
-            )}
+                  <ItemIcon size={15} className={`shrink-0 ${a ? "text-purple-600" : "text-zinc-400"}`} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
         )}
-        <LogoutButton />
       </div>
-    </div>
-  );
+    );
+  };
+
+  /* User avatar dropdown */
+  const renderUserMenu = () => {
+    if (!username) return null;
+    const open = openDropdown === "__user__";
+    const initial = username.charAt(0).toUpperCase();
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpenDropdown(open ? null : "__user__")}
+          className="flex items-center gap-2 rounded-full bg-white/15 pl-1.5 pr-3 py-1 text-white hover:bg-white/25 transition-colors"
+        >
+          <div className="h-7 w-7 rounded-full bg-white/30 flex items-center justify-center text-[12px] font-bold text-white">
+            {initial}
+          </div>
+          <span className="hidden sm:block text-xs font-medium">{username}</span>
+          <ChevronDown size={12} className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && (
+          <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[210px] rounded-xl border border-zinc-200 bg-white shadow-lg py-1.5 animate-dropdown">
+            <div className="px-4 py-3 border-b border-zinc-100">
+              <div className="text-sm font-semibold text-zinc-900">{username}</div>
+              <div className="text-xs text-zinc-500 mt-0.5">{role}</div>
+              {branch && (
+                <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${entityBranchBadgeClass(branch)}`}>
+                  {entityBranchLabel(branch)}
+                </span>
+              )}
+            </div>
+            {/* Profile link if exists */}
+            {items.find((i) => USER_AREA_HREFS.has(i.href)) && (
+              <Link
+                href="/admin/profile"
+                className="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 hover:bg-purple-50/70 hover:text-purple-800 transition-colors"
+              >
+                <LucideIcons.User size={15} className="shrink-0 text-zinc-400" />
+                Profile
+              </Link>
+            )}
+            <div className="px-3 py-1.5">
+              <LogoutButton />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="app-shell flex h-screen overflow-hidden">
+    <div className="app-shell flex flex-col">
       <TourRunner role={role ?? ""} />
-      {/* Desktop sidebar */}
-      <aside
-        data-tour="sidebar"
-        className={`hidden lg:flex flex-col border-r border-white/10 dark:border-zinc-900/20 bg-white/40 dark:bg-zinc-950/40 shadow-lg shadow-violet-500/5 backdrop-blur-xl transition-all duration-300 ${
-          collapsed ? "w-16" : "w-56"
-        }`}
-      >
-        {sidebarContent}
-      </aside>
 
-      {/* Mobile overlay */}
+      {/* ── Top navigation bar ──────────────────────────────────────── */}
+      <header
+        ref={navRef}
+        className="relative z-30 flex h-14 shrink-0 items-center justify-between px-4 sm:px-6 shadow-md"
+        style={{ background: TOPBAR_BG }}
+      >
+        {/* Logo */}
+        <Link href="/" className="shrink-0 mr-4 text-base font-extrabold tracking-tight text-white hover:opacity-90 transition-opacity">
+          Bench Readiness
+        </Link>
+
+        {/* Desktop nav items */}
+        <nav className="hidden lg:flex flex-1 items-center gap-0.5 overflow-x-auto min-w-0">
+          {primary.map((item) => renderLink(item))}
+          {groups.map((g) => renderDropdown(g.id, g.label, g.items))}
+          {more.length > 0 && renderDropdown("__more__", "More", more, "MoreHorizontal")}
+        </nav>
+
+        {/* Right side: notifications, tour, user */}
+        <div className="flex items-center gap-2 shrink-0 ml-4">
+          <span className="text-white" data-tour="notification-bell">
+            <NotificationCenter />
+          </span>
+          <TourButton role={role ?? ""} />
+          <div className="hidden lg:block">
+            {renderUserMenu()}
+          </div>
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="rounded-md p-1.5 text-white/80 hover:bg-white/15 hover:text-white lg:hidden transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+      </header>
+
+      {/* ── Mobile nav slide-down ────────────────────────────────────── */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="relative z-50 flex h-full w-64 flex-col border-r border-white/10 dark:border-zinc-900/20 bg-white/75 dark:bg-zinc-950/75 shadow-2xl backdrop-blur-xl">
-            <button
-              onClick={() => setMobileOpen(false)}
-              className="absolute right-3 top-4 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-850"
-            >
-              <X size={18} />
-            </button>
-            {sidebarContent}
-          </aside>
+        <div className="fixed inset-0 z-20 lg:hidden" style={{ top: "56px" }}>
+          <div className="absolute inset-0 bg-black/25" onClick={() => setMobileOpen(false)} />
+          <div className="relative bg-white shadow-xl max-h-[75vh] overflow-y-auto">
+            <nav className="flex flex-col p-2 gap-0.5">
+              {items.map((item) => {
+                const Icon = getIcon(item.icon);
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-purple-50 text-purple-800 font-semibold"
+                        : "text-zinc-700 hover:bg-purple-50/60 hover:text-purple-700"
+                    }`}
+                  >
+                    <Icon size={16} className="shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="border-t border-zinc-100 px-4 py-3">
+              {username && (
+                <div className="mb-2 text-xs text-zinc-500">
+                  <span className="font-semibold text-zinc-700">{username}</span>{" "}
+                  <span>· {role}</span>
+                  {branch && (
+                    <span className={`ml-1.5 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
+                      {entityBranchLabel(branch)}
+                    </span>
+                  )}
+                </div>
+              )}
+              <LogoutButton />
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <header className="relative z-20 flex h-14 shrink-0 items-center justify-between border-b border-white/10 dark:border-zinc-900/20 bg-white/40 dark:bg-[#040409]/40 px-4 backdrop-blur-xl sm:px-6 shadow-[0_1px_2px_0_rgba(0,0,0,0.01)]">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="rounded-md p-1.5 text-violet-700 hover:bg-violet-100/50 hover:text-violet-900 dark:text-violet-300 dark:hover:bg-violet-950/30 dark:hover:text-violet-200 lg:hidden"
-            >
-              <Menu size={20} />
-            </button>
-            <div>
-              <h1 className="text-base font-bold leading-tight bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent sm:text-lg">{title}</h1>
-              {subtitle && <p className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:block">{subtitle}</p>}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span data-tour="notification-bell">
-              <NotificationCenter />
-            </span>
-            <TourButton role={role ?? ""} />
-            {username && (
-              <span className="hidden items-center gap-2 text-xs font-semibold text-zinc-500 lg:inline-flex">
-                {username} · <span className="text-zinc-400">{role}</span>
-                {branch && (
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
-                    {entityBranchLabel(branch)}
-                  </span>
-                )}
-              </span>
-            )}
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="app-main-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-4 sm:p-6 w-full min-w-0 max-w-full">
-          <div className="page-content min-w-0">{children}</div>
-        </main>
-      </div>
+      {/* ── Page content ─────────────────────────────────────────────── */}
+      <main className="app-main-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-4 sm:p-6 w-full min-w-0 max-w-full">
+        <div className="page-content min-w-0">{children}</div>
+      </main>
     </div>
   );
 }

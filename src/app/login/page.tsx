@@ -144,34 +144,96 @@ export default function LoginPage() {
   const tabCls = (active: boolean) =>
     `flex-1 py-2.5 text-xs font-bold rounded-lg transition-all duration-300 ${
       active
-        ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/20"
+        ? "text-white shadow-md"
         : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
     }`;
 
-  return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-zinc-50 px-4 py-8 dark:bg-[#040409] sm:px-6">
-      {/* Dynamic backdrop blobs */}
-      <div className="pointer-events-none absolute left-[-10%] top-[-10%] -z-10 h-[600px] w-[600px] rounded-full bg-indigo-500/10 blur-[120px] dark:bg-indigo-500/15 animate-[aura-flow_20s_infinite_alternate_ease-in-out]" />
-      <div className="pointer-events-none absolute right-[-10%] bottom-[-10%] -z-10 h-[600px] w-[600px] rounded-full bg-fuchsia-500/10 blur-[120px] dark:bg-fuchsia-500/15 animate-[aura-flow_25s_infinite_alternate-reverse_ease-in-out]" />
+  const tabStyle = (active: boolean): React.CSSProperties =>
+    active ? { backgroundColor: "#7B3FA0", boxShadow: "0 4px 14px -4px rgba(91,45,142,0.35)" } : {};
 
-      <main className="z-10 w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
-            Bench Readiness
-          </h1>
-          <p className="mt-2.5 text-sm text-zinc-400 dark:text-zinc-500 font-medium">AI-led voice interviews with admin sign-off.</p>
+  return (
+    <div className="flex min-h-screen">
+      {/* ── Left brand panel (hidden on mobile) ── */}
+      <div
+        className="hidden lg:flex lg:w-[42%] xl:w-[45%] flex-col justify-between p-10 xl:p-14 relative overflow-hidden shrink-0"
+        style={{ background: "linear-gradient(155deg, #3d1a6e 0%, #5B2D8E 45%, #7B3FA0 100%)" }}
+      >
+        {/* decorative circles */}
+        <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-white/5" />
+        <div className="pointer-events-none absolute bottom-12 right-[-3rem] h-56 w-56 rounded-full bg-white/5" />
+        <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-white/[0.03]" />
+
+        {/* Logo */}
+        <div className="relative z-10">
+          <span className="text-xl font-extrabold tracking-tight text-white">Bench Readiness</span>
         </div>
 
-        <div className="rounded-2xl border border-white/20 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-950/70 p-8 shadow-2xl shadow-indigo-500/5 backdrop-blur-xl">
-          {/* Tabs */}
-          <div className="mb-6 flex gap-1 rounded-xl bg-zinc-100/60 dark:bg-zinc-900/60 p-1 backdrop-blur-md">
-            <button className={tabCls(tab === "candidate")} onClick={() => setTab("candidate")}>Candidate</button>
-            <button className={tabCls(tab === "staff")} onClick={() => setTab("staff")}>Staff</button>
+        {/* Center content */}
+        <div className="relative z-10 space-y-8">
+          <div>
+            <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight tracking-tight">
+              AI-powered interviews,<br />zero manual effort.
+            </h2>
+            <p className="mt-4 text-white/65 text-sm leading-relaxed max-w-xs">
+              Conduct structured voice interviews, auto-score candidates, and get admin sign-off — all in one place.
+            </p>
           </div>
 
-          {tab === "candidate" ? <CandidateLogin /> : <StaffLogin />}
+          {/* Feature list */}
+          <ul className="space-y-3">
+            {[
+              "Voice interviews with real-time transcription",
+              "Automated scoring & rubric evaluation",
+              "Admin review & one-click sign-off",
+              "Candidate screening pipeline",
+            ].map((f) => (
+              <li key={f} className="flex items-start gap-3 text-sm text-white/80">
+                <svg className="mt-0.5 h-4 w-4 shrink-0 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {f}
+              </li>
+            ))}
+          </ul>
         </div>
-      </main>
+
+        {/* Bottom tagline */}
+        <p className="relative z-10 text-xs text-white/40 font-medium">
+          Trusted by hiring teams across India
+        </p>
+      </div>
+
+      {/* ── Right form panel ── */}
+      <div className="flex flex-1 flex-col items-center justify-center bg-[#F8F5FD] dark:bg-[#0e0a1a] px-6 py-10 sm:px-10 relative overflow-hidden">
+        {/* subtle bg blobs */}
+        <div className="pointer-events-none absolute left-[-10%] top-[-10%] h-[500px] w-[500px] rounded-full bg-purple-400/8 blur-[100px] dark:bg-purple-500/10" />
+        <div className="pointer-events-none absolute right-[-10%] bottom-[-10%] h-[400px] w-[400px] rounded-full bg-violet-400/8 blur-[100px] dark:bg-violet-600/8" />
+
+        <div className="relative z-10 w-full max-w-sm space-y-7">
+          {/* Mobile-only logo */}
+          <div className="text-center lg:hidden">
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: "#5B2D8E" }}>Bench Readiness</h1>
+            <p className="mt-1.5 text-xs text-zinc-400 dark:text-[#6e5f8a]">AI-led voice interviews with admin sign-off.</p>
+          </div>
+
+          {/* Desktop heading */}
+          <div className="hidden lg:block">
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-[#f0ebfa]">Sign in</h1>
+            <p className="mt-1.5 text-sm text-zinc-400 dark:text-[#6e5f8a]">Welcome back — choose your account type below.</p>
+          </div>
+
+          {/* Card */}
+          <div className="rounded-2xl border border-white/60 dark:border-[#2e224e]/60 bg-white/80 dark:bg-[#17112b]/90 p-7 shadow-xl shadow-purple-500/5 backdrop-blur-xl">
+            {/* Tabs */}
+            <div className="mb-6 flex gap-1 rounded-xl bg-zinc-100/70 dark:bg-[#1f1839]/80 p-1">
+              <button className={tabCls(tab === "candidate")} style={tabStyle(tab === "candidate")} onClick={() => setTab("candidate")}>Candidate</button>
+              <button className={tabCls(tab === "staff")} style={tabStyle(tab === "staff")} onClick={() => setTab("staff")}>Staff</button>
+            </div>
+
+            {tab === "candidate" ? <CandidateLogin /> : <StaffLogin />}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

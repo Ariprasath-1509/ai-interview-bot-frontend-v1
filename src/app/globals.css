@@ -6,18 +6,18 @@
 :root {
   --font-geist-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #F8F5FD;
+  --foreground: #1a1a2e;
 
   /* Typography */
-  --text-heading:   #0f172a;
+  --text-heading:   #1a1a2e;
   --text-body:      #334155;
   --text-secondary: #475569;
   --text-muted:     #64748b;
 
-  /* Brand — premium vibrant custom palette */
-  --color-primary:       #6366f1;
-  --color-primary-hover: #4f46e5;
+  /* Brand — deep purple */
+  --color-primary:       #7B3FA0;
+  --color-primary-hover: #5B2D8E;
   --color-danger:        #f43f5e;
   --color-danger-hover:  #e11d48;
   --color-success:       #10b981;
@@ -25,8 +25,8 @@
 
   /* Surface */
   --surface:        #ffffff;
-  --surface-subtle: #f1f5f9;
-  --border:         #e2e8f0;
+  --surface-subtle: #f3eef9;
+  --border:         #e8dff2;
 
   /* Radius */
   --radius-sm: 8px;
@@ -38,7 +38,7 @@
   /* Shadow */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.02);
   --shadow-md: 0 4px 20px -2px rgb(0 0 0 / 0.05);
-  --shadow-lg: 0 10px 30px -4px rgb(99 102 241 / 0.05), 0 4px 12px -6px rgb(0 0 0 / 0.03);
+  --shadow-lg: 0 10px 30px -4px rgb(91 45 142 / 0.08), 0 4px 12px -6px rgb(0 0 0 / 0.03);
 
   /* Transitions */
   --transition-fast:   150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -47,32 +47,37 @@
 }
 
 .dark {
-  --background: #08080c;
-  --foreground: #f1f5f9;
+  --background:   #0e0a1a;
+  --foreground:   #ede8f5;
 
-  --text-heading:   #f8fafc;
-  --text-body:      #cbd5e1;
-  --text-secondary: #94a3b8;
-  --text-muted:     #64748b;
+  --text-heading:   #f0ebfa;
+  --text-body:      #c4b8d8;
+  --text-secondary: #9585b3;
+  --text-muted:     #6e5f8a;
 
-  --surface:        #0d0e15;
-  --surface-subtle: #12131d;
-  --border:         #1f2130;
+  --surface:        #17112b;
+  --surface-subtle: #1f1839;
+  --border:         #2e224e;
 
-  --color-muted: #12131d;
-  --color-muted-foreground: #94a3b8;
-  --color-border: #1f2130;
-  --color-card: #0d0e15;
-  --color-card-foreground: #f1f5f9;
-  --color-accent: #171828;
-  --color-accent-foreground: #c7d2fe;
+  --color-primary:       #b06fd6;
+  --color-primary-hover: #9a55c4;
+
+  --color-muted:            #1f1839;
+  --color-muted-foreground: #9585b3;
+  --color-border:           #2e224e;
+  --color-card:             #17112b;
+  --color-card-foreground:  #ede8f5;
+  --color-accent:           #261d44;
+  --color-accent-foreground:#d8b4fe;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-primary: #6366f1;
+  --color-primary: #7B3FA0;
   --color-primary-foreground: #ffffff;
+  --color-brand: #7B3FA0;
+  --color-brand-dark: #5B2D8E;
   --color-muted: var(--surface-subtle);
   --color-muted-foreground: var(--text-secondary);
   --color-destructive: #f43f5e;
@@ -82,7 +87,7 @@
   --color-card-foreground: var(--foreground);
   --color-accent: var(--color-accent);
   --color-accent-foreground: var(--color-accent-foreground);
-  --color-ring: #6366f1;
+  --color-ring: #7B3FA0;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -98,28 +103,28 @@ body {
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.25);
+  background: rgba(123, 63, 160, 0.22);
   color: inherit;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(91, 45, 142, 0.15);
   border-radius: 9999px;
   transition: background var(--transition-base);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.25);
+  background: rgba(91, 45, 142, 0.30);
 }
 
-/* Colorful app shell background with animating blobs */
+/* App shell */
 .app-shell {
   position: relative;
   overflow: hidden;
@@ -135,44 +140,6 @@ html:has(.app-shell) body {
   height: 100%;
 }
 
-.app-shell::before {
-  content: "";
-  position: absolute;
-  top: -20%;
-  left: -20%;
-  width: 60%;
-  height: 60%;
-  border-radius: 9999px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 65%);
-  filter: blur(80px);
-  pointer-events: none;
-  animation: aura-flow 25s infinite alternate ease-in-out;
-  z-index: -1;
-}
-
-.app-shell::after {
-  content: "";
-  position: absolute;
-  bottom: -20%;
-  right: -20%;
-  width: 60%;
-  height: 60%;
-  border-radius: 9999px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, transparent 65%);
-  filter: blur(80px);
-  pointer-events: none;
-  animation: aura-flow 30s infinite alternate-reverse ease-in-out;
-  z-index: -1;
-}
-
-.dark .app-shell::before {
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 65%);
-}
-
-.dark .app-shell::after {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, transparent 65%);
-}
-
 /* ── Typography scale ───────────────────────────────────────────────── */
 h1 { @apply text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50; }
 h2 { @apply text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50; }
@@ -181,15 +148,15 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
 /* ── Shared component classes ───────────────────────────────────────── */
 
 .card {
-  @apply rounded-xl border border-zinc-200/80 bg-white/60 shadow-sm backdrop-blur-md
-         transition-all duration-300 hover:shadow-md hover:border-zinc-300/80 hover:-translate-y-0.5
-         dark:border-zinc-800/80 dark:bg-zinc-900/35 dark:hover:border-zinc-700/50;
+  @apply rounded-xl border border-zinc-200/80 bg-white shadow-sm
+         transition-all duration-200 hover:shadow-md hover:border-purple-200/60
+         dark:border-[#2e224e]/80 dark:bg-[#17112b] dark:hover:border-purple-700/40;
 }
 
 .card-glass {
-  @apply rounded-2xl border border-zinc-200/55 bg-white/50 shadow-md backdrop-blur-xl
-         transition-all duration-300 hover:border-zinc-300/75 hover:shadow-lg hover:-translate-y-0.5
-         dark:border-zinc-800/50 dark:bg-zinc-900/25;
+  @apply rounded-2xl border border-zinc-200/55 bg-white shadow-md
+         transition-all duration-200 hover:border-purple-200/60 hover:shadow-lg
+         dark:border-[#2e224e]/50 dark:bg-[#17112b]/80;
 }
 
 .field {
@@ -197,28 +164,22 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
 }
 
 .input-base {
-  @apply flex w-full rounded-lg border border-zinc-200/80 bg-white/60 px-3 py-2.5 text-sm
+  @apply flex w-full rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm
          text-zinc-900 placeholder:text-zinc-400
-         transition-all duration-200
-         focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10
+         transition-all duration-150
+         focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10
          disabled:cursor-not-allowed disabled:opacity-50
-         dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-100
-         dark:placeholder:text-zinc-500 dark:focus:border-violet-400 dark:focus:ring-violet-400/10;
+         dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100
+         dark:placeholder:text-zinc-500 dark:focus:border-purple-400 dark:focus:ring-purple-400/10;
 }
 
 .section-label {
   @apply text-xs font-bold tracking-wider uppercase;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #7B3FA0;
 }
 
 .dark .section-label {
-  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #f472b6 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #c084fc;
 }
 
 .badge-pill {
@@ -226,65 +187,54 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white
-         bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500
-         shadow-[0_4px_20px_-4px_rgba(99,102,241,0.35)]
-         transition-all duration-200 
-         hover:from-indigo-600 hover:via-violet-600 hover:to-fuchsia-600 hover:scale-[1.015] hover:shadow-[0_4px_24px_-2px_rgba(99,102,241,0.45)]
-         active:scale-[0.985]
+  @apply inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold text-white
+         transition-all duration-150
+         hover:scale-[1.015] active:scale-[0.985]
          disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 disabled:shadow-none;
+  background-color: #7B3FA0;
+  box-shadow: 0 4px 14px -4px rgba(91, 45, 142, 0.40);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: #5B2D8E;
+  box-shadow: 0 4px 18px -2px rgba(91, 45, 142, 0.50);
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center rounded-lg border border-zinc-200/80 bg-white/60 px-5 py-2.5 text-sm font-semibold text-zinc-700
-         transition-all duration-200 hover:border-violet-200 hover:bg-violet-50/50 hover:scale-[1.015]
+  @apply inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-700
+         transition-all duration-150 hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700 hover:scale-[1.015]
          active:scale-[0.985]
-         dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:border-violet-900/40 dark:hover:bg-violet-950/20;
+         dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-purple-700/60 dark:hover:bg-purple-950/30 dark:hover:text-purple-300;
 }
 
 .btn-danger {
-  @apply inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-rose-500 to-red-600 px-5 py-2.5 text-sm font-semibold text-white
-         shadow-md shadow-rose-500/20 transition-all duration-200 hover:from-rose-600 hover:to-red-700 hover:scale-[1.015] active:scale-[0.985] disabled:opacity-50;
+  @apply inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold text-white
+         transition-all duration-150 hover:scale-[1.015] active:scale-[0.985] disabled:opacity-50;
+  background-color: #e11d48;
+  box-shadow: 0 4px 12px -4px rgba(225, 29, 72, 0.35);
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: #be123c;
 }
 
 .empty-state {
-  @apply rounded-xl border border-dashed border-violet-200/80 bg-gradient-to-br from-violet-50/40 via-white/80 to-pink-50/30 px-6 py-10 text-center
-         dark:border-violet-900/30 dark:from-violet-950/10 dark:via-zinc-950/80 dark:to-pink-950/10;
+  @apply rounded-xl border border-dashed border-purple-200/80 bg-purple-50/30 px-6 py-10 text-center
+         dark:border-purple-900/30 dark:bg-purple-950/10;
 }
 
 .tab-bar {
-  @apply flex gap-1 overflow-x-auto rounded-xl border border-zinc-200/60 bg-white/60 p-1 shadow-sm backdrop-blur-sm
-         dark:border-zinc-800/80 dark:bg-zinc-950/60;
+  @apply flex gap-1 overflow-x-auto rounded-xl border border-zinc-200/60 bg-white p-1 shadow-sm
+         dark:border-[#2e224e]/80 dark:bg-[#0e0a1a]/80;
 }
 
 .tab-bar-item {
-  @apply whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-zinc-500 transition-all duration-200
-         hover:bg-violet-50/65 hover:text-violet-800
-         dark:text-zinc-400 dark:hover:bg-violet-950/30 dark:hover:text-violet-200;
+  @apply whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-zinc-500 transition-all duration-150
+         hover:bg-purple-50/65 hover:text-purple-700
+         dark:text-zinc-400 dark:hover:bg-purple-950/30 dark:hover:text-purple-300;
 }
 
 .tab-bar-item-active {
-  @apply text-white shadow-md shadow-indigo-500/20;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-}
-
-.tab-bar-item-active[data-accent="blue"] {
-  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
-}
-.tab-bar-item-active[data-accent="purple"] {
-  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
-}
-.tab-bar-item-active[data-accent="emerald"] {
-  background: linear-gradient(135deg, #059669 0%, #14b8a6 100%);
-}
-.tab-bar-item-active[data-accent="amber"] {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
-}
-.tab-bar-item-active[data-accent="rose"] {
-  background: linear-gradient(135deg, #e11d48 0%, #f97316 100%);
-}
-.tab-bar-item-active[data-accent="teal"] {
-  background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
+  @apply text-white shadow-sm;
+  background: #7B3FA0;
 }
 
 .page-content {
@@ -292,27 +242,20 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
 }
 
 /* ── Animations ─────────────────────────────────────────────────────── */
-@keyframes aura-flow {
-  0% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
-  33% { transform: translate(30px, -50px) scale(1.1) rotate(120deg); }
-  66% { transform: translate(-25px, 20px) scale(0.95) rotate(240deg); }
-  100% { transform: translate(0px, 0px) scale(1) rotate(360deg); }
-}
-
 @keyframes slide-in-from-bottom {
-  from { transform: translateY(0.75rem); opacity: 0; }
-  to   { transform: translateY(0);       opacity: 1; }
+  from { transform: translateY(0.5rem); opacity: 0; }
+  to   { transform: translateY(0);      opacity: 1; }
 }
 .animate-in {
-  animation: slide-in-from-bottom 0.25s cubic-bezier(0.4, 0, 0.2, 1) ease-out;
+  animation: slide-in-from-bottom 0.2s cubic-bezier(0.4, 0, 0.2, 1) ease-out;
 }
 
 @keyframes fade-in-scale-up {
-  from { transform: scale(0.95); opacity: 0; }
+  from { transform: scale(0.96); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
 }
 .animate-dropdown {
-  animation: fade-in-scale-up 150ms cubic-bezier(0.16, 1, 0.3, 1) ease-out;
+  animation: fade-in-scale-up 120ms cubic-bezier(0.16, 1, 0.3, 1) ease-out;
   transform-origin: top;
 }
 
@@ -320,76 +263,76 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
   to { transform: rotate(360deg); }
 }
 .spinner {
-  @apply inline-block h-10 w-10 rounded-full border-[3px] border-violet-200 border-t-violet-600
-         dark:border-violet-900 dark:border-t-violet-400;
+  @apply inline-block h-10 w-10 rounded-full border-[3px] border-purple-200 border-t-purple-600
+         dark:border-purple-900 dark:border-t-purple-400;
   animation: spin-smooth 0.75s linear infinite;
 }
 
 /* ── Master Data admin section ─────────────────────────────────────── */
 .master-data-hero {
-  @apply relative overflow-hidden rounded-2xl border border-violet-200/60 p-6 text-white shadow-lg
-         dark:border-violet-900/40;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 40%, #db2777 100%);
+  @apply relative overflow-hidden rounded-2xl border border-purple-200/60 p-6 text-white shadow-lg
+         dark:border-purple-900/40;
+  background: linear-gradient(135deg, #5B2D8E 0%, #7B3FA0 50%, #9333ea 100%);
 }
 
 .master-data-hero::after {
   content: "";
-  @apply pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/15;
+  @apply pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10;
 }
 
 .master-data-stat {
-  @apply h-full rounded-xl border border-zinc-200/70 bg-white/90 shadow-md border-l-4 p-5
-         transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
-         dark:border-zinc-800 dark:bg-zinc-950/90;
+  @apply h-full rounded-xl border border-zinc-200/70 bg-white shadow-sm border-l-4 p-5
+         transition-all duration-150 hover:shadow-md
+         dark:border-[#2e224e] dark:bg-[#17112b];
 }
 
 .master-data-form-card {
-  @apply rounded-xl border border-violet-200/60 border-l-4 border-l-violet-500 bg-gradient-to-br from-violet-50/80 to-fuchsia-50/40 shadow-md
-         dark:border-zinc-800 dark:from-violet-950/25 dark:to-fuchsia-950/15;
+  @apply rounded-xl border border-purple-200/60 border-l-4 border-l-purple-600 bg-purple-50/50
+         dark:border-[#2e224e] dark:bg-purple-950/20;
 }
 
 .master-data-list-card {
-  @apply overflow-hidden rounded-xl border border-zinc-200/70 bg-white/90 shadow-md
-         dark:border-zinc-800 dark:bg-zinc-950/90;
+  @apply overflow-hidden rounded-xl border border-zinc-200/70 bg-white shadow-sm
+         dark:border-[#2e224e] dark:bg-[#17112b];
 }
 
 .master-data-list-header {
-  @apply flex items-center gap-2 border-b border-violet-100 bg-gradient-to-r from-violet-50/80 to-indigo-50/60 px-5 py-4
-         dark:border-zinc-800 dark:from-violet-950/30 dark:to-indigo-950/20;
+  @apply flex items-center gap-2 border-b border-purple-100 bg-purple-50/70 px-5 py-4
+         dark:border-[#2e224e] dark:bg-purple-950/20;
 }
 
 .master-data-row {
-  @apply flex items-center justify-between rounded-lg border border-zinc-200/70 bg-white/90 px-4 py-3
-         transition-all hover:border-violet-300 hover:bg-violet-50/50 hover:shadow-sm
-         dark:border-zinc-800 dark:bg-zinc-950/90 dark:hover:border-violet-800/50 dark:hover:bg-violet-950/20;
+  @apply flex items-center justify-between rounded-lg border border-zinc-200/70 bg-white px-4 py-3
+         transition-all hover:border-purple-300 hover:bg-purple-50/50
+         dark:border-[#2e224e] dark:bg-[#17112b] dark:hover:border-purple-700/50 dark:hover:bg-purple-950/20;
 }
 
 .master-data-table thead {
-  @apply bg-gradient-to-r from-violet-50 to-indigo-50 text-left text-xs uppercase tracking-wide text-violet-900/80
-         dark:from-violet-950/40 dark:to-indigo-950/30 dark:text-violet-300/90;
+  @apply bg-purple-50 text-left text-xs uppercase tracking-wide text-purple-900/70
+         dark:bg-purple-950/30 dark:text-purple-300/80;
 }
 
 .master-data-table tbody tr {
-  @apply border-b border-zinc-100/80 transition-colors last:border-0
-         hover:bg-violet-50/40 dark:border-zinc-800/80 dark:hover:bg-violet-950/15;
+  @apply border-b border-zinc-100 transition-colors last:border-0
+         hover:bg-purple-50/40 dark:border-zinc-800/80 dark:hover:bg-purple-950/15;
 }
 
 .master-data-tag-pill {
   @apply inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50
-         px-3 py-1.5 text-sm text-teal-900 shadow-sm transition-all
+         px-3 py-1.5 text-sm text-teal-900 transition-colors
          hover:border-teal-300 hover:bg-teal-100
-         dark:border-teal-900/50 dark:bg-teal-950/30 dark:text-teal-200 dark:hover:bg-teal-950/50;
+         dark:border-teal-900/50 dark:bg-teal-950/30 dark:text-teal-200;
 }
 
 .master-data-category-chip {
-  @apply rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-medium
-         text-violet-800 transition-colors hover:border-violet-300 hover:bg-violet-100
-         dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-200 dark:hover:bg-violet-950/50;
+  @apply rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium
+         text-purple-800 transition-colors hover:border-purple-300 hover:bg-purple-100
+         dark:border-purple-900/50 dark:bg-purple-950/30 dark:text-purple-200;
 }
 
 /* ── App-wide UI ───────────────────────────────────────────────────── */
 .page-hero {
-  @apply relative overflow-hidden rounded-2xl border p-6 shadow-lg;
+  @apply relative overflow-hidden rounded-2xl border p-6 shadow-md;
 }
 
 .page-hero::after {
@@ -403,70 +346,70 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
 }
 
 .stat-card {
-  @apply rounded-xl border border-zinc-200/70 bg-white/90 shadow-md border-l-4 p-5
-         transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
-         dark:border-zinc-800/80 dark:bg-zinc-950/90;
+  @apply rounded-xl border border-zinc-200/70 bg-white shadow-sm border-l-4 p-5
+         transition-all duration-150 hover:shadow-md
+         dark:border-[#2e224e]/80 dark:bg-[#17112b];
 }
 
 .quick-link-card {
-  @apply rounded-xl border border-zinc-200/70 bg-white/90 p-5 shadow-md
-         transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
-         dark:border-zinc-800/80 dark:bg-zinc-950/90;
+  @apply rounded-xl border border-zinc-200/70 bg-white p-5 shadow-sm
+         transition-all duration-150 hover:shadow-md hover:border-purple-200
+         dark:border-[#2e224e]/80 dark:bg-[#17112b] dark:hover:border-purple-700/50;
 }
 
 .panel-card {
-  @apply overflow-hidden rounded-xl border border-zinc-200/70 bg-white/90 shadow-md
-         dark:border-zinc-800/80 dark:bg-zinc-950/90;
+  @apply overflow-hidden rounded-xl border border-zinc-200/70 bg-white shadow-sm
+         dark:border-[#2e224e]/80 dark:bg-[#17112b];
 }
 
 .panel-header {
-  @apply border-b border-zinc-100/80 bg-gradient-to-r from-slate-50/90 to-white px-5 py-4
-         dark:border-zinc-800 dark:from-zinc-900/80 dark:to-zinc-950/90;
+  @apply border-b border-zinc-100 bg-zinc-50/80 px-5 py-4
+         dark:border-[#2e224e] dark:bg-[#1f1839]/60;
 }
 
 .panel-header-accent-blue {
-  @apply border-b border-blue-100/80 bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white
-         dark:border-blue-900/40 dark:from-blue-950/40 dark:via-indigo-950/25 dark:to-zinc-950/90;
+  @apply border-b border-blue-100 bg-blue-50/60
+         dark:border-blue-900/40 dark:bg-blue-950/30;
 }
 .panel-header-accent-indigo {
-  @apply border-b border-indigo-100/80 bg-gradient-to-r from-indigo-50/90 via-violet-50/60 to-white
-         dark:border-indigo-900/40 dark:from-indigo-950/40 dark:via-violet-950/25 dark:to-zinc-950/90;
+  @apply border-b border-indigo-100 bg-indigo-50/60
+         dark:border-indigo-900/40 dark:bg-indigo-950/30;
 }
 .panel-header-accent-purple {
-  @apply border-b border-purple-100/80 bg-gradient-to-r from-purple-50/90 via-fuchsia-50/60 to-white
-         dark:border-purple-900/40 dark:from-purple-950/40 dark:via-fuchsia-950/25 dark:to-zinc-950/90;
+  @apply border-b border-purple-100 bg-purple-50/60
+         dark:border-purple-900/40 dark:bg-purple-950/30;
 }
 .panel-header-accent-teal {
-  @apply border-b border-teal-100/80 bg-gradient-to-r from-teal-50/90 via-cyan-50/60 to-white
-         dark:border-teal-900/40 dark:from-teal-950/40 dark:via-cyan-950/25 dark:to-zinc-950/90;
+  @apply border-b border-teal-100 bg-teal-50/60
+         dark:border-teal-900/40 dark:bg-teal-950/30;
 }
 .panel-header-accent-amber {
-  @apply border-b border-amber-100/80 bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-white
-         dark:border-amber-900/40 dark:from-amber-950/40 dark:via-orange-950/25 dark:to-zinc-950/90;
+  @apply border-b border-amber-100 bg-amber-50/60
+         dark:border-amber-900/40 dark:bg-amber-950/30;
 }
 .panel-header-accent-emerald {
-  @apply border-b border-emerald-100/80 bg-gradient-to-r from-emerald-50/90 via-green-50/60 to-white
-         dark:border-emerald-900/40 dark:from-emerald-950/40 dark:via-green-950/25 dark:to-zinc-950/90;
+  @apply border-b border-emerald-100 bg-emerald-50/60
+         dark:border-emerald-900/40 dark:bg-emerald-950/30;
 }
 .panel-header-accent-green {
-  @apply border-b border-emerald-100/80 bg-gradient-to-r from-emerald-50/90 via-green-50/60 to-white
-         dark:border-emerald-900/40 dark:from-emerald-950/40 dark:via-green-950/25 dark:to-zinc-950/90;
+  @apply border-b border-emerald-100 bg-emerald-50/60
+         dark:border-emerald-900/40 dark:bg-emerald-950/30;
 }
 .panel-header-accent-yellow {
-  @apply border-b border-amber-100/80 bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-white
-         dark:border-amber-900/40 dark:from-amber-950/40 dark:via-yellow-950/25 dark:to-zinc-950/90;
+  @apply border-b border-amber-100 bg-amber-50/60
+         dark:border-amber-900/40 dark:bg-amber-950/30;
 }
 .panel-header-accent-rose {
-  @apply border-b border-rose-100/80 bg-gradient-to-r from-rose-50/90 via-pink-50/60 to-white
-         dark:border-rose-900/40 dark:from-rose-950/40 dark:via-pink-950/25 dark:to-zinc-950/90;
+  @apply border-b border-rose-100 bg-rose-50/60
+         dark:border-rose-900/40 dark:bg-rose-950/30;
 }
 
 .app-table thead {
-  @apply bg-zinc-100/80 text-left text-xs uppercase tracking-wide text-zinc-600
-         dark:bg-zinc-900/60 dark:text-zinc-400;
+  @apply bg-purple-50/80 text-left text-xs uppercase tracking-wide text-purple-900/70
+         dark:bg-purple-950/30 dark:text-purple-300/80;
 }
 
 .app-table tbody tr {
-  @apply border-b border-zinc-200/50 transition-colors last:border-0
-         hover:bg-zinc-100/40 dark:border-zinc-800/60 dark:hover:bg-zinc-900/40;
+  @apply border-b border-zinc-100 transition-colors last:border-0
+         hover:bg-purple-50/40 dark:border-zinc-800/60 dark:hover:bg-purple-950/15;
 }

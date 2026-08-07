@@ -33,20 +33,125 @@ export const MONACO_LANG: Record<string, string> = {
 };
 
 export const STARTERS: Record<string, string> = {
-  python: "def solution():\n    # Write your solution here\n    pass\n\nif __name__ == \"__main__\":\n    solution()\n",
-  javascript: "function solution() {\n  // Write your solution here\n}\n\nconsole.log(solution());\n",
-  typescript: "function solution(): void {\n  // Write your solution here\n}\n\nsolution();\n",
-  java: "public class Main {\n    public static void main(String[] args) {\n        // Write your solution here\n    }\n}\n",
-  cpp: "#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    return 0;\n}\n",
-  c: "#include <stdio.h>\n\nint main(void) {\n    // Write your solution here\n    return 0;\n}\n",
-  go: "package main\n\nimport \"fmt\"\n\nfunc main() {\n\t// Write your solution here\n\tfmt.Println(\"Hello\")\n}\n",
-  rust: "fn main() {\n    // Write your solution here\n    println!(\"Hello\");\n}\n",
-  csharp: "using System;\n\nclass Program {\n    static void Main() {\n        // Write your solution here\n    }\n}\n",
-  kotlin: "fun main() {\n    // Write your solution here\n    println(\"Hello\")\n}\n",
-  ruby: "# Write your solution here\nputs \"Hello\"\n",
-  php: "<?php\n// Write your solution here\necho \"Hello\";\n",
-  swift: "// Write your solution here\nprint(\"Hello\")\n",
-  bash: "#!/bin/bash\n# Write your solution here\necho \"Hello\"\n",
+  python: `import sys
+from collections import defaultdict, deque, Counter
+from itertools import permutations, combinations
+from functools import lru_cache
+input = sys.stdin.readline
+
+def solution():
+    # Write your solution here
+    pass
+
+if __name__ == "__main__":
+    solution()
+`,
+  javascript: `const lines = require('fs').readFileSync('/dev/stdin', 'utf8').trim().split('\\n');
+let _idx = 0;
+const readline = () => lines[_idx++] ?? '';
+
+function solution() {
+  // Write your solution here
+}
+
+console.log(solution());
+`,
+  typescript: `const lines = require('fs').readFileSync('/dev/stdin', 'utf8').trim().split('\\n');
+let _idx = 0;
+const readline = (): string => lines[_idx++] ?? '';
+
+function solution(): void {
+  // Write your solution here
+}
+
+solution();
+`,
+  java: `import java.util.*;
+import java.util.stream.*;
+import java.util.Arrays;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        // Write your solution here
+    }
+}
+`,
+  cpp: `#include <bits/stdc++.h>
+using namespace std;
+typedef long long ll;
+typedef vector<int> vi;
+typedef pair<int,int> pii;
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+    // Write your solution here
+    return 0;
+}
+`,
+  c: `#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) {
+    // Write your solution here
+    return 0;
+}
+`,
+  go: `package main
+
+import (
+\t"bufio"
+\t"fmt"
+\t"os"
+)
+
+var reader = bufio.NewReader(os.Stdin)
+
+func main() {
+\t// Write your solution here
+\tfmt.Println("Hello")
+}
+`,
+  rust: `use std::io::{self, BufRead};
+
+fn main() {
+    let stdin = io::stdin();
+    let mut lines = stdin.lock().lines();
+    // Write your solution here
+    println!("Hello");
+}
+`,
+  csharp: `using System;
+using System.Collections.Generic;
+using System.Linq;
+
+class Program {
+    static void Main() {
+        // Write your solution here
+    }
+}
+`,
+  kotlin: "import java.util.Scanner\n\nfun main() {\n    val sc = Scanner(System.`in`)\n    // Write your solution here\n    println(\"Hello\")\n}\n",
+  ruby: `require 'set'
+
+# Write your solution here
+puts "Hello"
+`,
+  php: `<?php
+// Write your solution here
+echo "Hello";
+`,
+  swift: `import Foundation
+
+// Write your solution here
+print("Hello")
+`,
+  bash: `#!/bin/bash
+# Write your solution here
+echo "Hello"
+`,
 };
 
 export interface TestCase {

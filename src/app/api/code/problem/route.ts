@@ -47,7 +47,13 @@ function generateStarterCode(
     const readLines = multiLine
       ? params.map((p, i) => `    ${p} = input()  # line ${i + 1}`).join("\n")
       : `    ${params[0] ?? "data"} = input()`;
-    starter["python"] = `# Input format: ${inputFormat}
+    starter["python"] = `import sys
+from collections import defaultdict, deque, Counter
+from itertools import permutations, combinations
+from functools import lru_cache
+input = sys.stdin.readline
+
+# Input format: ${inputFormat}
 ${sig}
     # Write your solution here
     pass
@@ -118,7 +124,9 @@ console.log(${fnName}(${params.join(", ")}));
       retType.endsWith("[]") ? "new " + retType.replace("[]","") + "[0]" : "0";
 
     starter["java"] = `// Input format: ${inputFormat}
-import java.util.Scanner;
+import java.util.*;
+import java.util.stream.*;
+import java.util.Arrays;
 
 public class Main {
     public static ${retType} ${fnName}(${params.map(p => `${p.type} ${p.name}`).join(", ")}) {

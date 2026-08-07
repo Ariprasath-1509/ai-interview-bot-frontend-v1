@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, RefreshCw, Save, Send, Shield } from 'lucide-react';
+import { Check, Download, Loader2, Pencil, RefreshCw, Save, Send, Shield, X } from 'lucide-react';
 import { authFetch } from '@/lib/clientFetch';
 
 export type SkillSummary = {
@@ -241,6 +241,8 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
   const [savedOnce, setSavedOnce] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [legacySaved, setLegacySaved] = useState(false);
+  const [editingQuestionNumber, setEditingQuestionNumber] = useState<number | null>(null);
+  const [questionDraft, setQuestionDraft] = useState<QuestionAsked | null>(null);
 
   const checkSavedBrief = useCallback(async () => {
     setCheckingSaved(true);
@@ -305,6 +307,29 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
         .map((q, i) => ({ ...q, number: i + 1 })),
     }));
     setDirty(true);
+  };
+
+  const startEditQuestion = (q: QuestionAsked) => {
+    setEditingQuestionNumber(q.number);
+    setQuestionDraft({ ...q });
+  };
+
+  const commitEditQuestion = () => {
+    if (!questionDraft) return;
+    setBrief((prev) => ({
+      ...prev,
+      questionsAsked: prev.questionsAsked.map((q) =>
+        q.number === questionDraft.number ? { ...questionDraft } : q
+      ),
+    }));
+    setDirty(true);
+    setEditingQuestionNumber(null);
+    setQuestionDraft(null);
+  };
+
+  const cancelEditQuestion = () => {
+    setEditingQuestionNumber(null);
+    setQuestionDraft(null);
   };
 
   const updateAssessment = (index: number, patch: Partial<SkillAssessment>) => {
@@ -548,38 +573,101 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
           <p className="text-sm text-zinc-500">No questions recorded.</p>
         ) : (
           <div className="space-y-3">
-            {brief.questionsAsked.map((q) => (
-              <div
-                key={q.number}
-                className="rounded-lg border border-violet-100 bg-violet-50/60 p-3 dark:border-violet-900/40 dark:bg-violet-950/20"
-              >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <strong className="text-sm">Question {q.number}</strong>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                      {q.difficulty || 'Medium'}
-                    </span>
-                    <Button type="button" variant="outline" size="sm" onClick={() => removeQuestion(q.number)}>
-                      Remove
-                    </Button>
+            {brief.questionsAsked.map((q) => {
+              const isEditing = editingQuestionNumber === q.number;
+              return (
+                <div
+                  key={q.number}
+                  className={`rounded-lg border p-3 ${isEditing ? 'border-violet-400 bg-violet-50 dark:border-violet-600 dark:bg-violet-950/30' : 'border-violet-100 bg-violet-50/60 dark:border-violet-900/40 dark:bg-violet-950/20'}`}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <strong className="text-sm">Question {q.number}</strong>
+                    <div className="flex items-center gap-2">
+                      {!isEditing && (
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold text-white ${
+                          (q.difficulty || '').toLowerCase() === 'easy' ? 'bg-emerald-500' :
+                          (q.difficulty || '').toLowerCase() === 'hard' ? 'bg-red-500' : 'bg-amber-500'
+                        }`}>
+                          {q.difficulty || 'Medium'}
+                        </span>
+                      )}
+                      {isEditing ? (
+                        <>
+                          <Button type="button" size="sm" onClick={commitEditQuestion}>
+                            <Check className="mr-1 h-3 w-3" /> Save
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={cancelEditQuestion}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button type="button" variant="outline" size="sm" onClick={() => startEditQuestion(q)}>
+                            <Pencil className="mr-1 h-3 w-3" /> Edit
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => removeQuestion(q.number)}>
+                            Remove
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
+
+                  {isEditing && questionDraft ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">Difficulty</label>
+                        <select
+                          value={questionDraft.difficulty || 'Medium'}
+                          onChange={(e) => setQuestionDraft((d) => d ? { ...d, difficulty: e.target.value } : d)}
+                          className="input-base w-32 text-sm"
+                        >
+                          <option value="Easy">Easy</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Hard">Hard</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">Question text</label>
+                        <textarea
+                          className="input-base w-full min-h-[80px] text-sm"
+                          value={questionDraft.text}
+                          onChange={(e) => setQuestionDraft((d) => d ? { ...d, text: e.target.value } : d)}
+                          placeholder="Question text…"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">Candidate&apos;s answer</label>
+                        <textarea
+                          className="input-base w-full min-h-[60px] text-sm"
+                          value={questionDraft.answer ?? ''}
+                          onChange={(e) => setQuestionDraft((d) => d ? { ...d, answer: e.target.value } : d)}
+                          placeholder="Candidate's answer…"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm whitespace-pre-wrap">{q.text}</p>
+                      {q.answer?.trim() ? (
+                        <div className="mt-2">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Candidate&apos;s answer</p>
+                          <p className="text-sm whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">{q.answer}</p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs italic text-zinc-400">No answer recorded.</p>
+                      )}
+                    </>
+                  )}
+
+                  {q.skillMappings?.length ? (
+                    <p className="mt-2 text-xs text-zinc-500">
+                      {q.skillMappings.map((m) => `${m.skill}: ${m.subSkill}`).join('   |   ')}
+                    </p>
+                  ) : null}
                 </div>
-                <p className="text-sm whitespace-pre-wrap">{q.text}</p>
-                {q.answer?.trim() ? (
-                  <div className="mt-2">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Candidate&apos;s answer</p>
-                    <p className="text-sm whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">{q.answer}</p>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs italic text-zinc-400">No answer recorded.</p>
-                )}
-                {q.skillMappings?.length ? (
-                  <p className="mt-2 text-xs text-zinc-500">
-                    {q.skillMappings.map((m) => `${m.skill}: ${m.subSkill}`).join('   |   ')}
-                  </p>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
