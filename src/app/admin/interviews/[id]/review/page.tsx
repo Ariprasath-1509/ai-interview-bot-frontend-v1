@@ -9,6 +9,7 @@ import { ReviewPageScrollReset } from "./ReviewPageScrollReset";
 import { ProctoringTimelinePanel } from "./ProctoringTimelinePanel";
 import { RerunAssessmentButton } from "./RerunAssessmentButton";
 import { ClientBriefPanel } from "./ClientBriefPanel";
+import { MentorReportPanel } from "./MentorReportPanel";
 import { AppShell } from "@/app/components/AppShell";
 import { AssessmentBanners } from "@/app/interview/AssessmentBanners";
 import {
@@ -723,6 +724,10 @@ export default async function InterviewReviewPage({
 
       {isStaffReadRole(session?.role) && interview.assessmentType !== "ONBOARDING" && (
         <ClientBriefPanel interviewId={interview.id} />
+      )}
+
+      {isStaffReadRole(session?.role) && (
+        <MentorReportPanel interviewId={interview.id} />
       )}
 
       <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
