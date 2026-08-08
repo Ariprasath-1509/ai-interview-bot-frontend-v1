@@ -5,10 +5,10 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantClasses: Record<string, string> = {
-  default:     "border-transparent bg-blue-600 text-white",
-  secondary:   "border-transparent bg-zinc-500 text-white",
+  default:     "border-transparent bg-[#7B3FA0] text-white",
+  secondary:   "border-transparent bg-zinc-500 text-white dark:bg-[#2e224e] dark:text-[#c4b8d8]",
   destructive: "border-transparent bg-red-600 text-white",
-  outline:     "border-zinc-300 text-zinc-700 dark:border-zinc-600 dark:text-zinc-300",
+  outline:     "border-zinc-300 text-zinc-700 dark:border-[#2e224e] dark:text-[#c4b8d8]",
   success:     "border-transparent bg-emerald-600 text-white",
   warning:     "border-transparent bg-amber-500 text-white",
 }
