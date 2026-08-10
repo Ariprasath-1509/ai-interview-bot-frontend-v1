@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getSessionOrRefresh } from "@/lib/session";
+import { READ_IDS_COOKIE, pruneReadIds } from "../../route";
+
+const secure = process.env.COOKIE_SECURE === "true";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -8,12 +12,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await params; // consume params (unused but required for type compliance)
+    const { id } = await params;
+    const jar = await cookies();
+    const existing = (jar.get(READ_IDS_COOKIE)?.value ?? "").split(",").filter(Boolean);
+    const updated = pruneReadIds(existing.includes(id) ? existing : [...existing, id]);
 
-    // In a real implementation, you would update the notification read status in the database
-    // For now, we'll just return success
+    jar.set(READ_IDS_COOKIE, updated.join(","), {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure,
+      maxAge: 60 * 60 * 24 * 30,
+    });
+
     return NextResponse.json({ success: true });
-
   } catch (error) {
     console.error("Mark notification read error:", error);
     return NextResponse.json({ error: "Failed to mark notification as read" }, { status: 500 });

@@ -14,7 +14,7 @@ export type AuthTokenPayload = {
 
 type CookieJar = ReadonlyRequestCookies | ResponseCookies;
 
-const secure = process.env.NODE_ENV === "production";
+const secure = process.env.COOKIE_SECURE === "true";
 
 export const AUTH_HTTP_ONLY = {
   path: "/",
