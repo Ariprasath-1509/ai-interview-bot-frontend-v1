@@ -68,6 +68,10 @@ export type ClientBriefData = {
   overallFeedback: string;
   generationWarning?: string;
   skillAssessments: SkillAssessment[];
+  /** Present only for interviews scored against a client screening checklist — the deterministic
+   *  weighted matrix, recommendation band, gate results, and knockout question answers. Read-only:
+   *  computed server-side, not an LLM-editable field like the sections above. */
+  screeningChecklistMatrix?: Record<string, unknown>;
   source?: string;
   saved?: boolean;
   lastEditedByName?: string;
@@ -132,6 +136,7 @@ function normalizeBrief(raw: Partial<ClientBriefData> | undefined | null): Clien
     overallFeedback: raw.overallFeedback ?? '',
     generationWarning: raw.generationWarning,
     skillAssessments: raw.skillAssessments ?? [],
+    screeningChecklistMatrix: raw.screeningChecklistMatrix,
     source: raw.source,
     saved: raw.saved,
     lastEditedByName: raw.lastEditedByName,
@@ -225,6 +230,124 @@ function SkillSummarySection({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+type MatrixDimension = { key: string; label: string; weightPct: number; score: number | null; weightedScore: number | null };
+type GateItem = { signal?: string; gate?: string; flag?: string; triggered?: boolean; met?: boolean; reasoning?: string };
+type KnockoutItem = { question: string; asked: boolean; answerSummary?: string };
+
+/** Read-only — computed deterministically server-side (Phase 3), not an LLM-editable section. */
+function ScreeningChecklistMatrixView({ matrix }: { matrix: Record<string, unknown> }) {
+  const band = String(matrix.band ?? '');
+  const bandAction = String(matrix.bandAction ?? '');
+  const gateOverride = matrix.gateOverride === true;
+  const weightedTotal = matrix.weightedTotal != null ? String(matrix.weightedTotal) : '—';
+  const scoreMax = matrix.scoreMax != null ? String(matrix.scoreMax) : '5';
+  const breakdown = (matrix.dimensionBreakdown as MatrixDimension[] | undefined) ?? [];
+  const rejectSignals = (matrix.rejectSignalsTriggered as GateItem[] | undefined) ?? [];
+  const proceedGates = (matrix.proceedGatesMet as GateItem[] | undefined) ?? [];
+  const validateFlags = (matrix.validateFlagsTriggered as GateItem[] | undefined) ?? [];
+  const knockouts = (matrix.knockoutQuestionsAsked as KnockoutItem[] | undefined) ?? [];
+
+  const bandTone = gateOverride || band.toLowerCase().includes('reject')
+    ? 'red'
+    : band.toLowerCase().includes('borderline')
+      ? 'amber'
+      : 'emerald';
+  const bandClasses: Record<string, string> = {
+    red: 'border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-100',
+    amber: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100',
+    emerald: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100',
+  };
+
+  function GateSection({ title, items, textKey }: { title: string; items: GateItem[]; textKey: 'signal' | 'gate' | 'flag' }) {
+    if (!items.length) return null;
+    return (
+      <div className="mt-4">
+        <h5 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{title}</h5>
+        <div className="mt-2 space-y-1.5">
+          {items.map((item, i) => {
+            const flag = item.triggered ?? item.met ?? false;
+            return (
+              <div key={i} className="rounded border border-zinc-200 p-2 text-xs dark:border-zinc-800">
+                <span className={flag ? 'font-medium text-red-700 dark:text-red-300' : 'text-zinc-600 dark:text-zinc-400'}>
+                  {flag ? '● ' : '○ '}
+                  {item[textKey]}
+                </span>
+                {item.reasoning ? <p className="mt-0.5 text-zinc-500">{item.reasoning}</p> : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 rounded-lg border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-900 dark:bg-violet-950/10">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-violet-900 dark:text-violet-200">Screening checklist result</h4>
+        <span className="text-xs text-zinc-500">Computed automatically — not editable</span>
+      </div>
+
+      <div className={`mt-3 flex items-center gap-4 rounded-lg border p-3 ${bandClasses[bandTone]}`}>
+        <div className="text-2xl font-bold">{weightedTotal}/{scoreMax}</div>
+        <div>
+          <div className="text-sm font-semibold">{band || 'Recommendation'}</div>
+          {bandAction ? <p className="text-xs">{bandAction}</p> : null}
+          {gateOverride ? (
+            <p className="mt-1 text-xs font-medium">⚠ Mandatory reject signal — overrides the weighted score.</p>
+          ) : null}
+        </div>
+      </div>
+
+      {breakdown.length > 0 ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-zinc-500">
+                <th className="pb-1 pr-2">Dimension</th>
+                <th className="pb-1 pr-2 text-center">Weight</th>
+                <th className="pb-1 pr-2 text-center">Score</th>
+                <th className="pb-1 text-center">Weighted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {breakdown.map((d) => (
+                <tr key={d.key} className="border-t border-zinc-200 dark:border-zinc-800">
+                  <td className="py-1.5 pr-2">{d.label}</td>
+                  <td className="py-1.5 pr-2 text-center">{d.weightPct}%</td>
+                  <td className="py-1.5 pr-2 text-center">{d.score != null ? `${d.score}/${scoreMax}` : 'Not covered'}</td>
+                  <td className="py-1.5 text-center">{d.weightedScore != null ? d.weightedScore.toFixed(2) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      <GateSection title="Reject signals" items={rejectSignals} textKey="signal" />
+      <GateSection title="Proceed gates" items={proceedGates} textKey="gate" />
+      <GateSection title="Needs validation" items={validateFlags} textKey="flag" />
+
+      {knockouts.length > 0 ? (
+        <div className="mt-4">
+          <h5 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Knockout questions</h5>
+          <div className="mt-2 space-y-1.5">
+            {knockouts.map((k, i) => (
+              <div key={i} className="rounded border border-zinc-200 p-2 text-xs dark:border-zinc-800">
+                <span className={k.asked ? 'font-medium text-emerald-700 dark:text-emerald-300' : 'font-medium text-red-700 dark:text-red-300'}>
+                  {k.asked ? '✓ ' : '✗ Not asked — '}
+                  {k.question}
+                </span>
+                {k.asked && k.answerSummary ? <p className="mt-0.5 text-zinc-500">{k.answerSummary}</p> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -452,7 +575,8 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
     brief.goodToHaveSkills.length > 0 ||
     brief.questionsAsked.length > 0 ||
     !!brief.overallFeedback.trim() ||
-    brief.skillAssessments.length > 0;
+    brief.skillAssessments.length > 0 ||
+    !!brief.screeningChecklistMatrix;
 
   return (
     <div className="mt-6 rounded-xl border border-blue-200 bg-white p-5 shadow-sm dark:border-blue-900/40 dark:bg-zinc-950">
@@ -681,6 +805,10 @@ export function ClientBriefPanel({ interviewId }: { interviewId: string }) {
           placeholder="Balanced overview for the client…"
         />
       </label>
+
+      {brief.screeningChecklistMatrix ? (
+        <ScreeningChecklistMatrixView matrix={brief.screeningChecklistMatrix} />
+      ) : null}
 
       <div className="mt-5 space-y-5">
         <h4 className="text-sm font-semibold text-violet-900 dark:text-violet-200">Detailed skill assessment</h4>

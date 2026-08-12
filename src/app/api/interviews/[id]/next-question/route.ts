@@ -13,6 +13,7 @@ const BodySchema = z.object({
   lastAnswer: z.string().optional().or(z.literal("")),
   utterances: z.array(z.object({ speaker: z.enum(["BOT", "CANDIDATE"]), text: z.string(), at: z.string() })).optional(),
   manipulationCount: z.number().int().optional(),
+  lastCodeCorrectness: z.string().optional(),
 });
 
 async function handleNextQuestion(req: Request, id: string): Promise<Response> {
@@ -101,6 +102,21 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
     }
   }
 
+  // 3b. Fetch persisted question history — gives ai-service the real, ordered "source" per slot
+  // (AI_GENERATED / QUESTION_BANK / AI_CROSS_QUESTION / ...) so it can enforce a true once-per-5-slots
+  // cross-question cadence instead of guessing from transcript text similarity.
+  let recentQuestionSources: string | undefined;
+  const questionsRes = await fetch(`${GATEWAY}/interviews/${id}/questions`, { headers }).catch(() => null);
+  if (questionsRes?.ok) {
+    const questions = (await questionsRes.json().catch(() => [])) as
+      { slotNumber?: number; source?: string | null }[];
+    recentQuestionSources = questions
+      .filter((q) => typeof q.slotNumber === "number")
+      .sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0))
+      .map((q) => q.source ?? "AI_GENERATED")
+      .join(",");
+  }
+
   // 4. Forward to ai-service
   const aiRes = await fetch(`${GATEWAY}/ai/next-question`, {
     method: "POST",
@@ -124,6 +140,8 @@ async function handleNextQuestion(req: Request, id: string): Promise<Response> {
       questionBankQuestionsJson: interview.questionBankQuestionsJson,
       customQuestionsJson: interview.customQuestionsJson,
       usedQuestionIds: interview.usedQuestionIds ?? "",
+      recentQuestionSources,
+      lastCodeCorrectness: body.data.lastCodeCorrectness ?? undefined,
     }),
   }).catch(() => null);
 

@@ -52,6 +52,10 @@ type Props = {
   durationMinutes: number;
   interviewMode: string;
   proctoringMode: ProctoringMode;
+  /** Admin-configurable (Settings → Proctoring). When true: immediate termination on
+   *  tab-switch/window-blur/fullscreen-exit, plus best-effort OS key capture. When false:
+   *  falls back to the looser warn-then-terminate behavior. */
+  strictLockdownEnabled: boolean;
   candidateSource?: string | null;
   initialUtterances?: Utterance[] | null;
   initialSlot?: number | null;
@@ -313,6 +317,7 @@ export function VoiceInterviewClient({
   durationMinutes,
   interviewMode,
   proctoringMode,
+  strictLockdownEnabled,
   candidateSource = null,
   initialUtterances = null,
   initialSlot = null,
@@ -444,12 +449,16 @@ export function VoiceInterviewClient({
 
   const fullscreen = useFullscreenEnforcement({
     active: proctorSessionActive && !timeExpired && !abandoning,
+    lockKeyboard: strictLockdownEnabled,
     onExit: (count) => {
       proctoring.reportExternalEvent(
         "fullscreen_exit",
         [`Exited fullscreen mode (${count} time${count === 1 ? "" : "s"})`],
         count >= 2 ? "hard" : "soft",
       );
+      if (strictLockdownEnabled && sessionActiveRef.current) {
+        void abandonInterview(utterancesRef.current, "tab_switch_violation");
+      }
     },
   });
 
@@ -645,7 +654,9 @@ export function VoiceInterviewClient({
     // Add termination message to transcript based on reason
     let terminationMessage = "";
     if (reason === "tab_switch_violation") {
-      terminationMessage = "[INTERVIEW TERMINATED] Candidate switched tabs/windows more than 2 times during the interview. This is considered a violation of interview integrity guidelines.";
+      terminationMessage = strictLockdownEnabled
+        ? "[INTERVIEW TERMINATED] Candidate switched tabs/windows or exited fullscreen during the interview. Strict lockdown mode was active — this is considered a violation of interview integrity guidelines."
+        : "[INTERVIEW TERMINATED] Candidate switched tabs/windows more than 2 times during the interview. This is considered a violation of interview integrity guidelines.";
     } else if (reason === "ai_manipulation") {
       terminationMessage = "[INTERVIEW TERMINATED] Multiple attempts to manipulate the AI interviewer were detected.";
     } else if (reason === "not_prepared") {
@@ -1551,6 +1562,19 @@ export function VoiceInterviewClient({
     const BACKOFF_MS = [0, 1000, 2000];
     const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 
+    // Correctness of the most recent code submission, if any — drives whether the backend offers
+    // a second (easier) coding question. Parsed loosely to avoid a hard dependency on the exact
+    // CodeSubmissionRecord shape here.
+    let lastCodeCorrectness: string | undefined;
+    if (codeSubmissionJson) {
+      try {
+        const subs = JSON.parse(codeSubmissionJson) as { slot?: number; aiReview?: { correctness?: string } | null }[];
+        const latest = subs.reduce<typeof subs[number] | null>((best, s) =>
+          !best || (s.slot ?? -1) > (best.slot ?? -1) ? s : best, null);
+        lastCodeCorrectness = latest?.aiReview?.correctness ?? undefined;
+      } catch { /* ignore malformed JSON */ }
+    }
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
       if (controller.signal.aborted) return null;
@@ -1566,6 +1590,7 @@ export function VoiceInterviewClient({
             manipulationCount: args.manipulationCount,
             rubricJson: rubricJson ?? undefined,
             candidateProfileJson: candidateProfileJson ?? undefined,
+            lastCodeCorrectness,
           }),
         });
         if (!res.ok) {
@@ -2734,42 +2759,62 @@ export function VoiceInterviewClient({
   };
 
   useEffect(() => {
-    const onHidden = () => {
-      if (document.visibilityState === "hidden" && sessionActiveRef.current) {
-        // Increment tab switch count
-        const newCount = tabSwitchCountRef.current + 1;
-        tabSwitchCountRef.current = newCount;
-        setTabSwitchCount(newCount);
+    let handledForThisSwitch = false;
 
-        if (videoProctoringRequiredRef.current) {
-          const phoneVisible = proctoring.snapshot.lastReasons.some((r) => r.includes("Recording device"));
-          if (phoneVisible) {
-            proctoring.reportExternalEvent(
-              "cross_signal",
-              ["Tab switch while recording device was visible in camera"],
-              "hard",
-            );
-          }
-        }
+    const onFocusLossViolation = () => {
+      if (!sessionActiveRef.current) return;
+      // visibilitychange(hidden) and window blur usually fire together for the same
+      // app-switch — dedupe within a tick so we don't double-count one switch.
+      if (handledForThisSwitch) return;
+      handledForThisSwitch = true;
+      setTimeout(() => {
+        handledForThisSwitch = false;
+      }, 500);
 
-        // Stop audio/mic immediately
-        silentEndBecauseUserLeftRef.current();
+      // Increment tab switch count
+      const newCount = tabSwitchCountRef.current + 1;
+      tabSwitchCountRef.current = newCount;
+      setTabSwitchCount(newCount);
 
-        // Show warning when user returns
-        setShowTabWarning(true);
-
-        // If 3rd switch, terminate interview after showing warning
-        if (newCount >= 3) {
-          setTimeout(() => {
-            void abandonInterview(utterancesRef.current, "tab_switch_violation");
-          }, 3000); // 3s delay to show final warning
+      if (videoProctoringRequiredRef.current) {
+        const phoneVisible = proctoring.snapshot.lastReasons.some((r) => r.includes("Recording device"));
+        if (phoneVisible) {
+          proctoring.reportExternalEvent(
+            "cross_signal",
+            ["Tab switch while recording device was visible in camera"],
+            "hard",
+          );
         }
       }
+
+      // Stop audio/mic immediately
+      silentEndBecauseUserLeftRef.current();
+
+      // Show warning when user returns
+      setShowTabWarning(true);
+
+      // Strict lockdown (admin-configurable): terminate on the very first switch.
+      // Otherwise: give two warnings, terminate on the 3rd.
+      const threshold = strictLockdownEnabled ? 1 : 3;
+      if (newCount >= threshold) {
+        setTimeout(() => {
+          void abandonInterview(utterancesRef.current, "tab_switch_violation");
+        }, strictLockdownEnabled ? 1500 : 3000); // brief delay to show the termination message
+      }
+    };
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") onFocusLossViolation();
+    };
+    const onBlur = () => {
+      // Only a real app-switch signal when the tab isn't already accounted for via
+      // visibilitychange (e.g. multi-monitor setups where blur fires without hiding).
+      onFocusLossViolation();
     };
     const onPageHide = () => {
       silentEndBecauseUserLeftRef.current();
     };
     document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("blur", onBlur);
     window.addEventListener("pagehide", onPageHide);
     return () => {
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
@@ -2777,10 +2822,11 @@ export function VoiceInterviewClient({
         clearTimeout(speechTimeoutRef.current);
       }
       document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("blur", onBlur);
       window.removeEventListener("pagehide", onPageHide);
       silentEndBecauseUserLeftRef.current();
     };
-  }, []);
+  }, [strictLockdownEnabled]);
 
   const listening = micPhase === "listening";
   const botSpeaking = micPhase === "bot_speaking";
@@ -2936,20 +2982,24 @@ export function VoiceInterviewClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl border-2 border-red-500 bg-white p-6 shadow-xl dark:bg-zinc-900 space-y-4">
             <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
-              {tabSwitchCount === 1 ? "Tab switch detected" : "Interview ending"}
+              {strictLockdownEnabled || tabSwitchCount >= 3 ? "Interview ending" : "Tab switch detected"}
             </h2>
             <div className="space-y-2 text-sm">
               <p className="font-semibold">You switched tabs/windows during the interview. This is not allowed.</p>
               <p className="text-zinc-600 dark:text-zinc-400">
-                {tabSwitchCount === 1
-                  ? "This is your first and only warning. One more tab switch will automatically terminate your interview."
-                  : "You have exceeded the allowed tab switches. Your interview is being terminated."}
+                {strictLockdownEnabled
+                  ? "Strict lockdown is enabled for this interview — any tab switch, window switch, or exit from fullscreen ends the interview immediately."
+                  : tabSwitchCount === 1
+                    ? "This is your first and only warning. One more tab switch will automatically terminate your interview."
+                    : "You have exceeded the allowed tab switches. Your interview is being terminated."}
               </p>
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
-                <p className="text-xs font-mono">Tab switches: <span className="font-bold text-red-600">{tabSwitchCount}/2</span></p>
-              </div>
+              {!strictLockdownEnabled && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+                  <p className="text-xs font-mono">Tab switches: <span className="font-bold text-red-600">{tabSwitchCount}/2</span></p>
+                </div>
+              )}
             </div>
-            {tabSwitchCount === 1 ? (
+            {!strictLockdownEnabled && tabSwitchCount === 1 ? (
               <button
                 onClick={() => {
                   setShowTabWarning(false);
@@ -2962,7 +3012,7 @@ export function VoiceInterviewClient({
                 I Understand — Resume Interview
               </button>
             ) : (
-              <div className="text-center text-sm text-zinc-500">Redirecting to dashboard in 3 seconds…</div>
+              <div className="text-center text-sm text-zinc-500">Redirecting to dashboard in {strictLockdownEnabled ? "2" : "3"} seconds…</div>
             )}
           </div>
         </div>

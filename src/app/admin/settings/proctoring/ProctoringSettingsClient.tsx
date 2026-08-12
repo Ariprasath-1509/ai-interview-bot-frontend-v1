@@ -6,15 +6,18 @@ type ProctoringSettings = {
   BENCH: boolean;
   B2B: boolean;
   MARKET: boolean;
+  STRICT_LOCKDOWN: boolean;
 };
 
-const SOURCE_LABELS: Record<keyof ProctoringSettings, string> = {
+type CandidateSourceKey = 'BENCH' | 'B2B' | 'MARKET';
+
+const SOURCE_LABELS: Record<CandidateSourceKey, string> = {
   BENCH: 'Bench candidates',
   B2B: 'B2B candidates',
   MARKET: 'Market candidates',
 };
 
-const SOURCE_DESCRIPTIONS: Record<keyof ProctoringSettings, string> = {
+const SOURCE_DESCRIPTIONS: Record<CandidateSourceKey, string> = {
   BENCH: 'Internal bench engineers taking readiness interviews.',
   B2B: 'Partner or B2B pipeline candidates.',
   MARKET: 'External market-sourced candidates.',
@@ -25,6 +28,7 @@ export default function ProctoringSettingsClient() {
     BENCH: false,
     B2B: false,
     MARKET: true,
+    STRICT_LOCKDOWN: true,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,6 +53,7 @@ export default function ProctoringSettingsClient() {
         BENCH: Boolean(next.BENCH),
         B2B: Boolean(next.B2B),
         MARKET: Boolean(next.MARKET),
+        STRICT_LOCKDOWN: next.STRICT_LOCKDOWN !== undefined ? Boolean(next.STRICT_LOCKDOWN) : true,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load proctoring settings');
@@ -57,8 +62,8 @@ export default function ProctoringSettingsClient() {
     }
   };
 
-  const toggleSource = (source: keyof ProctoringSettings) => {
-    setSettings((prev) => ({ ...prev, [source]: !prev[source] }));
+  const toggleSetting = (key: keyof ProctoringSettings) => {
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
     setMessage(null);
     setError(null);
   };
@@ -82,8 +87,9 @@ export default function ProctoringSettingsClient() {
         BENCH: Boolean(next.BENCH),
         B2B: Boolean(next.B2B),
         MARKET: Boolean(next.MARKET),
+        STRICT_LOCKDOWN: next.STRICT_LOCKDOWN !== undefined ? Boolean(next.STRICT_LOCKDOWN) : settings.STRICT_LOCKDOWN,
       });
-      setMessage('Video proctoring settings saved. New interviews will use these rules immediately.');
+      setMessage('Proctoring settings saved. New interviews will use these rules immediately.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update proctoring settings');
     } finally {
@@ -98,6 +104,42 @@ export default function ProctoringSettingsClient() {
   return (
     <div className="w-full space-y-6">
       <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <h2 className="text-lg font-semibold mb-2 text-zinc-900 dark:text-zinc-100">Strict Lockdown Mode</h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+          When enabled, any tab switch, window switch, or exit from fullscreen immediately ends the interview
+          (no warnings). The page also attempts to capture the Windows/Meta key and Alt+Tab while in fullscreen
+          (Chrome/Edge only — this is a best-effort browser restriction, not a guarantee, since no website can fully
+          block OS-level app switching). When disabled, candidates get two warnings before the interview ends on the
+          3rd tab switch, and fullscreen exits are only flagged for reviewers, not enforced.
+        </p>
+        <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40">
+          <div>
+            <div className="font-medium text-zinc-900 dark:text-zinc-100">Strict lockdown</div>
+            <div className="text-xs mt-2 text-zinc-500">
+              {settings.STRICT_LOCKDOWN
+                ? 'Enabled — zero tolerance for tab switches, window switches, and fullscreen exits'
+                : 'Disabled — warn-then-terminate policy (2 warnings, ends on 3rd switch)'}
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.STRICT_LOCKDOWN}
+            onClick={() => toggleSetting('STRICT_LOCKDOWN')}
+            className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors ${
+              settings.STRICT_LOCKDOWN ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                settings.STRICT_LOCKDOWN ? 'translate-x-7' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
         <h2 className="text-lg font-semibold mb-2 text-zinc-900 dark:text-zinc-100">Video Proctoring by Candidate Source</h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
           Control whether camera-based video proctoring is required during interviews. When disabled, candidates still use
@@ -105,7 +147,7 @@ export default function ProctoringSettingsClient() {
         </p>
 
         <div className="space-y-4">
-          {(Object.keys(SOURCE_LABELS) as Array<keyof ProctoringSettings>).map((source) => (
+          {(Object.keys(SOURCE_LABELS) as Array<CandidateSourceKey>).map((source) => (
             <div
               key={source}
               className="flex items-center justify-between gap-4 p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40"
@@ -123,7 +165,7 @@ export default function ProctoringSettingsClient() {
                 type="button"
                 role="switch"
                 aria-checked={settings[source]}
-                onClick={() => toggleSource(source)}
+                onClick={() => toggleSetting(source)}
                 className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors ${
                   settings[source] ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-700'
                 }`}

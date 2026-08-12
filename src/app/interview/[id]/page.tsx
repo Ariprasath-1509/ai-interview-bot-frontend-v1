@@ -128,6 +128,19 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
       ? interview.proctoringMode
       : resolveProctoringMode(candidateSource);
 
+  // Admin-configurable: immediate termination on tab-switch/blur/fullscreen-exit +
+  // best-effort OS key capture. Defaults to enabled if the setting can't be read —
+  // fail toward the stricter behavior rather than silently disabling integrity checks.
+  let strictLockdownEnabled = true;
+  const proctoringSettingsRes = await apiServer("/auth/proctoring-settings", session?.token).catch(() => null);
+  if (proctoringSettingsRes?.ok) {
+    const settingsBody = (await proctoringSettingsRes.json().catch(() => null)) as
+      | { settings?: Record<string, boolean> }
+      | null;
+    const flag = settingsBody?.settings?.STRICT_LOCKDOWN;
+    if (typeof flag === "boolean") strictLockdownEnabled = flag;
+  }
+
   // Parse checkpoint for IN_PROGRESS interviews so we can resume from where the candidate left off
   let checkpoint: CheckpointData | null = null;
   let initialCodingSecondsLeft: number | null = null;
@@ -173,6 +186,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
               durationMinutes={durationMinutes}
               interviewMode={interview.interviewMode}
               proctoringMode={proctoringMode}
+              strictLockdownEnabled={strictLockdownEnabled}
               candidateSource={candidateSource}
               includeProgrammingQuestions={interview.includeProgrammingQuestions !== false}
               initialUtterances={checkpoint?.utterances ?? null}

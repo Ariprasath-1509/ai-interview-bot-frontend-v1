@@ -13,6 +13,7 @@ import { Loader2, Sparkles, User, Briefcase, Clock, FileText, Upload, AlertTrian
 import { useToast } from '@/components/common/Toast';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
 import { AutoFillIndicator, FieldAutoFillIndicator } from '@/components/resume/AutoFillIndicator';
+import { ScreeningChecklistEditor } from './ScreeningChecklistEditor';
 
 interface InterviewFormData {
   engineerEmail: string;
@@ -59,6 +60,8 @@ interface Client {
   matchLabel?: 'STRONG' | 'GOOD' | 'PARTIAL' | 'AVAILABLE';
   matchReasons?: string[];
   recommendation?: string;
+  screeningChecklistJson?: string | null;
+  screeningChecklistName?: string | null;
 }
 
 const INTERVIEW_MODES = [
@@ -893,6 +896,23 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   <X className="h-4 w-4" /> Clear Selection
                 </Button>
               )}
+
+              {selectedClient && (
+                <div className="mt-3">
+                  <ScreeningChecklistEditor
+                    clientId={selectedClient.id}
+                    clientName={selectedClient.clientName}
+                    existingChecklistJson={selectedClient.screeningChecklistJson}
+                    existingChecklistName={selectedClient.screeningChecklistName}
+                    onSaved={(checklistJson, checklistName) => {
+                      setSelectedClient((prev) =>
+                        prev ? { ...prev, screeningChecklistJson: checklistJson, screeningChecklistName: checklistName } : prev,
+                      );
+                      toast(`Screening checklist saved: ${checklistName}`, 'success');
+                    }}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -975,6 +995,23 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1">
                   <X className="h-4 w-4" /> Clear Selection
                 </Button>
+              )}
+
+              {selectedClient && (
+                <div className="mt-3">
+                  <ScreeningChecklistEditor
+                    clientId={selectedClient.id}
+                    clientName={selectedClient.clientName}
+                    existingChecklistJson={selectedClient.screeningChecklistJson}
+                    existingChecklistName={selectedClient.screeningChecklistName}
+                    onSaved={(checklistJson, checklistName) => {
+                      setSelectedClient((prev) =>
+                        prev ? { ...prev, screeningChecklistJson: checklistJson, screeningChecklistName: checklistName } : prev,
+                      );
+                      toast(`Screening checklist saved: ${checklistName}`, 'success');
+                    }}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>

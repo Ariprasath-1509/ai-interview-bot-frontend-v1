@@ -69,6 +69,7 @@ export function VoiceInterviewForm({
   durationMinutes,
   interviewMode,
   proctoringMode,
+  strictLockdownEnabled,
   candidateSource,
   includeProgrammingQuestions,
   initialUtterances,
@@ -85,6 +86,7 @@ export function VoiceInterviewForm({
   durationMinutes: number;
   interviewMode: string;
   proctoringMode: ProctoringMode;
+  strictLockdownEnabled: boolean;
   candidateSource: string | null;
   includeProgrammingQuestions: boolean;
   initialUtterances?: ResumeUtterance[] | null;
@@ -242,6 +244,7 @@ export function VoiceInterviewForm({
         durationMinutes={durationMinutes}
         interviewMode={interviewMode}
         proctoringMode={proctoringMode}
+        strictLockdownEnabled={strictLockdownEnabled}
         candidateSource={candidateSource}
         initialUtterances={initialUtterances}
         initialSlot={initialSlot}
