@@ -17,11 +17,14 @@ type ParsedChecklist = {
 };
 
 interface ScreeningChecklistEditorProps {
-  clientId: string;
-  clientName: string;
+  /** Omit to run standalone (JD section, no client picked yet) — parsing holds locally, nothing is PUT to a client. */
+  clientId?: string;
+  clientName?: string;
   existingChecklistJson?: string | null;
   existingChecklistName?: string | null;
   onSaved: (checklistJson: string, checklistName: string) => void;
+  /** Standalone-only: lets the parent clear a previously-set ad-hoc checklist. */
+  onCleared?: () => void;
 }
 
 function safeParse(json: string): ParsedChecklist | null {
@@ -38,7 +41,9 @@ export function ScreeningChecklistEditor({
   existingChecklistJson,
   existingChecklistName,
   onSaved,
+  onCleared,
 }: ScreeningChecklistEditorProps) {
+  const standalone = !clientId;
   const [expanded, setExpanded] = useState(false);
   const [checklistText, setChecklistText] = useState('');
   const [checklistName, setChecklistName] = useState(existingChecklistName ?? '');
@@ -75,7 +80,16 @@ export function ScreeningChecklistEditor({
     setError(null);
     try {
       const json = JSON.stringify(parsed);
-      const name = checklistName.trim() || `${clientName} Screening Checklist`;
+      const name = checklistName.trim() || (clientName ? `${clientName} Screening Checklist` : 'Screening Checklist');
+
+      if (standalone) {
+        // No client to attach to yet — hold the parsed checklist locally; the parent submits it
+        // together with the interview creation request instead of persisting it to a client.
+        onSaved(json, name);
+        setExpanded(false);
+        return;
+      }
+
       const res = await fetch(`/api/recruiter/clients/${clientId}/screening-checklist`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -105,13 +119,32 @@ export function ScreeningChecklistEditor({
     <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900/30">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Screening Checklist</p>
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            Screening Checklist {standalone && <span className="font-normal text-zinc-400">(this interview only)</span>}
+          </p>
           <p className="text-xs text-zinc-500 truncate">
             {existingChecklistName
               ? `Using: ${existingChecklistName} — AI will stick to these dimensions and gates`
-              : 'No checklist set — AI uses the JD-based auto-generated rubric'}
+              : standalone
+                ? 'No client needed — paste a checklist here and it applies to just this interview'
+                : 'No checklist set — AI uses the JD-based auto-generated rubric'}
           </p>
         </div>
+        {standalone && existingChecklistName && (
+          <button
+            type="button"
+            onClick={() => {
+              setParsed(null);
+              setChecklistText('');
+              setChecklistName('');
+              setExpanded(false);
+              onCleared?.();
+            }}
+            className="shrink-0 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+          >
+            Remove
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -149,7 +182,7 @@ export function ScreeningChecklistEditor({
                 <input
                   value={checklistName}
                   onChange={(e) => setChecklistName(e.target.value)}
-                  placeholder={`${clientName} Screening Checklist`}
+                  placeholder={clientName ? `${clientName} Screening Checklist` : 'Screening Checklist'}
                   className="mt-1 w-full text-sm rounded border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 bg-white dark:bg-zinc-950"
                 />
               </div>
@@ -250,7 +283,7 @@ export function ScreeningChecklistEditor({
                   disabled={saving}
                   className="rounded-lg bg-blue-600 text-white text-xs font-medium px-3 py-2 hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {saving ? 'Saving…' : 'Save to client'}
+                  {saving ? 'Saving…' : standalone ? 'Use for this interview' : 'Save to client'}
                 </button>
                 <button
                   type="button"

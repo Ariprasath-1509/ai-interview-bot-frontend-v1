@@ -32,6 +32,8 @@ interface InterviewFormData {
   selectedQuestionIds?: string;
   scheduledAt?: string | null;
   expiresAt?: string | null;
+  screeningChecklistJson?: string | null;
+  screeningChecklistName?: string | null;
 }
 
 interface BankQuestion {
@@ -133,7 +135,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
     customDurationMinutes: null,
     includeProgrammingQuestions: true,
     candidateId,
-    clientId
+    clientId,
+    screeningChecklistJson: null,
+    screeningChecklistName: null,
   });
 
   // Fetch all clients for interview creation
@@ -160,6 +164,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
           focusAreas: client.focusAreas || '',
           matchLabel: 'AVAILABLE' as const,
           matchReasons: [],
+          screeningChecklistJson: client.screeningChecklistJson ?? null,
+          screeningChecklistName: client.screeningChecklistName ?? null,
         }));
         
         setClientResults(transformedClients);
@@ -356,6 +362,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
           focusAreas: client.focusAreas || '',
           matchLabel: label,
           matchReasons: reasons,
+          screeningChecklistJson: client.screeningChecklistJson ?? null,
+          screeningChecklistName: client.screeningChecklistName ?? null,
         };
       });
 
@@ -384,12 +392,17 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
     updatedData.jdText = client.jdText;
     updatedData.clientId = client.id;
     fieldsPopulated.push('jdTitle', 'jdText');
-    
+
     if (client.focusAreas) {
       updatedData.focusAreas = client.focusAreas;
       fieldsPopulated.push('focusAreas');
     }
-    
+
+    // A client's own saved checklist (edited via the Client Selection card) takes over —
+    // drop any ad-hoc checklist pasted in the JD section before a client was picked.
+    updatedData.screeningChecklistJson = null;
+    updatedData.screeningChecklistName = null;
+
     setFormData(updatedData);
     setAutoFillApplied(true);
     
@@ -867,34 +880,47 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">No clients available</p>
                 </div>
               )}
-              {clientResults.map((client) => (
-                <div
-                  key={client.id}
-                  onClick={() => selectedClient?.id === client.id ? clearClientSelection() : selectClient(client)}
-                  className={`cursor-pointer rounded-lg border p-3 transition-colors ${
-                    selectedClient?.id === client.id
-                      ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20'
-                      : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900'
-                  }`}
+              {!searchingClients && clientResults.length > 0 && (
+                <select
+                  value={selectedClient?.id ?? ''}
+                  onChange={(e) => {
+                    const client = clientResults.find((c) => c.id === e.target.value);
+                    if (client) selectClient(client);
+                    else clearClientSelection();
+                  }}
+                  className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-2 bg-white dark:bg-zinc-950 dark:text-zinc-100"
                 >
+                  <option value="">— Select a client —</option>
+                  {clientResults.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.clientName} — {client.jdRole}{client.screeningChecklistJson ? ' ✓ checklist' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {selectedClient && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{client.clientName}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">{client.jdRole}</p>
+                      <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{selectedClient.clientName}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{selectedClient.jdRole}</p>
                     </div>
-                    {selectedClient?.id === client.id && (
-                      <span className="text-xs font-medium text-blue-600">Selected</span>
-                    )}
+                    <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1">
+                      <X className="h-4 w-4" /> Clear
+                    </Button>
                   </div>
-                  {client.focusAreas && (
-                    <p className="text-xs text-zinc-400 mt-1 truncate">Focus: {client.focusAreas}</p>
+                  {selectedClient.focusAreas && (
+                    <p className="text-xs text-zinc-400 mt-1 truncate">Focus: {selectedClient.focusAreas}</p>
                   )}
+                  <span className={`mt-1.5 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
+                    selectedClient.screeningChecklistJson
+                      ? 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900'
+                      : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                  }`}>
+                    {selectedClient.screeningChecklistJson ? `Checklist: ${selectedClient.screeningChecklistName || 'Saved'}` : 'No screening checklist — add one below'}
+                  </span>
                 </div>
-              ))}
-              {selectedClient && (
-                <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1">
-                  <X className="h-4 w-4" /> Clear Selection
-                </Button>
               )}
 
               {selectedClient && (
@@ -940,62 +966,71 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 </div>
               )}
 
-              {clientResults.map((client) => {
-                const isSelected = selectedClient?.id === client.id;
+              {!searchingClients && clientResults.length > 0 && (
+                <select
+                  value={selectedClient?.id ?? ''}
+                  onChange={(e) => {
+                    const client = clientResults.find((c) => c.id === e.target.value);
+                    if (client) selectClient(client);
+                    else clearClientSelection();
+                  }}
+                  className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-2 bg-white dark:bg-zinc-950 dark:text-zinc-100"
+                >
+                  <option value="">— Select a client —</option>
+                  {clientResults.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      [{client.matchLabel ?? 'AVAILABLE'}] {client.clientName} — {client.jdRole}{client.screeningChecklistJson ? ' ✓ checklist' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {selectedClient && (() => {
                 const labelColors = {
                   STRONG:    'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
                   GOOD:      'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
                   PARTIAL:   'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
                   AVAILABLE: 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
                 };
-                const cardColors = {
-                  STRONG:    isSelected ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/20' : 'border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/50 dark:border-emerald-900 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20',
-                  GOOD:      isSelected ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20' : 'border-blue-200 hover:border-blue-300 hover:bg-blue-50/50 dark:border-blue-900 dark:hover:border-blue-700 dark:hover:bg-blue-950/20',
-                  PARTIAL:   isSelected ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-950/20' : 'border-amber-100 hover:border-amber-200 hover:bg-amber-50/50 dark:border-amber-900 dark:hover:border-amber-700 dark:hover:bg-amber-950/20',
-                  AVAILABLE: isSelected ? 'border-zinc-400 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-900' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900',
-                };
-                const label = client.matchLabel ?? 'AVAILABLE';
+                const label = selectedClient.matchLabel ?? 'AVAILABLE';
                 return (
-                  <div
-                    key={client.id}
-                    onClick={() => isSelected ? clearClientSelection() : selectClient(client)}
-                    className={`cursor-pointer rounded-lg border p-3 transition-colors ${cardColors[label]}`}
-                  >
+                  <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{client.clientName}</p>
+                          <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{selectedClient.clientName}</p>
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${labelColors[label]}`}>
                             {label}
                           </span>
-                          {isSelected && (
-                            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">✓ Selected</span>
-                          )}
                         </div>
-                        <p className="text-xs text-zinc-600 mt-0.5 dark:text-zinc-400">{client.jdRole}</p>
-                        {client.focusAreas && (
-                          <p className="text-xs text-zinc-400 mt-0.5 truncate dark:text-zinc-500">Focus: {client.focusAreas}</p>
+                        <p className="text-xs text-zinc-600 mt-0.5 dark:text-zinc-400">{selectedClient.jdRole}</p>
+                        {selectedClient.focusAreas && (
+                          <p className="text-xs text-zinc-400 mt-0.5 truncate dark:text-zinc-500">Focus: {selectedClient.focusAreas}</p>
                         )}
-                        {client.matchReasons && client.matchReasons.length > 0 && (
+                        {selectedClient.matchReasons && selectedClient.matchReasons.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
-                            {client.matchReasons.map((r, i) => (
+                            {selectedClient.matchReasons.map((r, i) => (
                               <span key={i} className="text-[10px] bg-white border border-zinc-200 rounded px-1.5 py-0.5 text-zinc-500 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-400">
                                 {r}
                               </span>
                             ))}
                           </div>
                         )}
+                        <span className={`mt-1.5 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
+                          selectedClient.screeningChecklistJson
+                            ? 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900'
+                            : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                        }`}>
+                          {selectedClient.screeningChecklistJson ? `Checklist: ${selectedClient.screeningChecklistName || 'Saved'}` : 'No screening checklist — add one below'}
+                        </span>
                       </div>
+                      <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1 shrink-0">
+                        <X className="h-4 w-4" /> Clear
+                      </Button>
                     </div>
                   </div>
                 );
-              })}
-
-              {selectedClient && (
-                <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1">
-                  <X className="h-4 w-4" /> Clear Selection
-                </Button>
-              )}
+              })()}
 
               {selectedClient && (
                 <div className="mt-3">
@@ -1154,6 +1189,20 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   className={autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas') ? 'border-blue-300 bg-blue-50/50' : ''}
                 />
               </div>
+            )}
+
+            {!isOnboarding && !selectedClient && (
+              <ScreeningChecklistEditor
+                existingChecklistJson={formData.screeningChecklistJson}
+                existingChecklistName={formData.screeningChecklistName}
+                onSaved={(checklistJson, checklistName) => {
+                  setFormData((prev) => ({ ...prev, screeningChecklistJson: checklistJson, screeningChecklistName: checklistName }));
+                  toast(`Screening checklist "${checklistName}" will be used for this interview`, 'success');
+                }}
+                onCleared={() => {
+                  setFormData((prev) => ({ ...prev, screeningChecklistJson: null, screeningChecklistName: null }));
+                }}
+              />
             )}
           </CardContent>
         </Card>
