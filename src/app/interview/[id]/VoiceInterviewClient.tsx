@@ -425,8 +425,6 @@ export function VoiceInterviewClient({
   const answerRecordingStartTimeRef = useRef<number>(0);
   const serverVoiceModeRef = useRef(true);
   // Live transcription (primary): Deepgram streaming WS, one connection per answer recording.
-  const deepgramKeyRef = useRef<string | null>(null);
-  const deepgramKeyFetchedRef = useRef(false);
   const deepgramSocketRef = useRef<WebSocket | null>(null);
   const deepgramFinalTextRef = useRef("");
 
@@ -1047,19 +1045,23 @@ export function VoiceInterviewClient({
     setInterimText("");
   }
 
-  /** Mint (once per interview, cached) a short-lived Deepgram key via our BFF route.
-   *  Returns null if Deepgram isn't configured server-side — callers treat that as
-   *  "feature disabled" and fall through to the existing Sarvam/Whisper batch flow. */
-  async function ensureDeepgramKey(): Promise<string | null> {
-    if (deepgramKeyFetchedRef.current) return deepgramKeyRef.current;
-    deepgramKeyFetchedRef.current = true;
+  /** Mint a fresh short-lived Deepgram grant token (120s TTL — one answer's worth) via
+   *  our BFF route. Returns null if Deepgram isn't configured server-side or the grant
+   *  call fails — callers treat that as "feature disabled" and fall through to the
+   *  existing Sarvam/Whisper batch flow. Not cached: tokens are scoped short on purpose,
+   *  so a fresh one is minted per recording rather than reused across the interview. */
+  async function fetchDeepgramKey(): Promise<string | null> {
     try {
       const res = await fetch("/api/ai/deepgram-token", { method: "POST" });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.warn("[Deepgram] token route failed", res.status, body);
+        return null;
+      }
       const data = await res.json() as { key?: string };
-      deepgramKeyRef.current = data.key ?? null;
-      return deepgramKeyRef.current;
-    } catch {
+      return data.key ?? null;
+    } catch (err) {
+      console.warn("[Deepgram] token fetch error", err);
       return null;
     }
   }
@@ -1072,13 +1074,16 @@ export function VoiceInterviewClient({
     // Browser STT mode uses the main recognizer (recognitionRef) for live text — Deepgram
     // is only for server/Whisper mode, same as the preview recognizer it replaces.
     if (!serverVoiceModeRef.current) return;
-    const key = await ensureDeepgramKey();
+    const key = await fetchDeepgramKey();
     if (!key || sessionFinalizedRef.current || !sessionActiveRef.current) return;
     // Recording may have already stopped by the time the key round-trip resolves.
     if (answerMediaRef.current?.state !== "recording") return;
 
     try {
       const ws = new WebSocket(buildDeepgramUrl(), ["token", key]);
+      ws.onopen = () => {
+        console.info("[Deepgram] WS connected");
+      };
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data as string) as {
@@ -1099,12 +1104,18 @@ export function VoiceInterviewClient({
           /* ignore malformed frame */
         }
       };
-      ws.onerror = () => {
+      ws.onerror = (event) => {
         // Live captioning unavailable for this answer — Sarvam/Whisper batch path still
-        // runs on Send, so the candidate isn't blocked.
+        // runs on Send, so the candidate isn't blocked. Logged so failures are visible
+        // instead of silently degrading to the fallback with no trace.
+        console.warn("[Deepgram] WS error", event);
+      };
+      ws.onclose = (event) => {
+        console.info("[Deepgram] WS closed", event.code, event.reason || "(no reason)");
       };
       deepgramSocketRef.current = ws;
-    } catch {
+    } catch (err) {
+      console.warn("[Deepgram] WS construction failed", err);
       deepgramSocketRef.current = null;
     }
   }

@@ -3,57 +3,54 @@ import { cookies } from "next/headers";
 export const runtime = "nodejs";
 
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
-const DEEPGRAM_PROJECT_ID = process.env.DEEPGRAM_PROJECT_ID;
-const TEMP_KEY_TTL_SECONDS = 3600; // one key covers a full interview session, reused across questions
+const GRANT_TTL_SECONDS = 120; // covers one answer; a fresh token is minted per recording
 
-// Mints a short-lived, scoped Deepgram key so the permanent DEEPGRAM_API_KEY never reaches
-// the browser. The candidate's WebSocket then authenticates directly to Deepgram using this
-// temp key, avoiding the need for a WebSocket relay (Next.js standalone output has no custom
-// server to host one — see plan notes).
+// Mints a short-lived JWT via Deepgram's token-grant endpoint so the permanent
+// DEEPGRAM_API_KEY never reaches the browser. Uses /v1/auth/grant — purpose-built
+// for "short-lived tokens for /Listen... requests" and only needs a standard
+// Member-level key — NOT the older /v1/projects/{id}/keys management endpoint,
+// which needs elevated `keys:write` project permission and no longer needs a
+// project ID configured at all.
 export async function POST() {
   const jar = await cookies();
   const token = jar.get("br_jwt")?.value;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!DEEPGRAM_API_KEY || !DEEPGRAM_PROJECT_ID) {
+  if (!DEEPGRAM_API_KEY) {
     // Deepgram is opt-in: if unconfigured, the client silently keeps using the
     // existing Sarvam/Whisper batch transcription flow.
     return Response.json({ error: "not_configured" }, { status: 501 });
   }
 
   try {
-    const res = await fetch(`https://api.deepgram.com/v1/projects/${DEEPGRAM_PROJECT_ID}/keys`, {
+    const res = await fetch("https://api.deepgram.com/v1/auth/grant", {
       method: "POST",
       headers: {
         Authorization: `Token ${DEEPGRAM_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        comment: "live-interview-transcription (short-lived)",
-        scopes: ["usage:write"],
-        time_to_live_in_seconds: TEMP_KEY_TTL_SECONDS,
-      }),
+      body: JSON.stringify({ ttl_seconds: GRANT_TTL_SECONDS }),
       signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      console.warn("[Deepgram] Key mint failed", res.status, detail);
-      return Response.json({ error: "deepgram_key_mint_failed" }, { status: 502 });
+      console.warn("[Deepgram] Token grant failed", res.status, detail);
+      return Response.json({ error: "deepgram_token_grant_failed" }, { status: 502 });
     }
 
-    const data = await res.json() as { key?: string; api_key?: { key?: string } };
-    const key = data.key ?? data.api_key?.key;
-    if (!key) {
-      return Response.json({ error: "deepgram_key_mint_failed" }, { status: 502 });
+    const data = await res.json() as { access_token?: string; expires_in?: number };
+    if (!data.access_token) {
+      console.warn("[Deepgram] Token grant response missing access_token", data);
+      return Response.json({ error: "deepgram_token_grant_failed" }, { status: 502 });
     }
 
     return Response.json({
-      key,
-      expiresAt: Date.now() + TEMP_KEY_TTL_SECONDS * 1000,
+      key: data.access_token,
+      expiresAt: Date.now() + (data.expires_in ?? GRANT_TTL_SECONDS) * 1000,
     });
   } catch (err) {
-    console.warn("[Deepgram] Key mint error", err);
-    return Response.json({ error: "deepgram_key_mint_failed" }, { status: 502 });
+    console.warn("[Deepgram] Token grant error", err);
+    return Response.json({ error: "deepgram_token_grant_failed" }, { status: 502 });
   }
 }
