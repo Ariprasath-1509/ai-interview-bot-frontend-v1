@@ -18,15 +18,18 @@ export class MediaServiceTimeoutError extends Error {
   }
 }
 
-/** Shared session prefs — server Whisper STT for accuracy; Kokoro TTS for natural voice. */
+/** Shared session prefs.
+ *  TEMPORARILY defaulting to browser STT/TTS as primary — Deepgram/Sarvam/Whisper are still
+ *  being debugged server-side (live Deepgram transcript coming back empty, falling through to
+ *  Whisper). Flip both back to `true` once that's resolved to restore server STT/TTS as primary. */
 export const voiceServicePrefs = {
-  preferServerStt: true,
-  preferServerTts: true,
+  preferServerStt: false,
+  preferServerTts: false,
 };
 
 export function resetVoiceServicePrefs() {
-  voiceServicePrefs.preferServerStt = true;
-  voiceServicePrefs.preferServerTts = true;
+  voiceServicePrefs.preferServerStt = false;
+  voiceServicePrefs.preferServerTts = false;
 }
 
 export function isUsingBrowserVoiceFallback() {

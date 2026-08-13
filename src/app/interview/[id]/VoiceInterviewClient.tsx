@@ -1084,7 +1084,15 @@ export function VoiceInterviewClient({
     if (answerMediaRef.current?.state !== "recording") return;
 
     try {
-      const ws = new WebSocket(buildDeepgramUrl(), ["token", key]);
+      // "bearer" scheme, not "token" — the key here is a JWT access_token from
+      // /v1/auth/grant, and Deepgram's WS handshake distinguishes credential type by
+      // Sec-WebSocket-Protocol scheme: "token" is for permanent API keys only, "bearer"
+      // is for access tokens. Using "token" here fails the handshake with
+      // "HTTP Authentication failed; no valid credentials available" (confirmed from
+      // @deepgram/sdk's own source: AccessTokenAuthProviderWrapper formats Authorization
+      // as `Bearer ${accessToken}`, then the browser fallback converts that header into
+      // Sec-WebSocket-Protocol: ["bearer", token]).
+      const ws = new WebSocket(buildDeepgramUrl(), ["bearer", key]);
       ws.onopen = () => {
         console.info("[Deepgram] WS connected, flushing", deepgramPendingChunksRef.current.length, "buffered chunk(s)");
         // Flush in order — this is the header-containing chunk(s) recorded while the
