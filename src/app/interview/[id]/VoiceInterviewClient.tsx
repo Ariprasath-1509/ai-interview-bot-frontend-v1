@@ -427,6 +427,10 @@ export function VoiceInterviewClient({
   // Live transcription (primary): Deepgram streaming WS, one connection per answer recording.
   const deepgramSocketRef = useRef<WebSocket | null>(null);
   const deepgramFinalTextRef = useRef("");
+  // Chunks recorded before the WS finishes its handshake — WebM's container header only
+  // lives in the very first chunk, so anything dropped here (rather than queued and flushed
+  // once OPEN) corrupts the whole stream Deepgram sees from that point on.
+  const deepgramPendingChunksRef = useRef<Blob[]>([]);
 
   // Session recording state
   const [sessionRecording, setSessionRecording] = useState(false);
@@ -1082,7 +1086,13 @@ export function VoiceInterviewClient({
     try {
       const ws = new WebSocket(buildDeepgramUrl(), ["token", key]);
       ws.onopen = () => {
-        console.info("[Deepgram] WS connected");
+        console.info("[Deepgram] WS connected, flushing", deepgramPendingChunksRef.current.length, "buffered chunk(s)");
+        // Flush in order — this is the header-containing chunk(s) recorded while the
+        // handshake was still in flight, so the stream Deepgram sees stays unbroken.
+        for (const chunk of deepgramPendingChunksRef.current) {
+          ws.send(chunk);
+        }
+        deepgramPendingChunksRef.current = [];
       };
       ws.onmessage = (event) => {
         try {
@@ -1109,9 +1119,11 @@ export function VoiceInterviewClient({
         // runs on Send, so the candidate isn't blocked. Logged so failures are visible
         // instead of silently degrading to the fallback with no trace.
         console.warn("[Deepgram] WS error", event);
+        deepgramPendingChunksRef.current = [];
       };
       ws.onclose = (event) => {
         console.info("[Deepgram] WS closed", event.code, event.reason || "(no reason)");
+        deepgramPendingChunksRef.current = [];
       };
       deepgramSocketRef.current = ws;
     } catch (err) {
@@ -1123,6 +1135,7 @@ export function VoiceInterviewClient({
   function stopDeepgramStream() {
     const ws = deepgramSocketRef.current;
     deepgramSocketRef.current = null;
+    deepgramPendingChunksRef.current = [];
     if (!ws) return;
     try {
       if (ws.readyState === WebSocket.OPEN) {
@@ -1419,14 +1432,19 @@ export function VoiceInterviewClient({
       answerChunksRef.current = [];
       answerRecordingStartTimeRef.current = Date.now();
       deepgramFinalTextRef.current = "";
+      deepgramPendingChunksRef.current = [];
       // 128kbps (was 24kbps) — the low bitrate was degrading speech enough to cause
       // mis-transcriptions on technical terms even before it reached any STT engine.
       const rec = new MediaRecorder(stream, { audioBitsPerSecond: 128000 });
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) {
           answerChunksRef.current.push(e.data);
+          // The Deepgram WS is still connecting for the first chunk or two (token fetch +
+          // handshake) — queue rather than drop, or the demuxer loses the header/sync.
           if (deepgramSocketRef.current?.readyState === WebSocket.OPEN) {
             deepgramSocketRef.current.send(e.data);
+          } else {
+            deepgramPendingChunksRef.current.push(e.data);
           }
         }
       };
