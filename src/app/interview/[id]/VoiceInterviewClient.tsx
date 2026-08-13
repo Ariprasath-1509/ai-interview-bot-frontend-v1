@@ -2861,8 +2861,13 @@ export function VoiceInterviewClient({
       setShowTabWarning(true);
 
       // Strict lockdown (admin-configurable): terminate on the very first switch.
-      // Otherwise: give two warnings, terminate on the 3rd.
-      const threshold = strictLockdownEnabled ? 1 : 3;
+      // Otherwise: one warning + resume (tabSwitchCount === 1 below), terminate on the 2nd —
+      // matches the "Tab switches: X/2" copy in the warning modal. This MUST stay in sync
+      // with the resume button's `tabSwitchCount === 1` check below: every switch kills the
+      // mic session immediately regardless of strict lockdown (silentEndBecauseUserLeftRef),
+      // so any count that has neither a resume button nor an actual abandon call leaves the
+      // candidate stuck in a dead session with no way forward.
+      const threshold = strictLockdownEnabled ? 1 : 2;
       if (newCount >= threshold) {
         setTimeout(() => {
           void abandonInterview(utterancesRef.current, "tab_switch_violation");
@@ -3049,7 +3054,7 @@ export function VoiceInterviewClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl border-2 border-red-500 bg-white p-6 shadow-xl dark:bg-zinc-900 space-y-4">
             <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
-              {strictLockdownEnabled || tabSwitchCount >= 3 ? "Interview ending" : "Tab switch detected"}
+              {strictLockdownEnabled || tabSwitchCount >= 2 ? "Interview ending" : "Tab switch detected"}
             </h2>
             <div className="space-y-2 text-sm">
               <p className="font-semibold">You switched tabs/windows during the interview. This is not allowed.</p>
