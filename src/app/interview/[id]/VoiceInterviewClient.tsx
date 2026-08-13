@@ -35,6 +35,28 @@ const WHISPER_LANGUAGES = [
   { id: "ur", label: "Urdu" },
 ];
 
+// Common technical vocabulary boosted via Deepgram's `keyterm` param — directly targets
+// mis-transcriptions like "Kafka" -> "cough ka" on domain jargon and proper nouns.
+const DEEPGRAM_KEYTERMS = [
+  "Kafka", "Kubernetes", "Docker", "Redis", "PostgreSQL", "MongoDB", "MySQL",
+  "microservices", "API", "REST", "GraphQL", "Terraform", "Jenkins", "CI/CD",
+  "AWS", "Azure", "GCP", "TypeScript", "JavaScript", "Python", "Java", "Spring",
+  "React", "Node.js", "OAuth", "JWT", "WebSocket", "gRPC", "Elasticsearch",
+  "RabbitMQ", "Nginx", "Git", "SQL", "NoSQL", "CSS", "HTML",
+];
+
+function buildDeepgramUrl(): string {
+  const params = new URLSearchParams({
+    model: "nova-3",
+    interim_results: "true",
+    smart_format: "true",
+    punctuate: "true",
+    language: "en",
+  });
+  for (const term of DEEPGRAM_KEYTERMS) params.append("keyterm", term);
+  return `wss://api.deepgram.com/v1/listen?${params.toString()}`;
+}
+
 type Utterance = { speaker: "BOT" | "CANDIDATE"; text: string; at: string };
 
 /**
@@ -402,9 +424,11 @@ export function VoiceInterviewClient({
   const answerChunksRef = useRef<Blob[]>([]);
   const answerRecordingStartTimeRef = useRef<number>(0);
   const serverVoiceModeRef = useRef(true);
-  const previewRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const previewBufferRef = useRef("");
-  const previewActiveRef = useRef(false);
+  // Live transcription (primary): Deepgram streaming WS, one connection per answer recording.
+  const deepgramKeyRef = useRef<string | null>(null);
+  const deepgramKeyFetchedRef = useRef(false);
+  const deepgramSocketRef = useRef<WebSocket | null>(null);
+  const deepgramFinalTextRef = useRef("");
 
   // Session recording state
   const [sessionRecording, setSessionRecording] = useState(false);
@@ -1011,90 +1035,101 @@ export function VoiceInterviewClient({
   }
 
   function clearLivePreview() {
-    previewBufferRef.current = "";
+    deepgramFinalTextRef.current = "";
     setLivePreviewText("");
   }
 
   function resetAnswerCaptureState() {
-    previewBufferRef.current = "";
+    deepgramFinalTextRef.current = "";
     finalBufferRef.current = "";
     interimRef.current = "";
     setLivePreviewText("");
     setInterimText("");
   }
 
-  function stopLiveSpeechPreview() {
-    previewActiveRef.current = false;
-    const rec = previewRecognitionRef.current;
-    previewRecognitionRef.current = null;
-    if (!rec) return;
+  /** Mint (once per interview, cached) a short-lived Deepgram key via our BFF route.
+   *  Returns null if Deepgram isn't configured server-side — callers treat that as
+   *  "feature disabled" and fall through to the existing Sarvam/Whisper batch flow. */
+  async function ensureDeepgramKey(): Promise<string | null> {
+    if (deepgramKeyFetchedRef.current) return deepgramKeyRef.current;
+    deepgramKeyFetchedRef.current = true;
     try {
-      rec.stop();
+      const res = await fetch("/api/ai/deepgram-token", { method: "POST" });
+      if (!res.ok) return null;
+      const data = await res.json() as { key?: string };
+      deepgramKeyRef.current = data.key ?? null;
+      return deepgramKeyRef.current;
+    } catch {
+      return null;
+    }
+  }
+
+  /** One Deepgram WS per answer recording (mirrors MediaRecorder's own start/stop) —
+   *  each MediaRecorder session emits a fresh WebM container header, so a single
+   *  long-lived Deepgram connection reused across questions would receive multiple
+   *  container headers mid-stream and break. */
+  async function startDeepgramStream() {
+    // Browser STT mode uses the main recognizer (recognitionRef) for live text — Deepgram
+    // is only for server/Whisper mode, same as the preview recognizer it replaces.
+    if (!serverVoiceModeRef.current) return;
+    const key = await ensureDeepgramKey();
+    if (!key || sessionFinalizedRef.current || !sessionActiveRef.current) return;
+    // Recording may have already stopped by the time the key round-trip resolves.
+    if (answerMediaRef.current?.state !== "recording") return;
+
+    try {
+      const ws = new WebSocket(buildDeepgramUrl(), ["token", key]);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data as string) as {
+            type?: string;
+            is_final?: boolean;
+            channel?: { alternatives?: Array<{ transcript?: string }> };
+          };
+          if (data.type !== "Results") return;
+          const transcript = data.channel?.alternatives?.[0]?.transcript ?? "";
+          if (!transcript) return;
+          if (data.is_final) {
+            deepgramFinalTextRef.current = `${deepgramFinalTextRef.current} ${transcript}`.trim();
+            setLivePreviewText(deepgramFinalTextRef.current);
+          } else {
+            setLivePreviewText(`${deepgramFinalTextRef.current} ${transcript}`.trim());
+          }
+        } catch {
+          /* ignore malformed frame */
+        }
+      };
+      ws.onerror = () => {
+        // Live captioning unavailable for this answer — Sarvam/Whisper batch path still
+        // runs on Send, so the candidate isn't blocked.
+      };
+      deepgramSocketRef.current = ws;
+    } catch {
+      deepgramSocketRef.current = null;
+    }
+  }
+
+  function stopDeepgramStream() {
+    const ws = deepgramSocketRef.current;
+    deepgramSocketRef.current = null;
+    if (!ws) return;
+    try {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "CloseStream" }));
+      }
+      ws.close();
     } catch {
       /* ignore */
     }
   }
 
-  function startLiveSpeechPreview() {
-    if (sessionFinalizedRef.current || typedOnlyRef.current || pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
-    // Browser STT mode uses the main recognizer (recognitionRef) for live text, so the
-    // separate preview recognizer must NOT run there — two SpeechRecognition instances on
-    // the same mic conflict and abort. Preview only runs in server/Whisper mode.
-    if (!serverVoiceModeRef.current || !sessionActiveRef.current) return;
-
-    const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
-    const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | undefined;
-    if (!Ctor) return;
-
-    stopLiveSpeechPreview();
-
-    const rec = new Ctor();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = speechPreviewLang();
-
-    rec.onresult = (event) => {
-      if (pausedForTtsRef.current || micPhaseRef.current === "bot_speaking") return;
-      const e = event as {
-        resultIndex: number;
-        results: ArrayLike<{ isFinal: boolean; 0: { transcript?: string } }>;
-      };
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const res = e.results[i];
-        const text = res?.[0]?.transcript ?? "";
-        if (res?.isFinal) {
-          previewBufferRef.current += text.trim() + " ";
-        } else {
-          interim += text;
-        }
-      }
-      const combined = `${previewBufferRef.current}${interim}`.trim();
-      setLivePreviewText(combined);
-    };
-
-    rec.onerror = (event) => {
-      const err = (event as { error?: string })?.error;
-      if (err === "aborted" || err === "no-speech") return;
-    };
-
-    rec.onend = () => {
-      if (!previewActiveRef.current || sessionFinalizedRef.current || !sessionActiveRef.current || micPhaseRef.current !== "listening") return;
-      try {
-        rec.start();
-      } catch {
-        /* ignore */
-      }
-    };
-
-    previewRecognitionRef.current = rec;
-    previewActiveRef.current = true;
-    try {
-      rec.start();
-    } catch {
-      previewActiveRef.current = false;
-      previewRecognitionRef.current = null;
-    }
+  /** Brief grace window so Deepgram can return final results for the last audio chunk
+   *  (just flushed by MediaRecorder's stop) before we read the accumulated transcript
+   *  and close — without this, the last word or two of the answer can go missing. */
+  async function settleDeepgramStream() {
+    if (!deepgramSocketRef.current) return;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    stopDeepgramStream();
   }
 
   function resetVoiceValidationSession() {
@@ -1310,10 +1345,13 @@ export function VoiceInterviewClient({
     return data.text?.trim() ?? "";
   }
 
-  function getBrowserSttPreviewText(): string {
-    const preview = previewBufferRef.current.trim() || livePreviewText.trim();
+  /** Text already captured live before "Send answer" is even clicked — Deepgram's
+   *  accumulated final transcript when available, else whatever the main recognizer
+   *  buffered (browser-STT-mode sessions). */
+  function getLiveCapturedText(): string {
+    const captured = deepgramFinalTextRef.current.trim() || livePreviewText.trim();
     const recognition = `${finalBufferRef.current}${interimRef.current ? (finalBufferRef.current ? " " : "") + interimRef.current : ""}`.trim();
-    return preview || recognition;
+    return captured || recognition;
   }
 
   function enableBrowserSttFallback(reason: string) {
@@ -1369,15 +1407,24 @@ export function VoiceInterviewClient({
     try {
       answerChunksRef.current = [];
       answerRecordingStartTimeRef.current = Date.now();
-      const rec = new MediaRecorder(stream, { audioBitsPerSecond: 24000 });
+      deepgramFinalTextRef.current = "";
+      // 128kbps (was 24kbps) — the low bitrate was degrading speech enough to cause
+      // mis-transcriptions on technical terms even before it reached any STT engine.
+      const rec = new MediaRecorder(stream, { audioBitsPerSecond: 128000 });
       rec.ondataavailable = (e) => {
-        if (e.data.size > 0) answerChunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          answerChunksRef.current.push(e.data);
+          if (deepgramSocketRef.current?.readyState === WebSocket.OPEN) {
+            deepgramSocketRef.current.send(e.data);
+          }
+        }
       };
       answerMediaRef.current = rec;
-      rec.start(2000);
+      rec.start(250); // smaller timeslice for low-latency Deepgram streaming
       setAnswerRecording(true);
       setWhisperError(null);
       clearLivePreview();
+      void startDeepgramStream();
     } catch {
       answerMediaRef.current = null;
       setWhisperError("Could not start answer recording.");
@@ -1388,6 +1435,7 @@ export function VoiceInterviewClient({
     const rec = answerMediaRef.current;
     if (!rec || rec.state === "inactive") {
       setAnswerRecording(false);
+      await settleDeepgramStream();
       return answerChunksRef.current.length
         ? new Blob(answerChunksRef.current, { type: "audio/webm" })
         : null;
@@ -1395,9 +1443,10 @@ export function VoiceInterviewClient({
     setAnswerRecording(false);
     await new Promise<void>((resolve) => {
       rec.onstop = () => resolve();
-      rec.stop();
+      rec.stop(); // fires one last `dataavailable` (with it, one last send to Deepgram) before this resolves
     });
     answerMediaRef.current = null;
+    await settleDeepgramStream();
     if (answerChunksRef.current.length === 0) return null;
     return new Blob(answerChunksRef.current, { type: "audio/webm" });
   }
@@ -1434,10 +1483,8 @@ export function VoiceInterviewClient({
     if (advancingRef.current) return;
     advancingRef.current = true;
 
-    const browserFallbackText = getBrowserSttPreviewText();
     setWhisperProcessing(true);
     setWhisperError(null);
-    stopLiveSpeechPreview();
     try {
       recognitionRef.current?.stop();
     } catch {
@@ -1448,23 +1495,27 @@ export function VoiceInterviewClient({
     // if so, that function's own finally resets advancingRef when the advance completes.
     let didHandOff = false;
     try {
+      // stopAnswerRecordingBlob() waits out Deepgram's brief settle window, so by the time
+      // it resolves, deepgramFinalTextRef holds the complete live transcript (not a stale
+      // snapshot from before the last audio chunk was even sent).
       const blob = await stopAnswerRecordingBlob();
+      const liveCapturedText = getLiveCapturedText();
+
+      if (liveCapturedText.length >= 3) {
+        await submitVoiceAnswerText(liveCapturedText);
+        didHandOff = true;
+        return;
+      }
+
+      // No usable live transcript (Deepgram not configured, or this answer's connection
+      // failed) — fall back to the batch Sarvam/Whisper transcription of the full recording.
       if (!blob || blob.size < 2000) {
-        if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
-          didHandOff = true;
-          return;
-        }
         setWhisperError(`Recording too small (${blob?.size ?? 0} bytes). Speak louder or longer, then try again.`);
         startAnswerRecording();
         return;
       }
       const text = await transcribeAnswerBlob(blob);
       if (!text || text.length < 3) {
-        if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
-          enableBrowserSttFallback("Whisper returned insufficient text");
-          didHandOff = true;
-          return;
-        }
         setWhisperError("Transcription too short. Speak a complete sentence and try again.");
         startAnswerRecording();
         return;
@@ -1476,11 +1527,6 @@ export function VoiceInterviewClient({
       const errMsg = e instanceof Error ? e.message : "Transcription failed";
       const tooLarge = errMsg.startsWith("audio_too_large:");
       const reason = timedOut ? "Whisper timed out (>10s)" : errMsg;
-      if (browserFallbackText && await submitVoiceAnswerText(browserFallbackText)) {
-        enableBrowserSttFallback(reason);
-        didHandOff = true;
-        return;
-      }
       enableBrowserSttFallback(reason);
       setWhisperError(
         timedOut
@@ -1494,16 +1540,6 @@ export function VoiceInterviewClient({
       if (!didHandOff) advancingRef.current = false;
     }
   }
-
-  useEffect(() => {
-    if (micPhase === "listening" && !typedAnswersOnly && serverVoiceModeRef.current && sessionActiveRef.current) {
-      startLiveSpeechPreview();
-    } else {
-      stopLiveSpeechPreview();
-    }
-    return () => stopLiveSpeechPreview();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [micPhase, typedAnswersOnly, whisperLang]);
 
   useEffect(() => {
     if (!videoProctoringRequired) {
@@ -1721,7 +1757,6 @@ export function VoiceInterviewClient({
     interviewChannelRef.current = null;
 
     sessionActiveRef.current = false;
-    previewActiveRef.current = false;
     pausedForTtsRef.current = true;
     explicitStopRef.current = false;
     commitAfterEndRef.current = false;
@@ -1737,9 +1772,7 @@ export function VoiceInterviewClient({
     }
 
     cancelActiveTts();
-    stopLiveSpeechPreview();
-    stopSpeechRecognition(previewRecognitionRef.current);
-    previewRecognitionRef.current = null;
+    stopDeepgramStream();
     stopSpeechRecognition(recognitionRef.current);
     recognitionRef.current = null;
 
@@ -1767,7 +1800,7 @@ export function VoiceInterviewClient({
   }
 
   function releaseMicStream() {
-    stopLiveSpeechPreview();
+    stopDeepgramStream();
     clearLivePreview();
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
@@ -1798,7 +1831,12 @@ export function VoiceInterviewClient({
     }
     try {
       micStreamRef.current = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: { ideal: 48000 },
+          channelCount: 1,
+        },
       });
       // Detect mic hardware disconnect — track fires 'ended' when device is unplugged
       micStreamRef.current.getAudioTracks().forEach((track) => {
