@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 const SARVAM_API_KEY  = process.env.SARVAM_API_KEY;
 const SARVAM_URL      = (process.env.SARVAM_URL ?? "https://api.sarvam.ai").replace(/\/$/, "");
-const SARVAM_MODEL    = process.env.SARVAM_MODEL ?? "saarika:v2";
+const SARVAM_MODEL    = process.env.SARVAM_MODEL ?? "saarika:v2.5"; // v2 deprecated by Sarvam
 const WHISPER_URL     = process.env.WHISPER_URL?.replace(/\/$/, "");
 const GATEWAY         = process.env.API_URL ?? "http://localhost:6002";
 
@@ -42,7 +42,12 @@ export async function POST(req: Request) {
     return Response.json({ error: "audio_required" }, { status: 400 });
   }
 
-  // ── 1. Sarvam STT (primary) ──────────────────────────────────────────────
+  // ── 1. Sarvam STT (primary batch tier) ───────────────────────────────────
+  // When a Sarvam key is configured, it's the sole batch tier — a failure here
+  // returns an error immediately (skipping Whisper/gateway below) so the client's
+  // existing enableBrowserSttFallback() kicks in, rather than masking the failure
+  // behind an unreliable self-hosted Whisper. Whisper stays reachable only when no
+  // Sarvam key is configured at all (e.g. local dev), as a legacy safety net.
   if (SARVAM_API_KEY) {
     try {
       const sarvamForm = new FormData();
@@ -55,7 +60,7 @@ export async function POST(req: Request) {
         method: "POST",
         headers: { "api-subscription-key": SARVAM_API_KEY },
         body: sarvamForm,
-        signal: AbortSignal.timeout(30_000), // Sarvam is fast — tight timeout before fallback
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (sarvamRes.ok) {
@@ -67,17 +72,27 @@ export async function POST(req: Request) {
         });
       }
 
-      // Non-200 from Sarvam — log and fall through to Whisper
       const errBody = await sarvamRes.text().catch(() => "");
-      console.warn("[STT] Sarvam returned", sarvamRes.status, errBody, "— falling back to Whisper");
+      console.warn("[STT] Sarvam returned", sarvamRes.status, errBody, "— no Whisper fallback (Sarvam key is configured); use browser speech instead");
+      return Response.json(
+        { error: "transcribe_failed", detail: errBody || `Sarvam returned ${sarvamRes.status}` },
+        { status: sarvamRes.status },
+      );
     } catch (err) {
       const isTimeout = (err as { name?: string }).name === "TimeoutError" ||
                         (err as { name?: string }).name === "AbortError";
-      console.warn("[STT] Sarvam", isTimeout ? "timed out" : "failed:", err, "— falling back to Whisper");
+      console.warn("[STT] Sarvam", isTimeout ? "timed out" : "failed:", err, "— no Whisper fallback (Sarvam key is configured); use browser speech instead");
+      return Response.json(
+        {
+          error:  isTimeout ? "transcribe_timeout" : "transcribe_failed",
+          detail: isTimeout ? "Sarvam timed out — use browser speech instead" : String(err),
+        },
+        { status: isTimeout ? 504 : 502 },
+      );
     }
   }
 
-  // ── 2. Faster-Whisper (fallback / default when no Sarvam key) ────────────
+  // ── 2. Faster-Whisper (only reached when no Sarvam key is configured) ────
   if (WHISPER_URL) {
     try {
       const whisperForm = new FormData();
