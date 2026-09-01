@@ -1,37 +1,20 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+export { EmptyState } from "./EmptyState";
+export { PageHeader } from "./PageHeader";
 
-/** Centered empty state for tables and lists */
-export function EmptyState({
-  title = "Nothing here yet",
-  description,
-  action,
-}: {
-  title?: string;
-  description?: string;
-  action?: { label: string; href: string };
-}) {
-  return (
-    <div className="empty-state">
-      <p className="font-medium text-zinc-700 dark:text-zinc-300">{title}</p>
-      {description && (
-        <p className="mt-1 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
-      )}
-      {action && (
-        <Link href={action.href} className="btn-primary mt-4 inline-flex">
-          {action.label}
-        </Link>
-      )}
-    </div>
-  );
-}
+const cn = (...inputs: any[]) => twMerge(clsx(inputs));
+
+
 
 /** Standard page section heading */
 export function PageSection({
   title,
   description,
   children,
-  className = "",
+  className,
 }: {
   title: string;
   description?: string;
@@ -39,11 +22,11 @@ export function PageSection({
   className?: string;
 }) {
   return (
-    <section className={className}>
-      <div className="mb-3">
-        <h2 className="section-label">{title}</h2>
+    <section className={cn("space-y-3", className)}>
+      <div>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">{title}</h2>
         {description && (
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>
+          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{description}</p>
         )}
       </div>
       {children}
@@ -62,18 +45,21 @@ export function StandalonePage({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 py-12 dark:bg-[#050505] sm:px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)] px-4 py-12 text-[var(--text-primary)] sm:px-6">
       <main className="w-full max-w-md space-y-6 text-center">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
             {title}
           </h1>
           {description && (
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">{description}</p>
           )}
         </div>
-        <div className="card p-6 text-left">{children}</div>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-left shadow-sm">
+          {children}
+        </div>
       </main>
     </div>
   );
 }
+

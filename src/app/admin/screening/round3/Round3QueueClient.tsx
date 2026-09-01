@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSkillSetOptions } from '@/hooks/useSkillSetOptions';
 import { useCandidateSourceOptions } from '@/hooks/useCandidateSourceOptions';
 import { PriorityBadge } from '@/components/common/PriorityBadge';
@@ -156,157 +157,209 @@ export function Round3QueueClient() {
   };
 
   const backLink = (
-    <Link href="/admin/screening" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4">
+    <Link
+      href="/admin/screening"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] hover:border-[#6D28D9] transition-all cursor-pointer mb-4"
+    >
       ← Back to Screening
     </Link>
   );
 
   if (loading) {
     return (
-      <div>
+      <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
         {backLink}
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)]">Loading…</p>
       </div>
     );
   }
   if (candidates.length === 0) {
     return (
-      <div>
+      <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
         {backLink}
-        <p className="text-sm text-zinc-500">No candidates waiting for Round 3.</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)]">No candidates waiting for Round 3.</p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
       {backLink}
+      <p className="text-xs font-extrabold text-[var(--text-secondary)] uppercase tracking-wider">
+        {candidates.length} Candidate{candidates.length === 1 ? '' : 's'} in Round 3
+      </p>
       <div className="space-y-4">
         {candidates.map((c) => {
           const f = fieldsFor(c);
           return (
-            <Card key={c.id}>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">{c.name}</CardTitle>
-                  <PriorityBadge priority={c.round1Priority} />
+            <div key={c.id} className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+              <div className="panel-header panel-header-accent-indigo rounded-t-2xl flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-[var(--text-primary)]">{c.name}</h3>
+                    <PriorityBadge priority={c.round1Priority} />
+                  </div>
+                  <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">{c.email}</p>
                 </div>
-                <p className="text-sm text-zinc-500">{c.email}</p>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 mb-4 text-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-xs space-y-1.5">
+                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-secondary)] mb-2">
                     Previous rounds — for cross-questioning
                   </p>
-                  <p className="text-zinc-700 dark:text-zinc-300">
+                  <p className="text-[var(--text-primary)] font-semibold">
                     Round 1: {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
                     {c.proctoringViolation && (
-                      <span className="ml-2 text-red-600 dark:text-red-400">⚠ Multiple tab switches</span>
+                      <span className="ml-2 inline-flex px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                        ⚠ Multiple tab switches
+                      </span>
                     )}
                   </p>
-                  <p className="text-zinc-700 dark:text-zinc-300 mt-1">
+                  <p className="text-[var(--text-primary)] font-semibold">
                     Round 2: {c.round2Marks != null ? `${c.round2Marks} / 35` : '—'}
-                    {c.round2Result && <span className="ml-2 text-zinc-500">({c.round2Result})</span>}
+                    {c.round2Result && <span className="ml-2 text-[var(--text-secondary)] font-normal">({c.round2Result})</span>}
                   </p>
-                  {c.round2Strengths && <p className="mt-2"><span className="text-zinc-500">Strengths:</span> {c.round2Strengths}</p>}
-                  {c.round2Weaknesses && <p className="mt-1"><span className="text-zinc-500">Weaknesses:</span> {c.round2Weaknesses}</p>}
-                  {c.round2Practical && <p className="mt-1"><span className="text-zinc-500">Practical:</span> {c.round2Practical}</p>}
-                  {c.round2Improvements && <p className="mt-1"><span className="text-zinc-500">Improvements:</span> {c.round2Improvements}</p>}
+                  {c.round2Strengths && <p><span className="font-bold text-[var(--text-secondary)]">Strengths:</span> {c.round2Strengths}</p>}
+                  {c.round2Weaknesses && <p><span className="font-bold text-[var(--text-secondary)]">Weaknesses:</span> {c.round2Weaknesses}</p>}
+                  {c.round2Practical && <p><span className="font-bold text-[var(--text-secondary)]">Practical:</span> {c.round2Practical}</p>}
+                  {c.round2Improvements && <p><span className="font-bold text-[var(--text-secondary)]">Improvements:</span> {c.round2Improvements}</p>}
                 </div>
+
                 {c.stage === 'ROUND2_SELECTED' && (
-                  <Button size="sm" onClick={() => start(c.id)} disabled={busy === c.id}>
+                  <button
+                    type="button"
+                    onClick={() => start(c.id)}
+                    disabled={busy === c.id}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                  >
                     Start Round 3
-                  </Button>
+                  </button>
                 )}
+
                 {c.stage === 'ROUND3_IN_PROGRESS' && (
-                  <div className="space-y-3">
+                  <div className="space-y-4 pt-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {CATEGORIES.map((cat) => (
-                        <div key={cat.key}>
-                          <Label>{cat.label} (5 marks)</Label>
+                        <div key={cat.key} className="space-y-1.5">
+                          <Label className="text-xs font-bold text-[var(--text-primary)]">{cat.label} (5 marks)</Label>
                           <Input
                             type="number"
                             min={0}
                             max={5}
-                            className="mt-1"
+                            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
                             value={f.scores[cat.key]}
                             onChange={(e) => updateScore(c, cat.key, e.target.value)}
                           />
                         </div>
                       ))}
                     </div>
-                    <div>
-                      <Label>Concluding Comments</Label>
-                      <Textarea className="mt-1" value={f.concludingComments} onChange={(e) => updateField(c, 'concludingComments', e.target.value)} />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Concluding Comments</Label>
+                      <Textarea
+                        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs p-3 focus:border-[#6D28D9]"
+                        value={f.concludingComments}
+                        onChange={(e) => updateField(c, 'concludingComments', e.target.value)}
+                      />
                     </div>
-                    <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                    <p className="text-xs font-extrabold text-[#6D28D9] dark:text-purple-400">
                       Total: {total(f)} / 30
                     </p>
-                    <div>
-                      <Label>Result</Label>
-                      <select
-                        className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Result</Label>
+                      <Select
                         value={f.result}
-                        onChange={(e) => updateField(c, 'result', e.target.value)}
+                        onValueChange={(val) => updateField(c, 'result', val as Decision)}
                       >
-                        <option value="SELECTED">Pass — onboard as Under Training</option>
-                        <option value="HOLD">Hold</option>
-                        <option value="REJECTED">Rejected</option>
-                      </select>
+                        <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                          <SelectValue placeholder="Select Result" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-44">
+                          <SelectItem value="SELECTED" className="text-xs font-semibold">Pass — onboard as Under Training</SelectItem>
+                          <SelectItem value="HOLD" className="text-xs font-semibold">Hold</SelectItem>
+                          <SelectItem value="REJECTED" className="text-xs font-semibold">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {f.result === 'SELECTED' && (
-                      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
-                        <p className="text-xs text-zinc-500 mb-3">
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 space-y-3">
+                        <p className="text-[11px] font-medium text-[var(--text-secondary)]">
                           Not part of the evaluation — this creates the candidate&apos;s real account.
                           {c.institute && ` Institute on file: ${c.institute}.`} Contact number is pre-filled from
                           Round 1 intake when known; training batch and skill set are always required.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div>
-                            <Label>Contact number{c.contactNumber ? ' (on file)' : ''}</Label>
-                            <Input className="mt-1" value={f.contactNumber} onChange={(e) => updateField(c, 'contactNumber', e.target.value)} />
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-[var(--text-primary)]">Contact number{c.contactNumber ? ' (on file)' : ''}</Label>
+                            <Input
+                              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                              value={f.contactNumber}
+                              onChange={(e) => updateField(c, 'contactNumber', e.target.value)}
+                            />
                           </div>
-                          <div>
-                            <Label>Training batch *</Label>
-                            <Input className="mt-1" value={f.batchLabel} onChange={(e) => updateField(c, 'batchLabel', e.target.value)} placeholder="e.g. 2026-Q1-Java" />
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-[var(--text-primary)]">Training batch *</Label>
+                            <Input
+                              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                              value={f.batchLabel}
+                              onChange={(e) => updateField(c, 'batchLabel', e.target.value)}
+                              placeholder="e.g. 2026-Q1-Java"
+                            />
                           </div>
-                          <div>
-                            <Label>Source *</Label>
-                            <select
-                              className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-[var(--text-primary)]">Source *</Label>
+                            <Select
                               value={f.source}
-                              onChange={(e) => updateField(c, 'source', e.target.value)}
+                              onValueChange={(val) => updateField(c, 'source', val)}
                             >
-                              {sourceOptions.map((o) => (
-                                <option key={o.code} value={o.code}>{o.label}</option>
-                              ))}
-                            </select>
+                              <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                                <SelectValue placeholder="Select Source" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-44">
+                                {sourceOptions.map((o) => (
+                                  <SelectItem key={o.code} value={o.code} className="text-xs font-semibold">
+                                    {o.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <div>
-                            <Label>Skill set *</Label>
-                            <select
-                              className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
-                              value={f.skillSet}
-                              onChange={(e) => updateField(c, 'skillSet', e.target.value)}
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-[var(--text-primary)]">Skill set *</Label>
+                            <Select
+                              value={f.skillSet || "NONE"}
+                              onValueChange={(val) => updateField(c, 'skillSet', val === "NONE" ? "" : val)}
                             >
-                              <option value="">—</option>
-                              {skillSetOptions.map((o) => (
-                                <option key={o.code} value={o.code}>{o.label}</option>
-                              ))}
-                            </select>
+                              <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                                <SelectValue placeholder="— Select Skill set —" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-44">
+                                <SelectItem value="NONE" className="text-xs font-semibold">—</SelectItem>
+                                {skillSetOptions.map((o) => (
+                                  <SelectItem key={o.code} value={o.code} className="text-xs font-semibold">
+                                    {o.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       </div>
                     )}
 
-                    <Button size="sm" onClick={() => submitFeedback(c)} disabled={busy === c.id}>
-                      Submit
-                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => submitFeedback(c)}
+                      disabled={busy === c.id}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-5 py-2.5 text-xs font-extrabold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                    >
+                      Submit Feedback
+                    </button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>

@@ -29,11 +29,6 @@ export default async function CreateInterviewPage({ searchParams }: PageProps) {
 
   return (
     <AppShell title="Create Interview" subtitle="Set up a new technical interview">
-      <div className="mb-4 flex justify-end">
-        <Link href="/admin/interviews/bulk-create" className="btn-secondary text-sm">
-          + Bulk Create
-        </Link>
-      </div>
       <CreateInterviewClient
         candidateId={candidateId}
         clientId={clientId}

@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Users, UserPlus, Sparkles, Layers, Calendar, Clock, Upload, FileText, FileSpreadsheet, FileUp, Loader2 } from 'lucide-react';
 
 interface Batch {
   id: string;
@@ -21,6 +23,142 @@ function toLocalInputValue(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatReadableDateTime(val: string): string {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val;
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }) + ' at ' + d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function getPresetDateTime(type: 'today_6pm' | 'tomorrow_9am' | 'in_2days' | 'next_week'): string {
+  const d = new Date();
+  if (type === 'today_6pm') {
+    d.setHours(18, 0, 0, 0);
+  } else if (type === 'tomorrow_9am') {
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+  } else if (type === 'in_2days') {
+    d.setDate(d.getDate() + 2);
+    d.setHours(18, 0, 0, 0);
+  } else if (type === 'next_week') {
+    d.setDate(d.getDate() + 7);
+    d.setHours(9, 0, 0, 0);
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function DateTimePicker({
+  value,
+  onChange,
+  showPresets = true,
+  placeholder = "Select deadline date & time",
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  showPresets?: boolean;
+  placeholder?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClick = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    const picker = el as HTMLInputElement & { showPicker?: () => void };
+    if (typeof picker.showPicker === 'function') {
+      try {
+        picker.showPicker();
+        return;
+      } catch {}
+    }
+    el.focus();
+  };
+
+  return (
+    <div className="space-y-2">
+      <div
+        onClick={handleClick}
+        className="relative flex h-10 items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-primary)] shadow-sm hover:shadow-md shadow-purple-950/5 dark:shadow-none transition-all duration-150 hover:border-[#6D28D9] cursor-pointer group focus-within:border-[#6D28D9]"
+      >
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#6D28D9]/10 text-[#6D28D9] dark:text-purple-400 group-hover:bg-[#6D28D9] group-hover:text-white transition-colors">
+            <Calendar className="h-4 w-4" />
+          </div>
+          <div className="flex flex-col truncate">
+            {value ? (
+              <span className="font-extrabold text-[var(--text-primary)] truncate">
+                {formatReadableDateTime(value)}
+              </span>
+            ) : (
+              <span className="text-[var(--text-secondary)] font-medium truncate">
+                {placeholder}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+          <Clock className="h-4 w-4 text-[#6D28D9] opacity-80" />
+          <input
+            ref={inputRef}
+            type="datetime-local"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute left-3.5 top-full h-0 w-7 opacity-0 pointer-events-none"
+          />
+        </div>
+      </div>
+
+      {showPresets && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mr-1">Quick presets:</span>
+          <button
+            type="button"
+            onClick={() => onChange(getPresetDateTime('today_6pm'))}
+            className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-primary)] hover:border-[#6D28D9] hover:text-[#6D28D9] transition-all cursor-pointer"
+          >
+            Today 6 PM
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(getPresetDateTime('tomorrow_9am'))}
+            className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-primary)] hover:border-[#6D28D9] hover:text-[#6D28D9] transition-all cursor-pointer"
+          >
+            Tomorrow 9 AM
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(getPresetDateTime('in_2days'))}
+            className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-primary)] hover:border-[#6D28D9] hover:text-[#6D28D9] transition-all cursor-pointer"
+          >
+            In 2 Days
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(getPresetDateTime('next_week'))}
+            className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-primary)] hover:border-[#6D28D9] hover:text-[#6D28D9] transition-all cursor-pointer"
+          >
+            Next Week
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface CandidateRow {
@@ -376,80 +514,146 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-3">
-        <Link href="/admin/screening/round2"><Button variant="outline">Round 2 queue</Button></Link>
+    <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
+      {/* ── Top Navigation Bar ── */}
+      <div className="flex items-center gap-3">
+        <Link
+          href="/admin/screening/round2"
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] hover:border-[#6D28D9] transition-all cursor-pointer"
+        >
+          <Users className="h-4 w-4 text-[#6D28D9]" />
+          Round 2 Queue
+        </Link>
         {isManager && (
-          <Link href="/admin/screening/round3"><Button variant="outline">Round 3 queue</Button></Link>
+          <Link
+            href="/admin/screening/round3"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] hover:border-[#6D28D9] transition-all cursor-pointer"
+          >
+            <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            Round 3 Queue
+          </Link>
         )}
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Candidate missed Round 1?</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setShowDirectForm((v) => !v)}>
+      {/* ── Card 1: Direct to Round 2 ── */}
+      <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+        <div className="panel-header panel-header-accent-amber rounded-t-2xl flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+            <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            Candidate missed Round 1?
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowDirectForm((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] transition-all cursor-pointer"
+          >
             {showDirectForm ? 'Cancel' : 'Add directly to Round 2'}
-          </Button>
-        </CardHeader>
+          </button>
+        </div>
         {showDirectForm && (
-          <CardContent className="space-y-3">
-            <p className="text-xs text-zinc-500">
+          <div className="p-5 space-y-4 border-t border-[var(--border)]">
+            <p className="text-xs font-medium text-[var(--text-secondary)]">
               Skips the written test entirely — the candidate goes straight into the Round 2 queue.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <Label>Name</Label>
-                <Input value={directCandidate.name} onChange={(e) => setDirectCandidate({ ...directCandidate, name: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Name</Label>
+                <Input
+                  value={directCandidate.name}
+                  onChange={(e) => setDirectCandidate({ ...directCandidate, name: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Email</Label>
-                <Input type="email" value={directCandidate.email} onChange={(e) => setDirectCandidate({ ...directCandidate, email: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Email</Label>
+                <Input
+                  type="email"
+                  value={directCandidate.email}
+                  onChange={(e) => setDirectCandidate({ ...directCandidate, email: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Contact Number</Label>
-                <Input value={directCandidate.contactNumber} onChange={(e) => setDirectCandidate({ ...directCandidate, contactNumber: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Contact Number</Label>
+                <Input
+                  value={directCandidate.contactNumber}
+                  onChange={(e) => setDirectCandidate({ ...directCandidate, contactNumber: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Institute</Label>
-                <Input value={directCandidate.institute} onChange={(e) => setDirectCandidate({ ...directCandidate, institute: e.target.value })} className="mt-1" placeholder="JSpiders or QSpiders" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Institute</Label>
+                <Input
+                  value={directCandidate.institute}
+                  onChange={(e) => setDirectCandidate({ ...directCandidate, institute: e.target.value })}
+                  placeholder="JSpiders or QSpiders"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Branch</Label>
-                <Input value={directCandidate.branch} onChange={(e) => setDirectCandidate({ ...directCandidate, branch: e.target.value })} className="mt-1" placeholder="e.g. Bangalore" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Branch</Label>
+                <Input
+                  value={directCandidate.branch}
+                  onChange={(e) => setDirectCandidate({ ...directCandidate, branch: e.target.value })}
+                  placeholder="e.g. Bangalore"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>YOP</Label>
-                <Input type="number" value={directCandidate.yop} onChange={(e) => setDirectCandidate({ ...directCandidate, yop: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">YOP</Label>
+                <Input
+                  type="number"
+                  value={directCandidate.yop}
+                  onChange={(e) => setDirectCandidate({ ...directCandidate, yop: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Experience (years)</Label>
-                <Input type="number" value={directCandidate.experience} onChange={(e) => setDirectCandidate({ ...directCandidate, experience: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Experience (years)</Label>
+                <Input
+                  type="number"
+                  value={directCandidate.experience}
+                  onChange={(e) => setDirectCandidate({ ...directCandidate, experience: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
             </div>
-            {directError && <p className="text-sm text-red-600 dark:text-red-400">{directError}</p>}
-            {directSuccess && <p className="text-sm text-emerald-600 dark:text-emerald-400">{directSuccess}</p>}
-            <Button size="sm" onClick={addDirectToRound2} disabled={addingDirect}>
+            {directError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{directError}</p>}
+            {directSuccess && <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{directSuccess}</p>}
+            <button
+              type="button"
+              onClick={addDirectToRound2}
+              disabled={addingDirect}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            >
               {addingDirect ? 'Adding…' : 'Add to Round 2'}
-            </Button>
-          </CardContent>
+            </button>
+          </div>
         )}
-      </Card>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Create a written-round batch</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
+      {/* ── Card 2: Create a written-round batch ── */}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+        <div className="panel-header panel-header-accent-purple rounded-t-2xl flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+            <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            Create a written-round batch
+          </h2>
+          <span className="text-xs font-medium text-[var(--text-secondary)]">AI-powered question generation</span>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Mode Tabs */}
+          <div className="flex gap-2 border-b border-[var(--border)] pb-3">
             {(['preset', 'jd', 'paper'] as const).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setCreateMode(m)}
-                className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+                className={`text-xs px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
                   createMode === m
-                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-transparent'
-                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900'
+                    ? 'bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-extrabold shadow-xs'
+                    : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] font-semibold hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {m === 'preset' ? 'Basics preset' : m === 'jd' ? 'From a JD' : 'From a question paper'}
@@ -459,74 +663,126 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {createMode === 'preset' ? (
-              <div>
-                <Label>Language</Label>
-                <select
-                  className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Language</Label>
+                <Select
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  onValueChange={(val) => setLanguage(val)}
                 >
-                  {languages.map((l) => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-zinc-500 mt-1">Questions are scoped to core basics only (fundamentals through exception handling).</p>
+                  <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                    <SelectValue placeholder="Select Language" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-44">
+                    {languages.map((l) => (
+                      <SelectItem key={l} value={l} className="text-xs font-semibold">
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-[var(--text-secondary)]">Questions are scoped to core basics only (fundamentals through exception handling).</p>
               </div>
             ) : (
-              <div>
-                <Label>Batch label</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Batch label</Label>
                 <Input
                   value={docLabel}
                   onChange={(e) => setDocLabel(e.target.value)}
-                  className="mt-1"
                   placeholder="e.g. Python (from JD)"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
                 />
-                <p className="text-xs text-zinc-500 mt-1">Shown in the batches list — free text, not validated against the preset language list.</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">Shown in the batches list — free text, not validated against the preset language list.</p>
               </div>
             )}
-            <div>
-              <Label>Deadline</Label>
-              <Input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="mt-1" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-[var(--text-primary)]">Deadline</Label>
+              <DateTimePicker
+                value={deadline}
+                onChange={(val) => setDeadline(val)}
+              />
             </div>
           </div>
 
           {createMode !== 'preset' && (
-            <div>
-              <Label>{createMode === 'jd' ? 'Job description' : 'Question paper'}</Label>
-              <p className="text-xs text-zinc-500 mt-1 mb-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-[var(--text-primary)]">{createMode === 'jd' ? 'Job description' : 'Question paper'}</Label>
+              <p className="text-[11px] text-[var(--text-secondary)]">
                 {createMode === 'jd'
                   ? "Upload a .docx or paste the JD text below. The AI identifies its core/foundational skills and writes a fresh question set for those basics only."
                   : 'Upload a .docx or paste the question paper text below. The AI extracts the questions as-is (no new ones invented) and infers grading answers, since the source has no answer key.'}
               </p>
-              <div className="flex items-center gap-3 mb-2">
-                <Input type="file" accept=".docx" onChange={handleDocFileSelect} className="cursor-pointer" disabled={extracting} />
-                {extracting && <span className="text-xs text-zinc-500">Extracting…</span>}
+              <div className="relative">
+                <input
+                  type="file"
+                  id="screening-doc-upload"
+                  accept=".docx"
+                  onChange={handleDocFileSelect}
+                  className="hidden"
+                  disabled={extracting}
+                />
+                <label
+                  htmlFor="screening-doc-upload"
+                  className={`group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 text-center transition-all duration-200 cursor-pointer ${
+                    extracting
+                      ? 'border-purple-300/40 bg-purple-500/5 cursor-wait'
+                      : 'border-purple-300/60 dark:border-purple-800/60 bg-purple-500/5 hover:border-[#6D28D9] hover:bg-purple-500/10'
+                  }`}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#7C3AED]/20 to-[#6D28D9]/30 text-[#6D28D9] dark:text-purple-300 shadow-2xs group-hover:scale-105 transition-transform">
+                    {extracting ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <FileUp className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="mt-2 space-y-0.5">
+                    <p className="text-xs font-bold text-[var(--text-primary)]">
+                      {extracting ? (
+                        <span className="text-[#6D28D9]">Extracting document content...</span>
+                      ) : (
+                        <>
+                          <span className="text-[#6D28D9] underline decoration-purple-400">Click to upload</span> or drag and drop .docx
+                        </>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-[var(--text-secondary)] font-medium">Microsoft Word (.docx) documents supported</p>
+                  </div>
+                </label>
               </div>
-              {docFileName && !extracting && <p className="text-xs text-zinc-500 mb-2">{docFileName}</p>}
-              {extractError && <p className="text-sm text-red-600 dark:text-red-400 mb-2">{extractError}</p>}
+
+              {docFileName && !extracting && (
+                <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-[var(--text-primary)]">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>{docFileName}</span>
+                  </div>
+                  <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Loaded</span>
+                </div>
+              )}
+              {extractError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{extractError}</p>}
               <textarea
                 value={docText}
                 onChange={(e) => setDocText(e.target.value)}
                 placeholder="Paste the text here, or upload a .docx file above to extract it automatically. You can review and edit it before generating."
-                rows={10}
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 font-mono"
+                rows={8}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-xs text-[var(--text-primary)] font-mono focus:border-[#6D28D9] focus:outline-none"
               />
             </div>
           )}
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Candidates</Label>
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-[var(--text-primary)]">Candidates</Label>
               <div className="flex gap-2">
                 {(['single', 'batch'] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setCandidateMode(m)}
-                    className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+                    className={`text-xs px-3 py-1.5 rounded-xl transition-all duration-150 cursor-pointer ${
                       candidateMode === m
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-transparent'
-                        : 'border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900'
+                        ? 'bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-bold shadow-xs'
+                        : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] font-medium hover:bg-[var(--surface-subtle)]'
                     }`}
                   >
                     {m === 'single' ? 'Single candidate' : 'Upload a batch'}
@@ -537,87 +793,157 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
 
             {candidateMode === 'single' ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <Label>Name</Label>
-                  <Input value={singleCandidate.name} onChange={(e) => setSingleCandidate({ ...singleCandidate, name: e.target.value })} className="mt-1" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Name</Label>
+                  <Input
+                    value={singleCandidate.name}
+                    onChange={(e) => setSingleCandidate({ ...singleCandidate, name: e.target.value })}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                  />
                 </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input type="email" value={singleCandidate.email} onChange={(e) => setSingleCandidate({ ...singleCandidate, email: e.target.value })} className="mt-1" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Email</Label>
+                  <Input
+                    type="email"
+                    value={singleCandidate.email}
+                    onChange={(e) => setSingleCandidate({ ...singleCandidate, email: e.target.value })}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                  />
                 </div>
-                <div>
-                  <Label>Contact Number</Label>
-                  <Input value={singleCandidate.contactNumber} onChange={(e) => setSingleCandidate({ ...singleCandidate, contactNumber: e.target.value })} className="mt-1" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Contact Number</Label>
+                  <Input
+                    value={singleCandidate.contactNumber}
+                    onChange={(e) => setSingleCandidate({ ...singleCandidate, contactNumber: e.target.value })}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                  />
                 </div>
-                <div>
-                  <Label>Institute</Label>
-                  <Input value={singleCandidate.institute} onChange={(e) => setSingleCandidate({ ...singleCandidate, institute: e.target.value })} className="mt-1" placeholder="JSpiders or QSpiders" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Institute</Label>
+                  <Input
+                    value={singleCandidate.institute}
+                    onChange={(e) => setSingleCandidate({ ...singleCandidate, institute: e.target.value })}
+                    placeholder="JSpiders or QSpiders"
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                  />
                 </div>
-                <div>
-                  <Label>Branch</Label>
-                  <Input value={singleCandidate.branch} onChange={(e) => setSingleCandidate({ ...singleCandidate, branch: e.target.value })} className="mt-1" placeholder="e.g. Bangalore" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Branch</Label>
+                  <Input
+                    value={singleCandidate.branch}
+                    onChange={(e) => setSingleCandidate({ ...singleCandidate, branch: e.target.value })}
+                    placeholder="e.g. Bangalore"
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                  />
                 </div>
-                <div>
-                  <Label>YOP</Label>
-                  <Input type="number" value={singleCandidate.yop} onChange={(e) => setSingleCandidate({ ...singleCandidate, yop: e.target.value })} className="mt-1" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">YOP</Label>
+                  <Input
+                    type="number"
+                    value={singleCandidate.yop}
+                    onChange={(e) => setSingleCandidate({ ...singleCandidate, yop: e.target.value })}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                  />
                 </div>
-                <div>
-                  <Label>Experience (years)</Label>
-                  <Input type="number" value={singleCandidate.experience} onChange={(e) => setSingleCandidate({ ...singleCandidate, experience: e.target.value })} className="mt-1" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Experience (years)</Label>
+                  <Input
+                    type="number"
+                    value={singleCandidate.experience}
+                    onChange={(e) => setSingleCandidate({ ...singleCandidate, experience: e.target.value })}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                  />
                 </div>
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs text-zinc-500">Upload a .xlsx or .csv file</p>
-                  <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-[var(--text-secondary)]">Upload a .xlsx or .csv file</p>
+                  <button
+                    type="button"
+                    onClick={downloadTemplate}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[#6D28D9] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer"
+                  >
                     Download template
-                  </Button>
+                  </button>
                 </div>
-                <p className="text-xs text-zinc-500 mt-1 mb-2">
+                <p className="text-[11px] text-[var(--text-secondary)]">
                   Columns: <code>Name</code>, <code>Email</code>, <code>Contact Number</code>, <code>Institute</code> (JSpiders or QSpiders), <code>Branch</code> (location), <code>YOP</code>, <code>Experience</code> (years). Header names are case-insensitive.
                 </p>
-                <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="cursor-pointer" />
-                {fileName && <p className="text-xs text-zinc-500 mt-1">{fileName}</p>}
-                {parseError && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{parseError}</p>}
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="screening-batch-upload"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="screening-batch-upload"
+                    className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-purple-300/60 dark:border-purple-800/60 bg-purple-500/5 hover:border-[#6D28D9] hover:bg-purple-500/10 p-4 text-center transition-all duration-200 cursor-pointer"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#7C3AED]/20 to-[#6D28D9]/30 text-[#6D28D9] dark:text-purple-300 shadow-2xs group-hover:scale-105 transition-transform">
+                      <FileSpreadsheet className="h-5 w-5" />
+                    </div>
+                    <div className="mt-2 space-y-0.5">
+                      <p className="text-xs font-bold text-[var(--text-primary)]">
+                        <span className="text-[#6D28D9] underline decoration-purple-400">Click to upload spreadsheet</span> or drag and drop
+                      </p>
+                      <p className="text-[10px] text-[var(--text-secondary)] font-medium">Excel (.xlsx, .xls) or CSV files supported</p>
+                    </div>
+                  </label>
+                </div>
+
+                {fileName && (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-[var(--text-primary)]">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>{fileName}</span>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                      {candidateRows.length} Candidates Parsed
+                    </span>
+                  </div>
+                )}
+                {parseError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{parseError}</p>}
 
                 {candidateRows.length > 0 && (
-                  <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800 mt-3">
-                    <table className="w-full text-sm">
+                  <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs mt-3">
+                    <table className="w-full text-xs text-left">
                       <thead>
-                        <tr className="text-left text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
-                          <th className="py-2 px-3">Name</th>
-                          <th className="py-2 px-3">Email</th>
-                          <th className="py-2 px-3">Contact</th>
-                          <th className="py-2 px-3">Institute</th>
-                          <th className="py-2 px-3">Branch</th>
-                          <th className="py-2 px-3">YOP</th>
-                          <th className="py-2 px-3">Experience</th>
-                          <th className="py-2 px-3">Status</th>
+                        <tr className="border-b border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] font-bold uppercase tracking-wider">
+                          <th className="py-2.5 px-3">Name</th>
+                          <th className="py-2.5 px-3">Email</th>
+                          <th className="py-2.5 px-3">Contact</th>
+                          <th className="py-2.5 px-3">Institute</th>
+                          <th className="py-2.5 px-3">Branch</th>
+                          <th className="py-2.5 px-3">YOP</th>
+                          <th className="py-2.5 px-3">Experience</th>
+                          <th className="py-2.5 px-3">Status</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-[var(--border)]">
                         {candidateRows.map((r, idx) => (
-                          <tr key={idx} className={`border-b border-zinc-100 dark:border-zinc-900 ${r.rowError ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
-                            <td className="py-2 px-3">{r.name || '—'}</td>
-                            <td className="py-2 px-3">{r.email || '—'}</td>
-                            <td className="py-2 px-3">{r.contactNumber || '—'}</td>
-                            <td className="py-2 px-3">{r.institute || '—'}</td>
-                            <td className="py-2 px-3">{r.branch || '—'}</td>
-                            <td className="py-2 px-3">{r.yop ?? '—'}</td>
-                            <td className="py-2 px-3">{r.experience ?? '—'}</td>
-                            <td className="py-2 px-3">
+                          <tr key={idx} className={`hover:bg-[var(--surface-subtle)] transition-colors ${r.rowError ? 'bg-rose-500/10 dark:bg-rose-950/30' : ''}`}>
+                            <td className="py-2.5 px-3 font-semibold text-[var(--text-primary)]">{r.name || '—'}</td>
+                            <td className="py-2.5 px-3 font-medium text-[var(--text-secondary)]">{r.email || '—'}</td>
+                            <td className="py-2.5 px-3 font-medium text-[var(--text-secondary)]">{r.contactNumber || '—'}</td>
+                            <td className="py-2.5 px-3 font-medium text-[var(--text-secondary)]">{r.institute || '—'}</td>
+                            <td className="py-2.5 px-3 font-medium text-[var(--text-secondary)]">{r.branch || '—'}</td>
+                            <td className="py-2.5 px-3 font-medium text-[var(--text-secondary)]">{r.yop ?? '—'}</td>
+                            <td className="py-2.5 px-3 font-medium text-[var(--text-secondary)]">{r.experience ?? '—'}</td>
+                            <td className="py-2.5 px-3">
                               {r.rowError ? (
-                                <span className="text-red-600 dark:text-red-400 text-xs">{r.rowError}</span>
+                                <span className="inline-flex px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">{r.rowError}</span>
                               ) : (
-                                <span className="text-emerald-600 dark:text-emerald-400 text-xs">OK</span>
+                                <span className="inline-flex px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">OK</span>
                               )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    <p className="text-xs text-zinc-500 p-3">
+                    <p className="text-xs font-semibold text-[var(--text-secondary)] p-3 bg-[var(--surface-subtle)] border-t border-[var(--border)]">
                       {validRows.length} of {candidateRows.length} rows valid.
                     </p>
                   </div>
@@ -626,59 +952,81 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
             )}
           </div>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {success && <p className="text-sm text-emerald-600 dark:text-emerald-400">{success}</p>}
-          <Button onClick={handleCreate} disabled={creating || candidateCount === 0}>
+          {error && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{error}</p>}
+          {success && <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{success}</p>}
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={creating || candidateCount === 0}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-5 py-3 text-xs font-extrabold text-white shadow-xs transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+          >
             {creating
               ? createMode === 'paper'
                 ? 'Extracting questions from paper…'
                 : 'Generating questions…'
               : `Create batch & send invites (${candidateCount})`}
-          </Button>
-        </CardContent>
-      </Card>
+          </button>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Batches</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {batchError && <p className="text-sm text-red-600 dark:text-red-400 mb-2">{batchError}</p>}
+      {/* ── Card 3: Batches Directory ── */}
+      <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+        <div className="panel-header panel-header-accent-blue rounded-t-2xl flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+            <Layers className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            Batches
+          </h2>
+          <span className="text-xs font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full border border-blue-500/20">
+            {batches.length} Total
+          </span>
+        </div>
+
+        <div className="p-5">
+          {batchError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mb-3">{batchError}</p>}
           {loading ? (
-            <p className="text-sm text-zinc-500">Loading…</p>
+            <p className="text-xs font-medium text-[var(--text-secondary)]">Loading…</p>
           ) : batches.length === 0 ? (
-            <p className="text-sm text-zinc-500">No batches yet.</p>
+            <p className="text-xs font-medium text-[var(--text-secondary)]">No batches yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+              <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="text-left text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
-                    <th className="py-2 pr-4">Language</th>
-                    <th className="py-2 pr-4">Deadline</th>
-                    <th className="py-2 pr-4">Status</th>
-                    <th className="py-2 pr-4">Assigner</th>
-                    <th className="py-2 pr-4"></th>
+                  <tr className="border-b border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] font-bold uppercase tracking-wider">
+                    <th className="py-3 px-4">Language</th>
+                    <th className="py-3 px-4">Deadline</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Assigner</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[var(--border)]">
                   {batches.map((b) => (
-                    <tr key={b.id} className="border-b border-zinc-100 dark:border-zinc-900">
-                      <td className="py-2 pr-4 font-medium text-zinc-900 dark:text-zinc-100">{b.language}</td>
-                      <td className="py-2 pr-4">
+                    <tr key={b.id} className="hover:bg-[var(--surface-subtle)] transition-colors">
+                      <td className="py-3 px-4 font-bold text-[var(--text-primary)]">{b.language}</td>
+                      <td className="py-3 px-4 font-medium text-[var(--text-secondary)]">
                         {editingDeadlineId === b.id ? (
                           <div className="flex items-center gap-2">
-                            <Input
-                              type="datetime-local"
+                            <DateTimePicker
                               value={editDeadlineValue}
-                              onChange={(e) => setEditDeadlineValue(e.target.value)}
-                              className="h-8 text-sm"
+                              onChange={(val) => setEditDeadlineValue(val)}
+                              showPresets={false}
                             />
-                            <Button size="sm" onClick={() => saveDeadline(b.id)} disabled={savingDeadline}>
+                            <button
+                              type="button"
+                              onClick={() => saveDeadline(b.id)}
+                              disabled={savingDeadline}
+                              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
+                            >
                               Save
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={cancelEditDeadline} disabled={savingDeadline}>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditDeadline}
+                              disabled={savingDeadline}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                            >
                               Cancel
-                            </Button>
+                            </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
@@ -687,7 +1035,7 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
                               <button
                                 type="button"
                                 onClick={() => startEditDeadline(b)}
-                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                className="text-xs font-bold text-[#6D28D9] hover:underline cursor-pointer"
                               >
                                 Edit
                               </button>
@@ -695,21 +1043,35 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
                           </div>
                         )}
                       </td>
-                      <td className="py-2 pr-4">{b.status}</td>
-                      <td className="py-2 pr-4">{b.assignerEmail}</td>
-                      <td className="py-2 pr-4">
-                        <div className="flex items-center gap-3">
-                          <Link href={`/admin/screening/round1/${b.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex px-2.5 py-0.5 text-[10px] uppercase tracking-wider font-extrabold rounded-full border ${
+                          b.status === 'OPEN'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
+                            : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20'
+                        }`}>
+                          {b.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-medium text-[var(--text-secondary)]">{b.assignerEmail}</td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/admin/screening/round1/${b.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-bold text-xs shadow-2xs hover:scale-[1.02] active:scale-[0.98] transition-all"
+                          >
                             Review
                           </Link>
-                          <Link href={`/admin/screening/summary/${b.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                          <Link
+                            href={`/admin/screening/summary/${b.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] font-bold text-xs hover:bg-[var(--surface-subtle)] transition-all"
+                          >
                             Summary
                           </Link>
                           <button
                             type="button"
                             onClick={() => removeBatch(b.id)}
                             disabled={deletingId === b.id}
-                            className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 font-bold text-xs hover:bg-rose-500/20 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                           >
                             {deletingId === b.id ? 'Deleting…' : 'Delete'}
                           </button>
@@ -721,8 +1083,8 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

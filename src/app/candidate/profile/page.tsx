@@ -12,8 +12,17 @@ export default async function CandidateProfilePage() {
   const session = await getSession();
   if (!session || session.role !== "CANDIDATE") redirect("/login");
 
-  const profileRes = await apiServer("/auth/me", session.token).catch(() => null);
-  const profile = profileRes?.ok ? await profileRes.json() : null;
+  let profileRes = await apiServer("/auth/me", session.token).catch(() => null);
+  let profile = profileRes?.ok ? await profileRes.json() : null;
+
+  const candidateId = profile?.id || session.userId;
+  if (candidateId) {
+    const candidateRes = await apiServer(`/auth/candidates/${candidateId}`, session.token).catch(() => null);
+    if (candidateRes?.ok) {
+      const candidateData = await candidateRes.json();
+      profile = { ...profile, ...candidateData };
+    }
+  }
 
   if (!profile) {
     return (
@@ -27,7 +36,7 @@ export default async function CandidateProfilePage() {
 
   return (
     <AppShell title="My Profile" subtitle="Your candidate profile details">
-      <div className="max-w-2xl space-y-6">
+      <div className="w-full space-y-6">
         <CandidateProfileClient initialProfile={profile} />
       </div>
     </AppShell>

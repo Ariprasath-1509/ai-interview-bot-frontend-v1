@@ -53,10 +53,10 @@ interface Counts {
 }
 
 const statusBadgeCls: Record<CandidateRow['finalStatus'], string> = {
-  Selected: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
-  Rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800/50',
-  Hold: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
-  'In Progress': 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700',
+  Selected: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
+  Rejected: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20',
+  Hold: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20',
+  'In Progress': 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20',
 };
 
 const ROUND3_CATEGORIES: { key: keyof CandidateRow; label: string }[] = [
@@ -85,78 +85,97 @@ export function BatchSummaryClient({ batchId }: { batchId: string }) {
   }, [batchId]);
 
   const backLink = (
-    <Link href="/admin/screening" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4">
+    <Link
+      href="/admin/screening"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] hover:border-[#6D28D9] transition-all cursor-pointer mb-4"
+    >
       ← Back to Screening
     </Link>
   );
 
   if (loading) {
     return (
-      <div>
+      <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
         {backLink}
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)]">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
       {backLink}
 
       {counts && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <Card><CardContent className="p-4"><p className="text-xs text-zinc-500">Total</p><p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{counts.total}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-xs text-zinc-500">Selected</p><p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{counts.selected}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-xs text-zinc-500">Rejected</p><p className="text-2xl font-bold text-red-600 dark:text-red-400">{counts.rejected}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-xs text-zinc-500">Hold</p><p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{counts.hold}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-xs text-zinc-500">In Progress</p><p className="text-2xl font-bold text-zinc-600 dark:text-zinc-400">{counts.inProgress}</p></CardContent></Card>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="panel-card p-4 rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-[var(--surface)] shadow-xs">
+            <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Total</p>
+            <p className="text-2xl font-extrabold text-[var(--text-primary)] mt-0.5">{counts.total}</p>
+          </div>
+          <div className="panel-card p-4 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-[var(--surface)] shadow-xs">
+            <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Selected</p>
+            <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">{counts.selected}</p>
+          </div>
+          <div className="panel-card p-4 rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-[var(--surface)] shadow-xs">
+            <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Rejected</p>
+            <p className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">{counts.rejected}</p>
+          </div>
+          <div className="panel-card p-4 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-[var(--surface)] shadow-xs">
+            <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Hold</p>
+            <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">{counts.hold}</p>
+          </div>
+          <div className="panel-card p-4 rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-[var(--surface)] shadow-xs">
+            <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">In Progress</p>
+            <p className="text-2xl font-extrabold text-[var(--text-primary)] mt-0.5">{counts.inProgress}</p>
+          </div>
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Consolidated marks</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+        <div className="panel-header panel-header-accent-indigo rounded-t-2xl flex items-center justify-between">
+          <h3 className="text-base font-bold text-[var(--text-primary)]">Consolidated Marks</h3>
+          <span className="text-xs font-medium text-[var(--text-secondary)]">Complete evaluation summary</span>
+        </div>
+        <div className="p-5">
           {candidates.length === 0 ? (
-            <p className="text-sm text-zinc-500">No candidates in this batch.</p>
+            <p className="text-xs font-medium text-[var(--text-secondary)]">No candidates in this batch.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+              <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="text-left text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
-                    <th className="py-2 pr-4">Name</th>
-                    <th className="py-2 pr-4">Priority</th>
-                    <th className="py-2 pr-4">Round 1 (/35)</th>
-                    <th className="py-2 pr-4">Round 2 (/35)</th>
-                    <th className="py-2 pr-4">Round 3 (/30)</th>
-                    <th className="py-2 pr-4">Total (/100)</th>
-                    <th className="py-2 pr-4">Status</th>
-                    <th className="py-2 pr-4" />
+                  <tr className="border-b border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] font-bold uppercase tracking-wider">
+                    <th className="py-3 px-4">Name</th>
+                    <th className="py-3 px-4">Priority</th>
+                    <th className="py-3 px-4">Round 1 (/35)</th>
+                    <th className="py-3 px-4">Round 2 (/35)</th>
+                    <th className="py-3 px-4">Round 3 (/30)</th>
+                    <th className="py-3 px-4">Total (/100)</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[var(--border)]">
                   {candidates.map((c) => (
                     <Fragment key={c.id}>
-                      <tr className="border-b border-zinc-100 dark:border-zinc-900">
-                        <td className="py-2 pr-4">
-                          <div className="font-medium text-zinc-900 dark:text-zinc-100">{c.name}</div>
-                          <div className="text-[11px] text-zinc-400">{c.email}</div>
+                      <tr className="hover:bg-[var(--surface-subtle)] transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[var(--text-primary)]">{c.name}</div>
+                          <div className="text-[11px] font-medium text-[var(--text-secondary)]">{c.email}</div>
                         </td>
-                        <td className="py-2 pr-4"><PriorityBadge priority={c.round1Priority} /></td>
-                        <td className="py-2 pr-4">{c.round1Score ?? '—'}</td>
-                        <td className="py-2 pr-4">{c.round2Marks ?? '—'}</td>
-                        <td className="py-2 pr-4">{c.round3Total ?? '—'}</td>
-                        <td className="py-2 pr-4 font-semibold text-zinc-900 dark:text-zinc-100">{c.totalMarks ?? '—'}</td>
-                        <td className="py-2 pr-4">
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusBadgeCls[c.finalStatus]}`}>
+                        <td className="py-3 px-4"><PriorityBadge priority={c.round1Priority} /></td>
+                        <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">{c.round1Score ?? '—'}</td>
+                        <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">{c.round2Marks ?? '—'}</td>
+                        <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">{c.round3Total ?? '—'}</td>
+                        <td className="py-3 px-4 font-extrabold text-[#6D28D9] dark:text-purple-400">{c.totalMarks ?? '—'}</td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold ${statusBadgeCls[c.finalStatus]}`}>
                             {c.finalStatus}
                           </span>
                         </td>
-                        <td className="py-2 pr-4">
+                        <td className="py-3 px-4 text-right">
                           <button
                             type="button"
-                            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                            className="text-xs font-bold text-[#6D28D9] hover:underline cursor-pointer"
                             onClick={() => setExpanded((prev) => (prev === c.id ? null : c.id))}
                           >
                             {expanded === c.id ? 'Hide details' : 'View details'}
@@ -164,8 +183,8 @@ export function BatchSummaryClient({ batchId }: { batchId: string }) {
                         </td>
                       </tr>
                       {expanded === c.id && (
-                        <tr className="border-b border-zinc-100 dark:border-zinc-900">
-                          <td colSpan={8} className="py-4 bg-zinc-50 dark:bg-zinc-900/40">
+                        <tr>
+                          <td colSpan={8} className="p-4 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
                             <CandidateDetail candidate={c} />
                           </td>
                         </tr>
@@ -176,77 +195,77 @@ export function BatchSummaryClient({ batchId }: { batchId: string }) {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
 
 function CandidateDetail({ candidate: c }: { candidate: CandidateRow }) {
   return (
-    <div className="px-2 space-y-5">
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+    <div className="space-y-4 text-xs">
+      <section className="space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-secondary)]">
           Round 1 — Written Test ({c.round1Score ?? '—'} / 35)
         </p>
         {c.round1Answers.length === 0 ? (
-          <p className="text-sm text-zinc-500">No answers recorded.</p>
+          <p className="text-xs font-medium text-[var(--text-secondary)]">No answers recorded.</p>
         ) : (
           <div className="space-y-2">
             {c.round1Answers.map((a) => (
-              <div key={a.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 text-sm bg-white dark:bg-zinc-950">
-                <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">{a.questionType} · {a.score} / {a.marks}</p>
-                <p className="font-medium text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap">{a.prompt}</p>
-                <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-400">Candidate&apos;s answer</p>
-                <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono text-xs">{a.rawAnswer || '(no answer)'}</p>
+              <div key={a.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-1">
+                <p className="text-[10px] font-extrabold uppercase tracking-wide text-[var(--text-secondary)]">{a.questionType} · {a.score} / {a.marks}</p>
+                <p className="font-bold text-[var(--text-primary)] whitespace-pre-wrap">{a.prompt}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Candidate&apos;s answer</p>
+                <p className="text-[var(--text-primary)] whitespace-pre-wrap font-mono text-xs">{a.rawAnswer || '(no answer)'}</p>
                 {a.referenceAnswer && (
                   <>
-                    <p className="mt-2 text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Expected answer</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Expected answer</p>
                     <p className="text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap font-mono text-xs">{a.referenceAnswer}</p>
                   </>
                 )}
-                {a.aiFeedback && <p className="mt-2 text-zinc-500 dark:text-zinc-400 italic">{a.aiFeedback}</p>}
+                {a.aiFeedback && <p className="mt-1 text-[var(--text-secondary)] italic">{a.aiFeedback}</p>}
               </div>
             ))}
           </div>
         )}
       </section>
 
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+      <section className="space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-secondary)]">
           Round 2 — Technical Interview ({c.round2Marks ?? '—'} / 35{c.round2Result ? ` · ${c.round2Result}` : ''})
         </p>
         {c.round2Marks == null ? (
-          <p className="text-sm text-zinc-500">Not conducted.</p>
+          <p className="text-xs font-medium text-[var(--text-secondary)]">Not conducted.</p>
         ) : (
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 text-sm bg-white dark:bg-zinc-950 space-y-1.5">
-            {c.round2Strengths && <p><span className="text-zinc-500">Strengths:</span> {c.round2Strengths}</p>}
-            {c.round2Weaknesses && <p><span className="text-zinc-500">Weaknesses:</span> {c.round2Weaknesses}</p>}
-            {c.round2Practical && <p><span className="text-zinc-500">Practical:</span> {c.round2Practical}</p>}
-            {c.round2Improvements && <p><span className="text-zinc-500">Improvements:</span> {c.round2Improvements}</p>}
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-1">
+            {c.round2Strengths && <p><span className="font-bold text-[var(--text-secondary)]">Strengths:</span> {c.round2Strengths}</p>}
+            {c.round2Weaknesses && <p><span className="font-bold text-[var(--text-secondary)]">Weaknesses:</span> {c.round2Weaknesses}</p>}
+            {c.round2Practical && <p><span className="font-bold text-[var(--text-secondary)]">Practical:</span> {c.round2Practical}</p>}
+            {c.round2Improvements && <p><span className="font-bold text-[var(--text-secondary)]">Improvements:</span> {c.round2Improvements}</p>}
           </div>
         )}
       </section>
 
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+      <section className="space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-secondary)]">
           Round 3 — Managerial Round ({c.round3Total ?? '—'} / 30{c.round3Result ? ` · ${c.round3Result}` : ''})
         </p>
         {c.round3Total == null ? (
-          <p className="text-sm text-zinc-500">Not conducted.</p>
+          <p className="text-xs font-medium text-[var(--text-secondary)]">Not conducted.</p>
         ) : (
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 text-sm bg-white dark:bg-zinc-950 space-y-2">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {ROUND3_CATEGORIES.map(({ key, label }) => (
                 <div key={key}>
-                  <p className="text-[10px] uppercase tracking-wide text-zinc-400">{label}</p>
-                  <p className="text-zinc-900 dark:text-zinc-100">{(c[key] as number | null) ?? '—'} / 5</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">{label}</p>
+                  <p className="font-bold text-[var(--text-primary)]">{(c[key] as number | null) ?? '—'} / 5</p>
                 </div>
               ))}
             </div>
             {c.round3ConcludingComments && (
-              <p className="pt-1 border-t border-zinc-100 dark:border-zinc-800">
-                <span className="text-zinc-500">Concluding comments:</span> {c.round3ConcludingComments}
+              <p className="pt-2 border-t border-[var(--border)]">
+                <span className="font-bold text-[var(--text-secondary)]">Concluding comments:</span> {c.round3ConcludingComments}
               </p>
             )}
           </div>

@@ -6,27 +6,35 @@
 :root {
   --font-geist-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  
+  /* Fireflink Light Theme Tokens */
+  --background: #F8FAFC;
+  --foreground: #0F172A;
 
   /* Typography */
-  --text-heading:   #0f172a;
+  --text-heading:   #0F172A;
   --text-body:      #334155;
+  --text-primary:   #0F172A;
   --text-secondary: #475569;
-  --text-muted:     #64748b;
+  --text-muted:     #64748B;
 
-  /* Brand — premium vibrant custom palette */
-  --color-primary:       #6366f1;
-  --color-primary-hover: #4f46e5;
-  --color-danger:        #f43f5e;
-  --color-danger-hover:  #e11d48;
-  --color-success:       #10b981;
-  --color-warning:       #f59e0b;
+  /* Brand — Fireflink Violet / Deep Purple */
+  --color-primary:       #6D28D9;
+  --color-primary-light: #A78BFA;
+  --color-primary-hover: #5B21B6;
+  --color-danger:        #F43F5E;
+  --color-danger-hover:  #E11D48;
+  --color-success:       #10B981;
+  --color-warning:       #F59E0B;
 
-  /* Surface */
-  --surface:        #ffffff;
-  --surface-subtle: #f1f5f9;
-  --border:         #e2e8f0;
+  /* Card Purple Gradient */
+  --card-purple: linear-gradient(135deg, #1E1B4B 0%, #3B0764 100%);
+  --cta-gradient: linear-gradient(135deg, #6D28D9 0%, #7C3AED 50%, #4C1D95 100%);
+
+  /* Surface & Border */
+  --surface:        #FFFFFF;
+  --surface-subtle: #F1F5F9;
+  --border:         #E5E7EB;
 
   /* Radius */
   --radius-sm: 8px;
@@ -36,42 +44,51 @@
   --radius-full: 9999px;
 
   /* Shadow */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.02);
-  --shadow-md: 0 4px 20px -2px rgb(0 0 0 / 0.05);
-  --shadow-lg: 0 10px 30px -4px rgb(99 102 241 / 0.05), 0 4px 12px -6px rgb(0 0 0 / 0.03);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow-md: 0 4px 16px -2px rgb(0 0 0 / 0.06);
+  --shadow-lg: 0 10px 30px -4px rgb(109 40 217 / 0.08), 0 4px 12px -6px rgb(0 0 0 / 0.03);
 
   /* Transitions */
   --transition-fast:   150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base:   250ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow:   400ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base:   200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow:   350ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark {
-  --background: #08080c;
-  --foreground: #f1f5f9;
+  /* Fireflink Dark Theme Tokens */
+  --background: #0B0B0F;
+  --foreground: #F9FAFB;
 
-  --text-heading:   #f8fafc;
-  --text-body:      #cbd5e1;
-  --text-secondary: #94a3b8;
-  --text-muted:     #64748b;
+  --text-heading:   #F9FAFB;
+  --text-body:      #E2E8F0;
+  --text-primary:   #F9FAFB;
+  --text-secondary: #9CA3AF;
+  --text-muted:     #64748B;
 
-  --surface:        #0d0e15;
-  --surface-subtle: #12131d;
-  --border:         #1f2130;
+  --color-primary:       #8B5CF6;
+  --color-primary-light: #C4B5FD;
+  --color-primary-hover: #7C3AED;
 
-  --color-muted: #12131d;
-  --color-muted-foreground: #94a3b8;
-  --color-border: #1f2130;
-  --color-card: #0d0e15;
-  --color-card-foreground: #f1f5f9;
-  --color-accent: #171828;
-  --color-accent-foreground: #c7d2fe;
+  /* Card Purple Gradient Dark */
+  --card-purple: linear-gradient(135deg, #2E1065 0%, #1E1B4B 100%);
+
+  --surface:        #111827;
+  --surface-subtle: #1F2937;
+  --border:         #2D3748;
+
+  --color-muted: #1F2937;
+  --color-muted-foreground: #9CA3AF;
+  --color-border: #2D3748;
+  --color-card: #111827;
+  --color-card-foreground: #F9FAFB;
+  --color-accent: #1E1B4B;
+  --color-accent-foreground: #C4B5FD;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-primary: #6366f1;
+  --color-primary: #6D28D9;
   --color-primary-foreground: #ffffff;
   --color-muted: var(--surface-subtle);
   --color-muted-foreground: var(--text-secondary);
@@ -82,14 +99,14 @@
   --color-card-foreground: var(--foreground);
   --color-accent: var(--color-accent);
   --color-accent-foreground: var(--color-accent-foreground);
-  --color-ring: #6366f1;
+  --color-ring: #6D28D9;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 /* ── Base ───────────────────────────────────────────────────────────── */
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   text-rendering: geometricPrecision;
@@ -98,7 +115,7 @@ body {
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.25);
+  background: rgba(109, 40, 217, 0.25);
   color: inherit;
 }
 
@@ -111,15 +128,15 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(109, 40, 217, 0.15);
   border-radius: 9999px;
   transition: background var(--transition-base);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.25);
+  background: rgba(109, 40, 217, 0.3);
 }
 
-/* Colorful app shell background with animating blobs */
+/* App Shell Ambient Background */
 .app-shell {
   position: relative;
   overflow: hidden;
@@ -143,8 +160,8 @@ html:has(.app-shell) body {
   width: 60%;
   height: 60%;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 65%);
-  filter: blur(80px);
+  background: radial-gradient(circle, rgba(109, 40, 217, 0.08) 0%, transparent 65%);
+  filter: blur(90px);
   pointer-events: none;
   animation: aura-flow 25s infinite alternate ease-in-out;
   z-index: -1;
@@ -158,67 +175,47 @@ html:has(.app-shell) body {
   width: 60%;
   height: 60%;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, transparent 65%);
-  filter: blur(80px);
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.06) 0%, transparent 65%);
+  filter: blur(90px);
   pointer-events: none;
   animation: aura-flow 30s infinite alternate-reverse ease-in-out;
   z-index: -1;
 }
 
-.dark .app-shell::before {
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 65%);
-}
-
-.dark .app-shell::after {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, transparent 65%);
-}
-
-/* ── Typography scale ───────────────────────────────────────────────── */
-h1 { @apply text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50; }
-h2 { @apply text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50; }
-h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
-
-/* ── Shared component classes ───────────────────────────────────────── */
+/* ── Shared Fireflink Component Classes ────────────────────────────────── */
 
 .card {
-  @apply rounded-xl border border-zinc-200/80 bg-white/60 shadow-sm backdrop-blur-md
-         transition-all duration-300 hover:shadow-md hover:border-zinc-300/80 hover:-translate-y-0.5
-         dark:border-zinc-800/80 dark:bg-zinc-900/35 dark:hover:border-zinc-700/50;
+  @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xs
+         transition-all duration-200 hover:shadow-md hover:border-purple-300/50 hover:-translate-y-0.5
+         dark:hover:border-purple-800/40;
+}
+
+.card-purple-feature {
+  background: var(--card-purple);
+  @apply rounded-2xl p-6 text-white border border-white/10 shadow-lg
+         transition-all duration-200 hover:scale-[1.01];
 }
 
 .card-glass {
-  @apply rounded-2xl border border-zinc-200/55 bg-white/50 shadow-md backdrop-blur-xl
-         transition-all duration-300 hover:border-zinc-300/75 hover:shadow-lg hover:-translate-y-0.5
-         dark:border-zinc-800/50 dark:bg-zinc-900/25;
+  @apply rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 shadow-md backdrop-blur-md
+         transition-all duration-200 hover:border-purple-400/40 hover:shadow-lg hover:-translate-y-0.5;
 }
 
 .field {
-  @apply grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300;
+  @apply grid gap-1.5 text-sm font-medium text-[var(--text-primary)];
 }
 
 .input-base {
-  @apply flex w-full rounded-lg border border-zinc-200/80 bg-white/60 px-3 py-2.5 text-sm
-         text-zinc-900 placeholder:text-zinc-400
+  @apply flex w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm
+         text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
          transition-all duration-200
-         focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10
-         disabled:cursor-not-allowed disabled:opacity-50
-         dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-100
-         dark:placeholder:text-zinc-500 dark:focus:border-violet-400 dark:focus:ring-violet-400/10;
+         focus:outline-none focus:ring-0 focus:border-[#6D28D9]
+         disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .section-label {
-  @apply text-xs font-bold tracking-wider uppercase;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.dark .section-label {
-  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #f472b6 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  @apply text-xs font-bold tracking-wider uppercase text-transparent bg-clip-text
+         bg-gradient-to-r from-[#6D28D9] to-[#A78BFA];
 }
 
 .badge-pill {
@@ -226,46 +223,42 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white
-         bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500
-         shadow-[0_4px_20px_-4px_rgba(99,102,241,0.35)]
+  @apply inline-flex items-center justify-center rounded-xl px-6 py-2.5 text-sm font-medium text-white
+         bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95]
+         shadow-[0_4px_16px_-4px_rgba(109,40,217,0.4)]
          transition-all duration-200 
-         hover:from-indigo-600 hover:via-violet-600 hover:to-fuchsia-600 hover:scale-[1.015] hover:shadow-[0_4px_24px_-2px_rgba(99,102,241,0.45)]
-         active:scale-[0.985]
+         hover:opacity-95 hover:scale-[1.01] hover:shadow-[0_6px_20px_-2px_rgba(109,40,217,0.5)]
+         active:scale-[0.98]
          disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 disabled:shadow-none;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center rounded-lg border border-zinc-200/80 bg-white/60 px-5 py-2.5 text-sm font-semibold text-zinc-700
-         transition-all duration-200 hover:border-violet-200 hover:bg-violet-50/50 hover:scale-[1.015]
-         active:scale-[0.985]
-         dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:border-violet-900/40 dark:hover:bg-violet-950/20;
+  @apply inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-sm font-medium text-[var(--text-primary)]
+         transition-all duration-200 hover:bg-[var(--surface-subtle)] hover:scale-[1.01]
+         active:scale-[0.98];
 }
 
 .btn-danger {
-  @apply inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-rose-500 to-red-600 px-5 py-2.5 text-sm font-semibold text-white
-         shadow-md shadow-rose-500/20 transition-all duration-200 hover:from-rose-600 hover:to-red-700 hover:scale-[1.015] active:scale-[0.985] disabled:opacity-50;
-}
-
-.empty-state {
-  @apply rounded-xl border border-dashed border-violet-200/80 bg-gradient-to-br from-violet-50/40 via-white/80 to-pink-50/30 px-6 py-10 text-center
-         dark:border-violet-900/30 dark:from-violet-950/10 dark:via-zinc-950/80 dark:to-pink-950/10;
+  @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-rose-500 to-red-600 px-5 py-2.5 text-sm font-medium text-white
+         shadow-md shadow-rose-500/20 transition-all duration-200 hover:from-rose-600 hover:to-red-700 hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50;
 }
 
 .tab-bar {
-  @apply flex gap-1 overflow-x-auto rounded-xl border border-zinc-200/60 bg-white/60 p-1 shadow-sm backdrop-blur-sm
-         dark:border-zinc-800/80 dark:bg-zinc-950/60;
+  @apply flex gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-1 shadow-xs;
 }
 
 .tab-bar-item {
-  @apply whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-zinc-500 transition-all duration-200
-         hover:bg-violet-50/65 hover:text-violet-800
-         dark:text-zinc-400 dark:hover:bg-violet-950/30 dark:hover:text-violet-200;
+  @apply whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-all duration-200
+         hover:bg-[var(--surface)] hover:text-[var(--text-primary)];
 }
 
 .tab-bar-item-active {
-  @apply text-white shadow-md shadow-indigo-500/20;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+  @apply !text-white hover:!text-white shadow-md shadow-purple-950/20;
+  background: linear-gradient(180deg, #5C0062 0%, #3B0045 50%, #2A0035 100%) !important;
+  color: #ffffff !important;
+}
+.tab-bar-item-active:hover {
+  color: #ffffff !important;
 }
 
 .tab-bar-item-active[data-accent="blue"] {
@@ -392,81 +385,63 @@ h3 { @apply text-base font-semibold text-zinc-900 dark:text-zinc-100; }
   @apply relative overflow-hidden rounded-2xl border p-6 shadow-lg;
 }
 
-.page-hero::after {
-  content: "";
-  @apply pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/15;
-}
-
+.page-hero::after,
 .page-hero::before {
-  content: "";
-  @apply pointer-events-none absolute -bottom-12 -left-12 h-32 w-32 rounded-full bg-white/10;
+  display: none;
 }
 
 .stat-card {
-  @apply rounded-xl border border-zinc-200/70 bg-white/90 shadow-md border-l-4 p-5
-         transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
-         dark:border-zinc-800/80 dark:bg-zinc-950/90;
+  @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xs p-5
+         transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-purple-300/40
+         dark:hover:border-purple-800/40;
 }
 
 .quick-link-card {
-  @apply rounded-xl border border-zinc-200/70 bg-white/90 p-5 shadow-md
-         transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
-         dark:border-zinc-800/80 dark:bg-zinc-950/90;
+  @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xs
+         transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
 }
 
 .panel-card {
-  @apply overflow-hidden rounded-xl border border-zinc-200/70 bg-white/90 shadow-md
-         dark:border-zinc-800/80 dark:bg-zinc-950/90;
+  @apply rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs;
 }
 
 .panel-header {
-  @apply border-b border-zinc-100/80 bg-gradient-to-r from-slate-50/90 to-white px-5 py-4
-         dark:border-zinc-800 dark:from-zinc-900/80 dark:to-zinc-950/90;
+  @apply border-b border-[var(--border)] bg-[var(--surface-subtle)]/50 px-5 py-4 rounded-t-2xl;
 }
 
 .panel-header-accent-blue {
-  @apply border-b border-blue-100/80 bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white
-         dark:border-blue-900/40 dark:from-blue-950/40 dark:via-indigo-950/25 dark:to-zinc-950/90;
+  @apply border-b border-blue-500/20 bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-indigo {
-  @apply border-b border-indigo-100/80 bg-gradient-to-r from-indigo-50/90 via-violet-50/60 to-white
-         dark:border-indigo-900/40 dark:from-indigo-950/40 dark:via-violet-950/25 dark:to-zinc-950/90;
+  @apply border-b border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-purple {
-  @apply border-b border-purple-100/80 bg-gradient-to-r from-purple-50/90 via-fuchsia-50/60 to-white
-         dark:border-purple-900/40 dark:from-purple-950/40 dark:via-fuchsia-950/25 dark:to-zinc-950/90;
+  @apply border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 via-fuchsia-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-teal {
-  @apply border-b border-teal-100/80 bg-gradient-to-r from-teal-50/90 via-cyan-50/60 to-white
-         dark:border-teal-900/40 dark:from-teal-950/40 dark:via-cyan-950/25 dark:to-zinc-950/90;
+  @apply border-b border-teal-500/20 bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-amber {
-  @apply border-b border-amber-100/80 bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-white
-         dark:border-amber-900/40 dark:from-amber-950/40 dark:via-orange-950/25 dark:to-zinc-950/90;
+  @apply border-b border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-emerald {
-  @apply border-b border-emerald-100/80 bg-gradient-to-r from-emerald-50/90 via-green-50/60 to-white
-         dark:border-emerald-900/40 dark:from-emerald-950/40 dark:via-green-950/25 dark:to-zinc-950/90;
+  @apply border-b border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-green {
-  @apply border-b border-emerald-100/80 bg-gradient-to-r from-emerald-50/90 via-green-50/60 to-white
-         dark:border-emerald-900/40 dark:from-emerald-950/40 dark:via-green-950/25 dark:to-zinc-950/90;
+  @apply border-b border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-yellow {
-  @apply border-b border-amber-100/80 bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-white
-         dark:border-amber-900/40 dark:from-amber-950/40 dark:via-yellow-950/25 dark:to-zinc-950/90;
+  @apply border-b border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 .panel-header-accent-rose {
-  @apply border-b border-rose-100/80 bg-gradient-to-r from-rose-50/90 via-pink-50/60 to-white
-         dark:border-rose-900/40 dark:from-rose-950/40 dark:via-pink-950/25 dark:to-zinc-950/90;
+  @apply border-b border-rose-500/20 bg-gradient-to-r from-rose-500/10 via-pink-500/5 to-transparent px-5 py-4 rounded-t-2xl;
 }
 
 .app-table thead {
-  @apply bg-zinc-100/80 text-left text-xs uppercase tracking-wide text-zinc-600
-         dark:bg-zinc-900/60 dark:text-zinc-400;
+  @apply bg-[var(--surface-subtle)] text-left text-xs uppercase tracking-wide text-[var(--text-secondary)] font-bold;
 }
 
 .app-table tbody tr {
-  @apply border-b border-zinc-200/50 transition-colors last:border-0
-         hover:bg-zinc-100/40 dark:border-zinc-800/60 dark:hover:bg-zinc-900/40;
+  @apply border-b border-[var(--border)] transition-colors last:border-0
+         hover:bg-[var(--surface-subtle)]/70;
 }

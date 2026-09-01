@@ -1,6 +1,7 @@
 "use client";
 
 import { StatusTimeline, buildInterviewTimeline } from "@/components/common/StatusTimeline";
+import { Clock } from "lucide-react";
 
 type Interview = {
   id: string;
@@ -14,9 +15,19 @@ type Interview = {
 
 export function InterviewTimelineCard({ interview }: { interview: Interview }) {
   return (
-    <div className="rounded-2xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 mb-3">Latest Progress</h3>
-      <StatusTimeline steps={buildInterviewTimeline(interview)} />
+    <div className="panel-card rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-indigo-300/40">
+      <div className="panel-header panel-header-accent-indigo flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+          <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+          Latest Technical Interview Progress
+        </h3>
+        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
+          Live Tracker
+        </span>
+      </div>
+      <div className="p-5">
+        <StatusTimeline steps={buildInterviewTimeline(interview)} />
+      </div>
     </div>
   );
 }

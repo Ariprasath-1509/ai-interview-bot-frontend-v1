@@ -214,41 +214,49 @@ export function ResumeUploadWidget({
   return (
     <div className={`space-y-5 ${className}`}>
       {(candidateName || candidateEmail) && (
-        <div className="flex items-center gap-3 rounded-xl border border-indigo-200/60 bg-gradient-to-r from-indigo-50/80 to-violet-50/50 px-4 py-3 dark:border-indigo-900/30 dark:from-indigo-950/30 dark:to-violet-950/20">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white">
-            <User className="h-5 w-5" />
+        <div className="flex items-center gap-3 rounded-2xl border border-[#6D28D9]/20 bg-gradient-to-r from-[#6D28D9]/10 via-[#7C3AED]/5 to-transparent p-4 shadow-2xs">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6D28D9] to-[#4C1D95] text-white shadow-xs">
+            <User className="h-5.5 w-5.5" />
           </div>
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-zinc-900 dark:text-zinc-100">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-extrabold text-base text-[var(--text-primary)]">
               {candidateName ?? "Candidate"}
             </p>
             {candidateEmail && (
-              <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{candidateEmail}</p>
+              <p className="truncate text-xs font-medium text-[var(--text-secondary)] mt-0.5">{candidateEmail}</p>
             )}
           </div>
           {hasExisting && (
-            <Badge className="ml-auto shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Resume on file
-            </Badge>
+            </span>
           )}
         </div>
       )}
 
       {hasExisting && (
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]/60 p-5 space-y-4 shadow-2xs">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mt-0.5">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
               <div>
-                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Current resume</p>
-                <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{existingResume?.filename}</p>
-                <p className="mt-1 text-xs text-zinc-400">
+                <p className="text-sm font-extrabold text-[var(--text-primary)]">Current resume</p>
+                <p className="mt-0.5 text-xs font-semibold text-[var(--text-primary)] break-all">{existingResume?.filename}</p>
+                <p className="mt-1 text-[11px] font-medium text-[var(--text-secondary)]">
                   Uploaded {formatDate(existingResume?.uploadedAt)}
                 </p>
               </div>
             </div>
             {onDownload && (
-              <Button size="sm" variant="outline" onClick={onDownload} className="shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onDownload}
+                className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] hover:border-[#6D28D9] hover:text-[#6D28D9] font-bold text-xs shadow-2xs cursor-pointer active:scale-[0.98] transition-all"
+              >
                 <Download className="mr-1.5 h-3.5 w-3.5" />
                 Download
               </Button>
@@ -256,26 +264,34 @@ export function ResumeUploadWidget({
           </div>
 
           {existingResume?.summary && (
-            <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">AI summary</p>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-[#6D28D9] dark:text-purple-400" />
+                  AI Summary
+                </span>
                 {onAutoFillTriggered && (
-                  <Button size="sm" variant="ghost" onClick={onAutoFillTriggered} className="h-7 text-xs">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={onAutoFillTriggered}
+                    className="h-7 text-xs font-bold text-[#6D28D9] hover:bg-[#6D28D9]/10 cursor-pointer"
+                  >
                     <Sparkles className="mr-1 h-3 w-3" />
                     Auto-fill
                   </Button>
                 )}
               </div>
-              <p className="max-h-32 overflow-y-auto text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+              <div className="max-h-36 overflow-y-auto text-xs leading-relaxed font-medium text-[var(--text-primary)] whitespace-pre-wrap pr-1">
                 {existingResume.summary}
-              </p>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      <div>
-        <p className="mb-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+      <div className="space-y-2">
+        <p className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-secondary)]">
           {hasExisting ? "Replace resume" : "Upload resume"}
         </p>
         <div
@@ -284,12 +300,12 @@ export function ResumeUploadWidget({
           onDragOver={handleDrag}
           onDrop={handleDrop}
           onClick={() => !uploading && inputRef.current?.click()}
-          className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all duration-200 ${
+          className={`group cursor-pointer rounded-2xl border-2 border-dashed p-7 text-center transition-all duration-200 ${
             dragActive
-              ? "border-blue-400 bg-blue-50/80 dark:bg-blue-950/20"
+              ? "border-[#6D28D9] bg-[#6D28D9]/10"
               : file
-              ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : "border-zinc-300 bg-zinc-50/50 hover:border-blue-400 hover:bg-blue-50/30 dark:border-zinc-700 dark:bg-zinc-900/30 dark:hover:border-blue-600"
+              ? "border-emerald-500 bg-emerald-500/5 dark:bg-emerald-950/20"
+              : "border-[var(--border)] bg-[var(--surface)] hover:border-[#6D28D9]/60 hover:bg-[#6D28D9]/5"
           } ${uploading ? "pointer-events-none opacity-70" : ""}`}
         >
           <input
@@ -301,48 +317,53 @@ export function ResumeUploadWidget({
           />
 
           {uploading ? (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <div className="flex flex-col items-center gap-3 py-2">
+              <Loader2 className="h-9 w-9 animate-spin text-[#6D28D9] dark:text-purple-400" />
+              <p className="text-sm font-bold text-[var(--text-primary)]">
                 Uploading and generating summary…
               </p>
-              <p className="text-xs text-zinc-500">This may take a few seconds</p>
+              <p className="text-xs text-[var(--text-secondary)]">This may take a few seconds</p>
             </div>
           ) : file ? (
-            <div className="flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/40">
-                <FileText className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex flex-col items-center gap-4 py-2" onClick={(e) => e.stopPropagation()}>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <FileText className="h-6 w-6" />
               </div>
               <div>
-                <p className="font-semibold text-zinc-900 dark:text-zinc-100">{file.name}</p>
-                <p className="mt-1 text-sm text-zinc-500">{formatFileSize(file.size)}</p>
+                <p className="font-bold text-sm text-[var(--text-primary)]">{file.name}</p>
+                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{formatFileSize(file.size)}</p>
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleUpload} disabled={!candidateId} className="bg-blue-600 hover:bg-blue-700">
-                  <Upload className="mr-2 h-4 w-4" />
+                <Button
+                  type="button"
+                  onClick={handleUpload}
+                  disabled={!candidateId}
+                  className="rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-bold text-xs shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer transition-all"
+                >
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
                   Upload &amp; Process
                 </Button>
-                <Button variant="outline" onClick={clear}>
+                <Button type="button" variant="outline" onClick={clear} className="rounded-xl cursor-pointer">
                   <X className="h-4 w-4" />
                 </Button>
               </div>
               {!candidateId && (
-                <p className="flex items-center gap-1 text-xs text-red-500">
+                <p className="flex items-center gap-1 text-xs text-red-500 font-semibold">
                   <AlertCircle className="h-3.5 w-3.5" />
                   No candidate selected
                 </p>
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900/40">
-                <Upload className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            <div className="flex flex-col items-center gap-3 py-2">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6D28D9]/10 text-[#6D28D9] dark:text-purple-400 group-hover:scale-110 transition-transform">
+                <Upload className="h-6 w-6" />
               </div>
               <div>
-                <p className="font-medium text-zinc-800 dark:text-zinc-200">
-                  Drop resume here or click to browse
+                <p className="font-bold text-sm text-[var(--text-primary)]">
+                  Drop resume here or <span className="text-[#6D28D9] dark:text-purple-400 underline">click to browse</span>
                 </p>
-                <p className="mt-1 text-sm text-zinc-500">PDF, DOC, or DOCX — max 5 MB</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">PDF, DOC, or DOCX — max 5 MB</p>
               </div>
             </div>
           )}

@@ -208,18 +208,19 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
               Back to Candidates
             </Button>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-extrabold bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-purple-400 bg-clip-text text-transparent">
                 Client Matches
               </h1>
-              <p className="text-zinc-600 dark:text-zinc-300 mt-1">
-                AI-powered client matching for <span className="font-semibold text-blue-600">{matchingResult.candidateName}</span>
+              <p className="text-[var(--text-secondary)] mt-1 text-sm font-medium">
+                AI-powered client matching for <span className="font-bold text-[#6D28D9] dark:text-purple-400">{matchingResult.candidateName}</span>
               </p>
             </div>
           </div>
-          <Button
+          <button
+            type="button"
             onClick={() => fetchCandidateMatches(true)}
             disabled={refreshing}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
             {refreshing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -227,7 +228,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
               <RefreshCw className="h-4 w-4" />
             )}
             Refresh Matches
-          </Button>
+          </button>
         </div>
 
         {/* Candidate Summary Card */}

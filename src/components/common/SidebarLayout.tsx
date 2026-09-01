@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useMemo, type ComponentType } from "react";
+import { useState, useEffect, useMemo, useRef, type ComponentType } from "react";
 import { Menu, X, ChevronLeft, ChevronDown } from "lucide-react";
 import { LogoutButton } from "@/app/components/LogoutButton";
 import { NotificationCenter } from "@/components/common/NotificationCenter";
@@ -11,6 +11,12 @@ import type { SidebarItem } from "@/config/roleConfig";
 import * as LucideIcons from "lucide-react";
 import { TourRunner } from "@/components/tour/TourRunner";
 import { TourButton } from "@/components/tour/TourButton";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+const cn = (...inputs: any[]) => twMerge(clsx(inputs));
+
+let globalSidebarScrollPos = 0;
 
 const NAV_GROUP_LABEL: Record<string, string> = {
   candidates: "Candidates",
@@ -66,12 +72,15 @@ function chunkSidebarNav(items: SidebarItem[]): NavChunk[] {
   return chunks;
 }
 
-// Icon mapping for dynamic icon rendering
+const iconCache = new Map<string, ComponentType<{ size?: number; className?: string }>>();
+
 const getIcon = (iconName: string) => {
+  if (iconCache.has(iconName)) return iconCache.get(iconName)!;
   const IconComponent = (
     LucideIcons as unknown as Record<string, ComponentType<{ size?: number; className?: string }>>
-  )[iconName];
-  return IconComponent || LucideIcons.Circle;
+  )[iconName] || LucideIcons.Circle;
+  iconCache.set(iconName, IconComponent);
+  return IconComponent;
 };
 
 export function SidebarLayout({
@@ -91,10 +100,10 @@ export function SidebarLayout({
   role?: string;
   branch?: string;
 }) {
-  const [pathname, setPathname] = useState("/");
+  const pathname = usePathname() || "/";
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  /** Defaults only until after mount — avoids SSR/client localStorage mismatch. */
+  const navRef = useRef<HTMLElement | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     candidates: true,
     clients: true,
@@ -112,42 +121,48 @@ export function SidebarLayout({
           }
           return next;
         });
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     }, 0);
     return () => window.clearTimeout(t);
   }, []);
 
+  useEffect(() => {
+    const restoreScroll = () => {
+      if (navRef.current) {
+        try {
+          const stored = sessionStorage.getItem("sidebarScrollPos");
+          const pos = stored !== null ? parseInt(stored, 10) : globalSidebarScrollPos;
+          if (!isNaN(pos) && pos > 0) {
+            navRef.current.scrollTop = pos;
+          }
+        } catch {
+          if (globalSidebarScrollPos > 0) {
+            navRef.current.scrollTop = globalSidebarScrollPos;
+          }
+        }
+      }
+    };
+
+    restoreScroll();
+    const timer = setTimeout(restoreScroll, 50);
+    return () => clearTimeout(timer);
+  }, [pathname]);
+
+  const handleNavScroll = (e: React.UIEvent<HTMLElement>) => {
+    const pos = e.currentTarget.scrollTop;
+    globalSidebarScrollPos = pos;
+    try {
+      sessionStorage.setItem("sidebarScrollPos", String(pos));
+    } catch {}
+  };
+
   const navChunks = useMemo(() => chunkSidebarNav(items), [items]);
 
-  // Safe pathname hook with fallback
-  const currentPathname = usePathname();
-  
-  useEffect(() => {
-    if (!currentPathname) return;
-    const t = window.setTimeout(() => {
-      setPathname(currentPathname);
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, [currentPathname]);
-
   const isActive = (href: string) => {
-    // Exact match always wins
     if (pathname === href) return true;
+    if (href === "/admin") return pathname === "/admin";
 
-    // /admin/interviews/:id/review should highlight "Review" (/admin/review)
-    if (href === "/admin/review" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) {
-      return true;
-    }
-
-    // For prefix matches, only highlight if no other nav item is a longer
-    // prefix of the current pathname (i.e. a more-specific sibling is active)
     if (pathname.startsWith(href + "/") || pathname.startsWith(href + "?")) {
-      // Don't let /admin match when on an interview review page
-      if (href === "/admin" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) {
-        return false;
-      }
       const hasMoreSpecificMatch = items.some(
         (item) =>
           item.href !== href &&
@@ -162,83 +177,102 @@ export function SidebarLayout({
     return false;
   };
 
-  const renderNavLink = (item: SidebarItem) => {
-    const Icon = getIcon(item.icon);
-    const active = isActive(item.href);
-    return (
-      <Link
-        key={item.href}
-        href={item.href}
-        onClick={() => setMobileOpen(false)}
-        title={collapsed ? item.label : undefined}
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-200 ${
-          active
-            ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-100/10 dark:border-indigo-900/10 shadow-sm"
-            : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100/60 dark:hover:bg-zinc-900/35 hover:translate-x-0.5"
-        } ${collapsed ? "justify-center px-2 hover:translate-x-0" : ""}`}
-      >
-        <Icon size={18} className={`shrink-0 transition-transform duration-200 ${active ? "scale-105" : "group-hover:scale-105"}`} />
-        {!collapsed && <span>{item.label}</span>}
-      </Link>
-    );
-  };
-
   const toggleNavGroup = (id: string) => {
     setOpenGroups((prev) => {
       const next = { ...prev, [id]: !prev[id] };
       try {
         localStorage.setItem(`navgrp-${id}`, next[id] ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       return next;
     });
   };
 
+  const renderNavLink = (item: SidebarItem) => {
+    const Icon = getIcon(item.icon);
+    const active = isActive(item.href);
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        scroll={false}
+        title={collapsed ? item.label : undefined}
+        onClick={() => {
+          if (mobileOpen) setMobileOpen(false);
+          if (navRef.current) {
+            const pos = navRef.current.scrollTop;
+            globalSidebarScrollPos = pos;
+            try {
+              sessionStorage.setItem("sidebarScrollPos", String(pos));
+            } catch {}
+          }
+        }}
+        className={cn(
+          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 cursor-pointer active:scale-[0.98] focus:outline-none border",
+          active
+            ? "bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] text-white font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_10px_rgba(42,0,53,0.4)] border-purple-300/30"
+            : "border-transparent text-[var(--text-secondary)] hover:text-white hover:bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_10px_rgba(42,0,53,0.4)] hover:border-purple-300/30",
+          collapsed && "justify-center px-2"
+        )}
+      >
+        <Icon className={cn("h-4 w-4 shrink-0 transition-transform duration-150 group-hover:scale-110", active ? "text-white" : "group-hover:text-white")} />
+        {!collapsed && <span>{item.label}</span>}
+      </Link>
+    );
+  };
+
+
+  const userInitial = username ? username.charAt(0).toUpperCase() : "U";
+
   const sidebarContent = (
-    <div className="flex h-full flex-col">
-      {/* Logo */}
-      <div className="flex h-14 items-center justify-between border-b border-zinc-200/50 bg-white/40 dark:bg-zinc-950/20 px-4 dark:border-zinc-800/40">
+    <div className="flex h-full flex-col backdrop-blur-md">
+      {/* Header / Logo */}
+      <div className="flex h-14 items-center justify-between border-b border-[var(--border)] px-4">
         {!collapsed && (
-          <Link href="/" className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-indigo-500 to-violet-650 bg-clip-text text-transparent transition-opacity hover:opacity-90">
-            Bench Readiness
+          <Link href="/" scroll={false} className="flex items-center gap-2 text-sm font-extrabold tracking-tight text-[var(--color-primary)] cursor-pointer hover:opacity-90 transition-opacity">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm text-xs font-bold">
+              BR
+            </span>
+            <span>Bench Readiness</span>
           </Link>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 lg:flex"
+          className="hidden lg:flex cursor-pointer p-1.5 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] transition-all duration-150"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          <ChevronLeft size={16} className={`transition-transform ${collapsed ? "rotate-180" : ""}`} />
+          <ChevronLeft size={16} className={cn("transition-transform duration-200 ease-in-out", collapsed && "rotate-180")} />
         </button>
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+      <nav ref={navRef} onScroll={handleNavScroll} className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
         {navChunks.map((chunk) => {
           if (chunk.type === "flat") {
-            return chunk.items.map((item) => renderNavLink(item));
+            return chunk.items.map(renderNavLink);
           }
+
           const open = openGroups[chunk.id] ?? true;
+
           return (
             <div key={chunk.id} className="space-y-0.5">
-              {!collapsed && (
+              {!collapsed ? (
                 <button
                   type="button"
-                  data-navgroup-toggle={chunk.id}
-                  data-navgroup-open={open ? "true" : "false"}
                   onClick={() => toggleNavGroup(chunk.id)}
-                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="flex w-full items-center justify-between px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 >
                   <span>{chunk.label}</span>
                   <ChevronDown
-                    size={14}
-                    className={`shrink-0 transition-transform ${open ? "rotate-0" : "-rotate-90"}`}
+                    size={13}
+                    className={cn("transition-transform duration-150 shrink-0 opacity-70", open ? "rotate-0" : "-rotate-90")}
                   />
                 </button>
-              )}
+              ) : null}
+
               {(collapsed || open) && (
-                <div className={collapsed ? "space-y-0.5" : "space-y-0.5 pl-1 border-l border-zinc-200 ml-2 dark:border-zinc-800"}>
-                  {chunk.items.map((item) => renderNavLink(item))}
+                <div className={cn("space-y-0.5 transition-all duration-150", !collapsed && "pl-0.5")}>
+                  {chunk.items.map(renderNavLink)}
                 </div>
               )}
             </div>
@@ -246,18 +280,24 @@ export function SidebarLayout({
         })}
       </nav>
 
-      {/* User info */}
-      <div className="border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
+      {/* User profile card */}
+      <div className="border-t border-[var(--border)] p-3">
         {!collapsed && username && (
-          <div className="mb-2 truncate text-xs text-zinc-500 dark:text-zinc-400">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">{username}</span>
-            <br />
-            <span>{role}</span>
-            {branch && (
-              <span className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
-                {entityBranchLabel(branch)}
-              </span>
-            )}
+          <div className="mb-2.5 flex items-center gap-2.5 rounded-lg p-2 bg-[var(--surface-subtle)] border border-[var(--border)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold text-xs shadow-sm">
+              {userInitial}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-[var(--text-primary)]">{username}</p>
+              <div className="flex items-center gap-1">
+                <span className="truncate text-[10px] text-[var(--text-secondary)]">{role}</span>
+                {branch && (
+                  <span className={cn("rounded-full px-1.5 py-0.2 text-[9px] font-medium shrink-0", entityBranchBadgeClass(branch))}>
+                    {entityBranchLabel(branch)}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
         <LogoutButton />
@@ -266,26 +306,28 @@ export function SidebarLayout({
   );
 
   return (
-    <div className="app-shell flex h-screen overflow-hidden">
+    <div className="flex h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <TourRunner role={role ?? ""} />
-      {/* Desktop sidebar */}
+
+      {/* Desktop Sidebar */}
       <aside
         data-tour="sidebar"
-        className={`hidden lg:flex flex-col border-r border-white/10 dark:border-zinc-900/20 bg-white/40 dark:bg-zinc-950/40 shadow-lg shadow-violet-500/5 backdrop-blur-xl transition-all duration-300 ${
-          collapsed ? "w-16" : "w-56"
-        }`}
+        className={cn(
+          "hidden lg:flex flex-col border-r border-[var(--border)] bg-[var(--surface)] shadow-sm transition-all duration-150 ease-in-out",
+          collapsed ? "w-16" : "w-64"
+        )}
       >
         {sidebarContent}
       </aside>
 
-      {/* Mobile overlay */}
+      {/* Mobile Drawer Overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="relative z-50 flex h-full w-64 flex-col border-r border-white/10 dark:border-zinc-900/20 bg-white/75 dark:bg-zinc-950/75 shadow-2xl backdrop-blur-xl">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity cursor-pointer" onClick={() => setMobileOpen(false)} />
+          <aside className="relative w-64 h-full bg-[var(--surface)] shadow-2xl border-r border-[var(--border)]">
             <button
               onClick={() => setMobileOpen(false)}
-              className="absolute right-3 top-4 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-850"
+              className="absolute right-3 top-4 rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
             >
               <X size={18} />
             </button>
@@ -294,20 +336,19 @@ export function SidebarLayout({
         </div>
       )}
 
-      {/* Main content */}
+      {/* Main Content Viewport */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <header className="relative z-20 flex h-14 shrink-0 items-center justify-between border-b border-white/10 dark:border-zinc-900/20 bg-white/40 dark:bg-[#040409]/40 px-4 backdrop-blur-xl sm:px-6 shadow-[0_1px_2px_0_rgba(0,0,0,0.01)]">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 sm:px-6 shadow-sm z-20">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
-              className="rounded-md p-1.5 text-violet-700 hover:bg-violet-100/50 hover:text-violet-900 dark:text-violet-300 dark:hover:bg-violet-950/30 dark:hover:text-violet-200 lg:hidden"
+              className="lg:hidden p-1.5 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
             >
               <Menu size={20} />
             </button>
             <div>
-              <h1 className="text-base font-bold leading-tight bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent sm:text-lg">{title}</h1>
-              {subtitle && <p className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:block">{subtitle}</p>}
+              <h1 className="text-base font-semibold text-[var(--text-primary)] sm:text-lg">{title}</h1>
+              {subtitle && <p className="hidden text-xs text-[var(--text-secondary)] sm:block">{subtitle}</p>}
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -315,24 +356,13 @@ export function SidebarLayout({
               <NotificationCenter />
             </span>
             <TourButton role={role ?? ""} />
-            {username && (
-              <span className="hidden items-center gap-2 text-xs font-semibold text-zinc-500 lg:inline-flex">
-                {username} · <span className="text-zinc-400">{role}</span>
-                {branch && (
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
-                    {entityBranchLabel(branch)}
-                  </span>
-                )}
-              </span>
-            )}
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="app-main-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-4 sm:p-6 w-full min-w-0 max-w-full">
-          <div className="page-content min-w-0">{children}</div>
+        <main className="app-main-scroll flex-1 overflow-y-auto p-6">
+          <div className="mx-auto max-w-7xl space-y-6">{children}</div>
         </main>
       </div>
     </div>
   );
-}
+}

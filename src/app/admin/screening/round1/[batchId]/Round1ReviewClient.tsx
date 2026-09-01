@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PriorityBadge, PRIORITIES, PRIORITY_LABEL } from '@/components/common/PriorityBadge';
 
 interface Candidate {
@@ -229,246 +230,344 @@ export function Round1ReviewClient({ batchId }: { batchId: string }) {
   });
 
   const backLink = (
-    <Link href="/admin/screening" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4">
+    <Link
+      href="/admin/screening"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] hover:border-[#6D28D9] transition-all cursor-pointer mb-4"
+    >
       ← Back to Screening
     </Link>
   );
 
   if (loading) {
     return (
-      <div>
+      <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
         {backLink}
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)]">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
       {backLink}
 
-      <Card className="mb-4">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Candidates</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setShowAddForm((v) => !v)}>
+      {/* ── Card 1: Add candidate ── */}
+      <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+        <div className="panel-header panel-header-accent-indigo rounded-t-2xl flex items-center justify-between">
+          <h3 className="text-base font-bold text-[var(--text-primary)]">Candidates Directory</h3>
+          <button
+            type="button"
+            onClick={() => setShowAddForm((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] transition-all cursor-pointer"
+          >
             {showAddForm ? 'Cancel' : 'Add candidate'}
-          </Button>
-        </CardHeader>
+          </button>
+        </div>
         {showAddForm && (
-          <CardContent className="space-y-3">
+          <div className="p-5 space-y-4 border-t border-[var(--border)]">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <Label>Name</Label>
-                <Input value={newCandidate.name} onChange={(e) => setNewCandidate({ ...newCandidate, name: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Name</Label>
+                <Input
+                  value={newCandidate.name}
+                  onChange={(e) => setNewCandidate({ ...newCandidate, name: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Email</Label>
-                <Input type="email" value={newCandidate.email} onChange={(e) => setNewCandidate({ ...newCandidate, email: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Email</Label>
+                <Input
+                  type="email"
+                  value={newCandidate.email}
+                  onChange={(e) => setNewCandidate({ ...newCandidate, email: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Contact Number</Label>
-                <Input value={newCandidate.contactNumber} onChange={(e) => setNewCandidate({ ...newCandidate, contactNumber: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Contact Number</Label>
+                <Input
+                  value={newCandidate.contactNumber}
+                  onChange={(e) => setNewCandidate({ ...newCandidate, contactNumber: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Institute</Label>
-                <Input value={newCandidate.institute} onChange={(e) => setNewCandidate({ ...newCandidate, institute: e.target.value })} className="mt-1" placeholder="JSpiders or QSpiders" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Institute</Label>
+                <Input
+                  value={newCandidate.institute}
+                  onChange={(e) => setNewCandidate({ ...newCandidate, institute: e.target.value })}
+                  placeholder="JSpiders or QSpiders"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Branch</Label>
-                <Input value={newCandidate.branch} onChange={(e) => setNewCandidate({ ...newCandidate, branch: e.target.value })} className="mt-1" placeholder="e.g. Bangalore" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Branch</Label>
+                <Input
+                  value={newCandidate.branch}
+                  onChange={(e) => setNewCandidate({ ...newCandidate, branch: e.target.value })}
+                  placeholder="e.g. Bangalore"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>YOP</Label>
-                <Input type="number" value={newCandidate.yop} onChange={(e) => setNewCandidate({ ...newCandidate, yop: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">YOP</Label>
+                <Input
+                  type="number"
+                  value={newCandidate.yop}
+                  onChange={(e) => setNewCandidate({ ...newCandidate, yop: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
-              <div>
-                <Label>Experience (years)</Label>
-                <Input type="number" value={newCandidate.experience} onChange={(e) => setNewCandidate({ ...newCandidate, experience: e.target.value })} className="mt-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-[var(--text-primary)]">Experience (years)</Label>
+                <Input
+                  type="number"
+                  value={newCandidate.experience}
+                  onChange={(e) => setNewCandidate({ ...newCandidate, experience: e.target.value })}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
+                />
               </div>
             </div>
-            {addError && <p className="text-sm text-red-600 dark:text-red-400">{addError}</p>}
-            <Button size="sm" onClick={addCandidate} disabled={adding}>
+            {addError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{addError}</p>}
+            <button
+              type="button"
+              onClick={addCandidate}
+              disabled={adding}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            >
               {adding ? 'Adding…' : 'Add & send invite'}
-            </Button>
-          </CardContent>
+            </button>
+          </div>
         )}
-      </Card>
+      </div>
 
-      <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-end gap-3 pt-4">
-          <div>
-            <Label className="text-xs text-zinc-500">Min marks (/35)</Label>
+      {/* ── Card 2: Filter controls ── */}
+      <div className="panel-card p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label className="text-[11px] font-bold text-[var(--text-secondary)]">Min marks (/35)</Label>
             <Input
               type="number"
               min={0}
               max={35}
-              className="mt-1 w-28"
+              className="w-28 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-9 font-medium focus:border-[#6D28D9]"
               value={minScore}
               onChange={(e) => setMinScore(e.target.value)}
               placeholder="0"
             />
           </div>
-          <div>
-            <Label className="text-xs text-zinc-500">Max marks (/35)</Label>
+          <div className="space-y-1">
+            <Label className="text-[11px] font-bold text-[var(--text-secondary)]">Max marks (/35)</Label>
             <Input
               type="number"
               min={0}
               max={35}
-              className="mt-1 w-28"
+              className="w-28 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-9 font-medium focus:border-[#6D28D9]"
               value={maxScore}
               onChange={(e) => setMaxScore(e.target.value)}
               placeholder="35"
             />
           </div>
           {(min !== null || max !== null) && (
-            <Button size="sm" variant="outline" onClick={() => { setMinScore(''); setMaxScore(''); }}>
+            <button
+              type="button"
+              onClick={() => { setMinScore(''); setMaxScore(''); }}
+              className="px-3 py-2 text-xs font-bold text-[#6D28D9] hover:underline cursor-pointer"
+            >
               Clear filter
-            </Button>
+            </button>
           )}
-          <p className="text-sm text-zinc-500">
-            Showing {filteredCandidates.length} of {candidates.length} candidates
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+        <p className="text-xs font-bold text-[var(--text-secondary)]">
+          Showing {filteredCandidates.length} of {candidates.length} candidates
+        </p>
+      </div>
 
+      {/* ── Candidates list ── */}
       <div className="space-y-4">
-      {filteredCandidates.map((c) => (
-        <Card key={c.id}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-base">{c.name}</CardTitle>
-              <p className="text-sm text-zinc-500">{c.email}</p>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center justify-end gap-2">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
-                </p>
-                <PriorityBadge priority={c.round1Priority} />
+        {filteredCandidates.map((c) => (
+          <div key={c.id} className="panel-card rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+            <div className="panel-header panel-header-accent-purple rounded-t-2xl flex items-center justify-between">
+              <div>
+                <h4 className="text-base font-extrabold text-[var(--text-primary)]">{c.name}</h4>
+                <p className="text-xs font-medium text-[var(--text-secondary)]">{c.email}</p>
               </div>
-              <p className="text-xs text-zinc-500">{c.stage.replaceAll('_', ' ')}</p>
-              {c.proctoringViolation && (
-                <span className="mt-1 inline-block rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:border-red-800/50 dark:bg-red-900/30 dark:text-red-300">
-                  ⚠ Multiple tab switches ({c.tabSwitchCount})
-                </span>
-              )}
-              {c.violationLocked && (
-                <span className="mt-1 ml-1 inline-block rounded-full border border-amber-200 bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/30 dark:text-amber-300">
-                  ⏸ Test paused
-                </span>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-3">
-            <Button size="sm" variant="ghost" onClick={() => toggleAnswers(c.id)}>
-              {expanded === c.id ? 'Hide answers' : 'View answers'}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => copyLink(c.id, c.round1Link)}>
-              {copiedId === c.id ? 'Copied!' : 'Copy test link'}
-            </Button>
-            {(c.stage === 'ROUND1_PENDING' || c.stage === 'ROUND1_IN_PROGRESS') && (
-              c.allowLateSubmission ? (
-                <Button size="sm" variant="outline" onClick={() => toggleLateSubmission(c.id, false)} disabled={busy === c.id}>
-                  Late submission allowed — revoke
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" onClick={() => toggleLateSubmission(c.id, true)} disabled={busy === c.id}>
-                  Accept after deadline
-                </Button>
-              )
-            )}
-            {(c.stage === 'ROUND1_PENDING' || c.stage === 'ROUND1_IN_PROGRESS') && c.violationLocked && (
-              <Button size="sm" onClick={() => toggleViolationLock(c.id, true)} disabled={busy === c.id}>
-                {busy === c.id ? 'Permitting…' : 'Permit candidate to continue'}
-              </Button>
-            )}
-            {c.stage === 'ROUND1_PENDING' && (
-              <Button size="sm" variant="destructive" onClick={() => removeCandidate(c.id)} disabled={removingId === c.id}>
-                {removingId === c.id ? 'Removing…' : 'Remove'}
-              </Button>
-            )}
-            {c.stage === 'ROUND1_SUBMITTED' && (
-              <>
-                <Button size="sm" onClick={() => decide(c.id, true)} disabled={busy === c.id}>
-                  Pass → Round 2
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => decide(c.id, false)} disabled={busy === c.id}>
-                  Fail
-                </Button>
-              </>
-            )}
-            {!NOT_YET_SUBMITTED_STAGES.has(c.stage) && (
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs text-zinc-500">Priority</Label>
-                <select
-                  className="h-8 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 text-xs text-zinc-900 dark:text-zinc-100 disabled:opacity-50"
-                  value={c.round1Priority ?? ''}
-                  disabled={savingPriorityId === c.id}
-                  onChange={(e) => setPriority(c.id, e.target.value)}
-                >
-                  <option value="">Unrated</option>
-                  {PRIORITIES.map((p) => (
-                    <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {expanded === c.id && (
-              <div className="w-full mt-3 space-y-3">
-                {answersLoading ? (
-                  <p className="text-sm text-zinc-500">Loading answers…</p>
-                ) : (
-                  answers.map((a) => (
-                    <div key={a.questionId} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 text-sm">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs uppercase tracking-wide text-zinc-500">
-                          {a.questionType} · {a.score} / {a.marks}
-                        </p>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min={0}
-                            max={a.marks}
-                            step="0.5"
-                            placeholder="Correct to…"
-                            defaultValue={a.score}
-                            className="w-20 px-2 py-1 text-xs border rounded-md bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-700 dark:text-zinc-100"
-                            onChange={(e) => setScoreEdits((prev) => ({ ...prev, [a.id]: e.target.value }))}
-                          />
-                          <button
-                            type="button"
-                            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
-                            onClick={() => correctScore(a.id)}
-                            disabled={savingScoreId === a.id}
-                          >
-                            {savingScoreId === a.id ? 'Saving…' : 'Correct'}
-                          </button>
-                        </div>
-                      </div>
-                      <p className="font-medium text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap">{a.prompt}</p>
-                      <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-400">Candidate&apos;s answer</p>
-                      <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono text-xs">{a.rawAnswer || '(no answer)'}</p>
-                      {a.referenceAnswer && (
-                        <>
-                          <p className="mt-2 text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Expected answer</p>
-                          <p className="text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap font-mono text-xs">{a.referenceAnswer}</p>
-                        </>
-                      )}
-                      {a.aiFeedback && (
-                        <p className="mt-2 text-zinc-500 dark:text-zinc-400 italic">{a.aiFeedback}</p>
-                      )}
-                    </div>
-                  ))
+              <div className="text-right flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-extrabold text-[var(--text-primary)]">
+                    {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
+                  </p>
+                  <PriorityBadge priority={c.round1Priority} />
+                </div>
+                <p className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">{c.stage.replaceAll('_', ' ')}</p>
+                {c.proctoringViolation && (
+                  <span className="inline-flex px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                    ⚠ Multiple tab switches ({c.tabSwitchCount})
+                  </span>
+                )}
+                {c.violationLocked && (
+                  <span className="inline-flex px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                    ⏸ Test paused
+                  </span>
                 )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      ))}
-      {candidates.length === 0 && <p className="text-sm text-zinc-500">No candidates in this batch.</p>}
-      {candidates.length > 0 && filteredCandidates.length === 0 && (
-        <p className="text-sm text-zinc-500">No candidates match this marks filter.</p>
-      )}
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleAnswers(c.id)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                >
+                  {expanded === c.id ? 'Hide answers' : 'View answers'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyLink(c.id, c.round1Link)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[#6D28D9] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                >
+                  {copiedId === c.id ? 'Copied!' : 'Copy test link'}
+                </button>
+                {(c.stage === 'ROUND1_PENDING' || c.stage === 'ROUND1_IN_PROGRESS') && (
+                  c.allowLateSubmission ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleLateSubmission(c.id, false)}
+                      disabled={busy === c.id}
+                      className="px-3 py-1.5 text-xs font-bold rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                    >
+                      Late submission allowed — revoke
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => toggleLateSubmission(c.id, true)}
+                      disabled={busy === c.id}
+                      className="px-3 py-1.5 text-xs font-bold rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                    >
+                      Accept after deadline
+                    </button>
+                  )
+                )}
+                {(c.stage === 'ROUND1_PENDING' || c.stage === 'ROUND1_IN_PROGRESS') && c.violationLocked && (
+                  <button
+                    type="button"
+                    onClick={() => toggleViolationLock(c.id, true)}
+                    disabled={busy === c.id}
+                    className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-amber-600 text-white hover:bg-amber-700 cursor-pointer"
+                  >
+                    {busy === c.id ? 'Permitting…' : 'Permit candidate to continue'}
+                  </button>
+                )}
+                {c.stage === 'ROUND1_PENDING' && (
+                  <button
+                    type="button"
+                    onClick={() => removeCandidate(c.id)}
+                    disabled={removingId === c.id}
+                    className="px-3 py-1.5 text-xs font-bold rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 cursor-pointer"
+                  >
+                    {removingId === c.id ? 'Removing…' : 'Remove'}
+                  </button>
+                )}
+                {c.stage === 'ROUND1_SUBMITTED' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => decide(c.id, true)}
+                      disabled={busy === c.id}
+                      className="px-4 py-1.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                    >
+                      Pass → Round 2
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => decide(c.id, false)}
+                      disabled={busy === c.id}
+                      className="px-3.5 py-1.5 text-xs font-bold rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 cursor-pointer"
+                    >
+                      Fail
+                    </button>
+                  </>
+                )}
+                {!NOT_YET_SUBMITTED_STAGES.has(c.stage) && (
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <Label className="text-xs font-bold text-[var(--text-secondary)]">Priority</Label>
+                    <Select
+                      value={c.round1Priority ?? 'UNRATED'}
+                      onValueChange={(val) => setPriority(c.id, val === 'UNRATED' ? '' : val)}
+                    >
+                      <SelectTrigger disabled={savingPriorityId === c.id} className="w-32 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-9 font-medium focus:border-[#6D28D9]">
+                        <SelectValue placeholder="Priority" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-44">
+                        <SelectItem value="UNRATED" className="text-xs font-semibold">Unrated</SelectItem>
+                        {PRIORITIES.map((p) => (
+                          <SelectItem key={p} value={p} className="text-xs font-semibold">
+                            {PRIORITY_LABEL[p]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {expanded === c.id && (
+                <div className="space-y-3 pt-2">
+                  {answersLoading ? (
+                    <p className="text-xs font-medium text-[var(--text-secondary)]">Loading answers…</p>
+                  ) : (
+                    answers.map((a) => (
+                      <div key={a.questionId} className="rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-3.5 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[10px] font-extrabold uppercase tracking-wide text-[var(--text-secondary)]">
+                            {a.questionType} · {a.score} / {a.marks}
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={a.marks}
+                              step="0.5"
+                              placeholder="Correct to…"
+                              defaultValue={a.score}
+                              className="w-20 px-2 py-1 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#6D28D9]"
+                              onChange={(e) => setScoreEdits((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                            />
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-[#6D28D9] hover:underline cursor-pointer disabled:opacity-50"
+                              onClick={() => correctScore(a.id)}
+                              disabled={savingScoreId === a.id}
+                            >
+                              {savingScoreId === a.id ? 'Saving…' : 'Correct'}
+                            </button>
+                          </div>
+                        </div>
+                        <p className="font-bold text-[var(--text-primary)] whitespace-pre-wrap">{a.prompt}</p>
+                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Candidate&apos;s answer</p>
+                        <p className="text-[var(--text-primary)] whitespace-pre-wrap font-mono text-xs mt-0.5">{a.rawAnswer || '(no answer)'}</p>
+                        {a.referenceAnswer && (
+                          <>
+                            <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Expected answer</p>
+                            <p className="text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap font-mono text-xs mt-0.5">{a.referenceAnswer}</p>
+                          </>
+                        )}
+                        {a.aiFeedback && (
+                          <p className="mt-2 text-[var(--text-secondary)] italic">{a.aiFeedback}</p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {candidates.length === 0 && <p className="text-xs font-medium text-[var(--text-secondary)]">No candidates in this batch.</p>}
+        {candidates.length > 0 && filteredCandidates.length === 0 && (
+          <p className="text-xs font-medium text-[var(--text-secondary)]">No candidates match this marks filter.</p>
+        )}
       </div>
     </div>
   );
