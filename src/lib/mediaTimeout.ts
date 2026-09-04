@@ -1,5 +1,5 @@
 /** Max wait for Whisper STT before falling back to browser speech.
- *  large-v3 on CPU with int8 takes 20-40 s for a typical answer clip.
+ *  medium on CPU with int8 takes roughly 10-25 s for a typical answer clip.
  *  Keep the server-side route timeout LOWER than this so the route can
  *  return a clean 504 before the client's fetch aborts mid-stream. */
 export const MEDIA_SERVICE_TIMEOUT_MS = 90_000;
@@ -18,7 +18,9 @@ export class MediaServiceTimeoutError extends Error {
   }
 }
 
-/** Shared session prefs — server Whisper STT for accuracy; Kokoro TTS for natural voice. */
+/** Shared session prefs — server Deepgram/Sarvam STT for accuracy; Kokoro TTS for natural voice.
+ *  Browser STT/TTS only engage as an actual fallback (mic disconnect, Sarvam failure, Kokoro
+ *  unreachable, etc.), not as the default. */
 export const voiceServicePrefs = {
   preferServerStt: true,
   preferServerTts: true,

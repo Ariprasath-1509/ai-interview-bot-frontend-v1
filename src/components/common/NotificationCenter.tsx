@@ -62,7 +62,13 @@ export function NotificationCenter() {
       if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
       setIsOpen(false);
     };
-    const handleScrollOrResize = () => setIsOpen(false);
+    const handleScrollOrResize = (e: Event) => {
+      // Scrolling the notification list itself shouldn't close the panel — only close on
+      // scroll/resize of whatever's behind it, since the panel's position is computed once
+      // (from the trigger button's rect) when it opens and would otherwise go stale.
+      if (e.type === "scroll" && panelRef.current?.contains(e.target as Node)) return;
+      setIsOpen(false);
+    };
     document.addEventListener("mousedown", handleClick);
     window.addEventListener("resize", handleScrollOrResize);
     window.addEventListener("scroll", handleScrollOrResize, true);

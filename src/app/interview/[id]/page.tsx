@@ -128,18 +128,31 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
       ? interview.proctoringMode
       : resolveProctoringMode(candidateSource);
 
-  // Admin-configurable: immediate termination on tab-switch/blur/fullscreen-exit +
-  // best-effort OS key capture. Defaults to enabled if the setting can't be read —
-  // fail toward the stricter behavior rather than silently disabling integrity checks.
+  // TEMPORARILY forced lenient (warn-then-terminate on 2nd tab switch, not immediate) —
+  // the admin toggle for this isn't reliably reaching candidate sessions yet (root cause
+  // still being diagnosed: /auth/proctoring-settings fetch failing or timing out from the
+  // frontend container). Revert to the settings-driven value below once that's fixed.
+  const strictLockdownEnabled = false;
+  /*
   let strictLockdownEnabled = true;
-  const proctoringSettingsRes = await apiServer("/auth/proctoring-settings", session?.token).catch(() => null);
+  const proctoringSettingsRes = await apiServer("/auth/proctoring-settings", session?.token).catch((err) => {
+    console.warn("[proctoring-settings] fetch threw — defaulting strictLockdownEnabled=true", err);
+    return null;
+  });
   if (proctoringSettingsRes?.ok) {
     const settingsBody = (await proctoringSettingsRes.json().catch(() => null)) as
       | { settings?: Record<string, boolean> }
       | null;
     const flag = settingsBody?.settings?.STRICT_LOCKDOWN;
-    if (typeof flag === "boolean") strictLockdownEnabled = flag;
+    if (typeof flag === "boolean") {
+      strictLockdownEnabled = flag;
+    } else {
+      console.warn("[proctoring-settings] STRICT_LOCKDOWN missing/non-boolean in response — defaulting to true", settingsBody);
+    }
+  } else if (proctoringSettingsRes) {
+    console.warn("[proctoring-settings] non-ok response — defaulting strictLockdownEnabled=true", proctoringSettingsRes.status);
   }
+  */
 
   // Parse checkpoint for IN_PROGRESS interviews so we can resume from where the candidate left off
   let checkpoint: CheckpointData | null = null;
