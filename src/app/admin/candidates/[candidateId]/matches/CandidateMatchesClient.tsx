@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, ArrowLeft, RefreshCw, Users, TrendingUp, AlertCircle, CheckCircle, Building2, Briefcase, Clock } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
+import { formatDate } from '@/lib/formatDate';
 
 interface CandidateClientMatch {
   clientId: string;
@@ -500,7 +501,7 @@ export default function CandidateMatchesClient({ candidateId }: { candidateId: s
                       </span>
                       <span className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-700 px-3 py-1 rounded-full">
                         <Clock className="h-4 w-4" />
-                        {new Date(match.lastComputedAt).toLocaleDateString()}
+                        {formatDate(match.lastComputedAt)}
                       </span>
                     </div>
                     

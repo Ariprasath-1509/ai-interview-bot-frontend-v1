@@ -74,6 +74,8 @@ export default function ScreeningTestPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [hydrated, setHydrated] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
 
   // Restore any in-progress answers from this browser if the page was reloaded mid-test.
   useEffect(() => {
@@ -242,6 +244,28 @@ export default function ScreeningTestPage() {
     );
   }
 
+  const handleStart = async () => {
+    setVerifyError('');
+    setVerifying(true);
+    try {
+      const res = await fetch(`/api/screening/public/${token}/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setVerifyError(data.error || 'That email doesn\'t match this invite — please check and try again.');
+        return;
+      }
+      setConfirmed(true);
+    } catch {
+      setVerifyError('Network error — please try again');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   if (!confirmed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#050505] p-4">
@@ -264,14 +288,18 @@ export default function ScreeningTestPage() {
             className={inputCls}
             placeholder="Enter your email to confirm"
             value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
+            onChange={(e) => {
+              setEmailInput(e.target.value);
+              if (verifyError) setVerifyError('');
+            }}
           />
+          {verifyError && <p className="text-red-600 dark:text-red-400 text-sm mt-2">{verifyError}</p>}
           <button
             className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
-            disabled={!emailInput.trim()}
-            onClick={() => setConfirmed(true)}
+            disabled={!emailInput.trim() || verifying}
+            onClick={() => handleStart()}
           >
-            Start test
+            {verifying ? 'Checking…' : 'Start test'}
           </button>
         </div>
       </div>

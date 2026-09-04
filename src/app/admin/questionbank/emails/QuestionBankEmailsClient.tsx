@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Send, Mail, Search, Check, X } from "lucide-react";
+import { formatDateTime } from "@/lib/formatDate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -491,7 +492,7 @@ export default function QuestionBankEmailsClient() {
                       </td>
                       <td className="p-3 text-muted-foreground">{log.sentBy || "-"}</td>
                       <td className="p-3 text-muted-foreground text-sm">
-                        {new Date(log.sentAt).toLocaleString()}
+                        {formatDateTime(log.sentAt)}
                       </td>
                     </tr>
                   ))}

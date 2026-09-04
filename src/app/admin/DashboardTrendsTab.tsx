@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatDateTime } from "@/lib/formatDate";
 import { SectionHeader, StatCard } from "@/components/common/AppUi";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -247,7 +248,7 @@ export default function DashboardTrendsTab({ trends }: { trends: TrendsResponse 
         title="Trends & demand"
         description={
           trends?.generatedAt
-            ? `Last updated ${new Date(trends.generatedAt).toLocaleString()}`
+            ? `Last updated ${formatDateTime(trends.generatedAt)}`
             : "Interview activity and current client skill demand"
         }
       />

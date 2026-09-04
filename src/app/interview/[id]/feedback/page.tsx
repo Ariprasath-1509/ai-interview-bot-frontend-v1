@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
+import { formatDate } from "@/lib/formatDate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -128,7 +129,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                   </span>
                   {review.signedOffAt && (
                     <span className="text-xs text-zinc-400">
-                      {new Date(review.signedOffAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      {formatDate(review.signedOffAt)}
                     </span>
                   )}
                 </div>

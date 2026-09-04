@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { CheckSquare, Square, ChevronRight, ChevronLeft, Users, Settings, Building2, Send, CheckCircle, XCircle, Loader2, Search } from "lucide-react";
+import { formatDateTime } from "@/lib/formatDate";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -520,8 +521,8 @@ export function BulkCreateClient() {
               {config.assessmentType === "CLIENT_INTERVIEW" && sameClient && globalClientId && <><span className="text-zinc-500">Client</span><span className="col-span-1 sm:col-span-2">{clients.find((c) => c.id === globalClientId)?.clientName ?? "—"}</span></>}
               <span className="text-zinc-500">Mode</span><span className="col-span-1 sm:col-span-2">{config.interviewMode}{config.customDurationMinutes ? ` · ${config.customDurationMinutes} min` : ""}</span>
               <span className="text-zinc-500">Coding</span><span className="col-span-1 sm:col-span-2">{config.includeProgrammingQuestions ? "Yes" : "No"}</span>
-              {config.scheduledAt && <><span className="text-zinc-500">Scheduled</span><span className="col-span-1 sm:col-span-2">{new Date(config.scheduledAt).toLocaleString()}</span></>}
-              {config.expiresAt && <><span className="text-zinc-500">Expires</span><span className="col-span-1 sm:col-span-2">{new Date(config.expiresAt).toLocaleString()}</span></>}
+              {config.scheduledAt && <><span className="text-zinc-500">Scheduled</span><span className="col-span-1 sm:col-span-2">{formatDateTime(config.scheduledAt)}</span></>}
+              {config.expiresAt && <><span className="text-zinc-500">Expires</span><span className="col-span-1 sm:col-span-2">{formatDateTime(config.expiresAt)}</span></>}
               {config.roundName && <><span className="text-zinc-500">Round</span><span className="col-span-1 sm:col-span-2">{config.roundName}</span></>}
               {config.questionDifficulty && <><span className="text-zinc-500">Difficulty</span><span className="col-span-1 sm:col-span-2">{config.questionDifficulty}</span></>}
             </div>

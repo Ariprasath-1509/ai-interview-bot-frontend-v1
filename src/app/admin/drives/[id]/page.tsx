@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { formatDate } from '@/lib/formatDate';
 
 interface Drive {
   id: string;
@@ -159,13 +160,13 @@ export default function DriveDetailsPage() {
         <div className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
           <div className="text-sm text-zinc-500 dark:text-zinc-400">Start Date</div>
           <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-1">
-            {new Date(drive.startDate).toLocaleDateString()}
+            {formatDate(drive.startDate)}
           </div>
         </div>
         <div className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
           <div className="text-sm text-zinc-500 dark:text-zinc-400">End Date</div>
           <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-1">
-            {new Date(drive.endDate).toLocaleDateString()}
+            {formatDate(drive.endDate)}
           </div>
         </div>
         <div className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">

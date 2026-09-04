@@ -24,6 +24,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=6001
 ENV HOSTNAME=0.0.0.0
+# Backend services all pin their JVM to Asia/Kolkata — match it here so any date logic that
+# doesn't go through src/lib/formatDate.ts still renders in the business timezone, not UTC.
+ENV TZ=Asia/Kolkata
 
 # API_URL is server-side runtime var — set here so it's always available
 # Can be overridden at runtime via docker run -e or docker-compose environment

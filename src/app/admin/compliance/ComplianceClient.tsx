@@ -6,6 +6,7 @@ import { Shield, Clock, FileText, User, Calendar } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EnhancedDataTable } from '@/components/common/EnhancedDataTable';
 import { entityBranchBadgeClass, entityBranchLabel } from '@/lib/staffRoles';
+import { formatDate, formatDateTime } from '@/lib/formatDate';
 
 interface AuditLog {
   id: string;
@@ -107,7 +108,7 @@ export default function ComplianceClient() {
           new Date(a.original.createdAt).getTime() - new Date(b.original.createdAt).getTime(),
         cell: ({ row }) => (
           <span className="text-zinc-500 text-xs whitespace-nowrap">
-            {new Date(row.original.createdAt).toLocaleString()}
+            {formatDateTime(row.original.createdAt)}
           </span>
         ),
       },
@@ -249,7 +250,7 @@ export default function ComplianceClient() {
                     <div>
                       <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{policy.region}</h3>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Last updated: {new Date(policy.updatedAt).toLocaleDateString()}
+                        Last updated: {formatDate(policy.updatedAt)}
                       </p>
                     </div>
                     {editingPolicy === policy.region ? (

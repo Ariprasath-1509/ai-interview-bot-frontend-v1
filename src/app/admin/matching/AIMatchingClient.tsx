@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Users, TrendingUp, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
+import { formatDate } from '@/lib/formatDate';
 
 interface Client {
   id: string;
@@ -304,7 +305,7 @@ export default function AIMatchingClient() {
 
                     <div className="mt-4 pt-4 border-t border-zinc-200">
                       <div className="flex justify-between items-center text-xs text-zinc-500">
-                        <span>Created: {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : 'Unknown'}</span>
+                        <span>Created: {client.createdAt ? formatDate(client.createdAt) : 'Unknown'}</span>
                         <div className="flex gap-2">
                           {client.benchReviewed && (
                             <Badge variant="outline" className="text-xs bg-green-50 text-green-700">

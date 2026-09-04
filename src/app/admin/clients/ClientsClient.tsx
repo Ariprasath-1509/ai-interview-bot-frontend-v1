@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageHero, StatCard } from '@/components/common/AppUi';
 import { Badge } from '@/components/ui/badge';
 import { entityBranchLabel, defaultStaffBranch, entityBranchBadgeClass, isStaffReadRole, isStaffAdminRole, resolveFormBranch } from '@/lib/staffRoles';
+import { formatDate } from '@/lib/formatDate';
 import { useBranchOptions } from '@/hooks/useBranchOptions';
 
 interface Client {
@@ -803,7 +804,7 @@ export default function ClientsClient({ userRole, userBranch }: { userRole: stri
 
                 {/* Meta */}
                 <div className="text-xs text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                  Created: {new Date(selectedClient.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  Created: {formatDate(selectedClient.createdAt)}
                 </div>
               </div>
             ) : (

@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/common/Toast";
+import { formatDate as formatDateIST } from "@/lib/formatDate";
 
 export interface InitialResume {
   filename: string | null;
@@ -51,12 +52,7 @@ function formatFileSize(bytes: number): string {
 }
 
 function formatDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatDateIST(iso);
 }
 
 export function ResumeUploadWidget({

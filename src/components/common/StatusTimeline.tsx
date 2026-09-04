@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDate } from "@/lib/formatDate";
+
 export type TimelineStep = {
   label: string;
   status: "completed" | "current" | "upcoming";
@@ -69,7 +71,7 @@ export function buildInterviewTimeline(interview: {
   finalVerdict?: string | null;
 }): TimelineStep[] {
   const fmt = (iso: string | null | undefined) =>
-    iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined;
+    iso ? formatDate(iso, { month: "short", day: "numeric" }) : undefined;
 
   const s = interview.status;
   const steps: TimelineStep[] = [];

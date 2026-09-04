@@ -6,6 +6,7 @@ import { LayoutDashboard } from 'lucide-react';
 import { SkeletonDashboard } from '@/components/common/Skeleton';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageHero, SectionHeader, StatCard } from '@/components/common/AppUi';
+import { formatTime } from '@/lib/formatDate';
 import DashboardTrendsTab, { type TrendsResponse } from '@/app/admin/DashboardTrendsTab';
 import DashboardPerformanceTab, { type CandidatePerformanceData } from '@/app/admin/DashboardPerformanceTab';
 import TokenAnalyticsTab, { type TodayTokenData as TokenData, type PeriodTokenData as WeeklyTokenData, type PerInterviewTokenData } from '@/app/admin/TokenAnalyticsTab';
@@ -157,7 +158,7 @@ export default function DashboardClient() {
             )}
           </div>
           <div className="text-sm text-zinc-500 dark:text-zinc-400">
-            Last updated: {analytics?.lastUpdated ? new Date(analytics.lastUpdated).toLocaleTimeString() : 'Never'}
+            Last updated: {analytics?.lastUpdated ? formatTime(analytics.lastUpdated) : 'Never'}
           </div>
         </div>
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Bell, X, CheckCircle, Clock, AlertTriangle, FileText } from "lucide-react";
+import { formatDate } from "@/lib/formatDate";
 
 type Notification = {
   id: string;
@@ -112,7 +113,7 @@ export function NotificationCenter() {
     const diff = now.getTime() - d.getTime();
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return formatDate(d, { month: "short", day: "numeric" });
   }
 
   const toggleOpen = () => {

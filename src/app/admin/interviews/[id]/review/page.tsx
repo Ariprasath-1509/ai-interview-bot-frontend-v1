@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
+import { formatDateTime } from "@/lib/formatDate";
 import { ReviewPageScrollReset } from "./ReviewPageScrollReset";
 import { ProctoringTimelinePanel } from "./ProctoringTimelinePanel";
 import { RerunAssessmentButton } from "./RerunAssessmentButton";
@@ -44,8 +45,7 @@ type Interview = {
 };
 
 function fmtDatetime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
+  return formatDateTime(iso, {
     month: "short", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
@@ -726,7 +726,7 @@ export default async function InterviewReviewPage({
             <p><span className="font-medium">Note:</span> {existingSignOff.note}</p>
             {existingSignOff.signedOffAt && (
               <p className="text-xs text-zinc-500">
-                Last updated: {new Date(existingSignOff.signedOffAt).toLocaleString()}
+                Last updated: {formatDateTime(existingSignOff.signedOffAt)}
               </p>
             )}
           </div>

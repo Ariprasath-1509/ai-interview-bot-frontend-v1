@@ -6,6 +6,7 @@ import { useConfirm } from '@/components/common/ConfirmDialog';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
 import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown, UserCheck, UserPlus, ChevronRight, ChevronLeft } from 'lucide-react';
 import { downloadCandidateReview } from '@/lib/downloadPdf';
+import { formatDate } from '@/lib/formatDate';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -1072,13 +1073,13 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                           <div>
                             <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">Deployed Date</span>
                             <div className="font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
-                              {new Date(history.deployedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              {formatDate(history.deployedDate)}
                             </div>
                           </div>
                           <div>
                             <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">End Date</span>
                             <div className="font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
-                              {history.endDate ? new Date(history.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : (
+                              {history.endDate ? formatDate(history.endDate) : (
                                   <span className="text-green-600 dark:text-green-400">Currently Active</span>
                               )}
                             </div>

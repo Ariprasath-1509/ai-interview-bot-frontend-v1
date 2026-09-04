@@ -2,6 +2,7 @@
 
 import { formatProctorEventType, integrityLabel } from "@/lib/proctoring/scoring";
 import { integrityModeLabel, type ProctoringMode } from "@/lib/proctoring/mode";
+import { formatDateTime, formatTime } from "@/lib/formatDate";
 
 type ProctorEventRow = {
   at?: string;
@@ -140,7 +141,7 @@ export function ProctoringTimelinePanel({
             {integrityModeLabel("video")}
             {timeline.candidateSource ? ` · ${timeline.candidateSource}` : ""}
             {" · "}Status: {timeline.status?.replace(/_/g, " ") ?? "Unknown"}
-            {timeline.updatedAt ? ` · updated ${new Date(timeline.updatedAt).toLocaleString()}` : ""}
+            {timeline.updatedAt ? ` · updated ${formatDateTime(timeline.updatedAt)}` : ""}
           </p>
         </div>
         {score != null && scoreMeta && (
@@ -184,7 +185,7 @@ export function ProctoringTimelinePanel({
               {events.map((event, idx) => (
                 <tr key={`${event.at}-${event.type}-${idx}`} className="border-b border-zinc-100 dark:border-zinc-800">
                   <td className="py-2 pr-4 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
-                    {event.at ? new Date(event.at).toLocaleTimeString() : "—"}
+                    {event.at ? formatTime(event.at) : "—"}
                   </td>
                   <td className="py-2 pr-4 font-medium text-zinc-800 dark:text-zinc-100">
                     {formatProctorEventType(event.type ?? "unknown")}
@@ -232,7 +233,7 @@ export function ProctoringTimelinePanel({
                 />
                 <div className="bg-zinc-50 px-2 py-1 text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                   {formatProctorEventType(snap.eventType ?? "violation")}
-                  {snap.at ? ` · ${new Date(snap.at).toLocaleTimeString()}` : ""}
+                  {snap.at ? ` · ${formatTime(snap.at)}` : ""}
                 </div>
               </a>
             ))}

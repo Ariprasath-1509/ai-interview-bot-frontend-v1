@@ -5,6 +5,7 @@ import { Loader2, TrendingUp, Building2, Tag, FileText, BarChart2 } from "lucide
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/common/Toast";
 import { IMPORTANCE_COLORS } from "@/lib/questionbank-constants";
+import { formatDateTime } from "@/lib/formatDate";
 
 interface AdminStats {
   totalQuestions: number;
@@ -328,7 +329,7 @@ export default function QuestionBankAnalyticsClient() {
 
       {stats?.lastDigestDate && (
         <p className="text-xs text-muted-foreground">
-          Last digest: {new Date(stats.lastDigestDate).toLocaleString()}
+          Last digest: {formatDateTime(stats.lastDigestDate)}
         </p>
       )}
     </div>

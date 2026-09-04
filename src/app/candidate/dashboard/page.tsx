@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
+import { formatDate } from "@/lib/formatDate";
 import { AppShell } from "@/app/components/AppShell";
 import { ProfileCompletionCard } from "@/components/common/ProfileCompletionCard";
 import { PageHero } from "@/components/common/AppUi";
@@ -77,11 +78,6 @@ async function getJdTitle(jdId: string, token: string | undefined): Promise<stri
   const res = await apiServer(`/interviews/jd/${jdId}`, token).catch(() => null);
   const jd = await parseJsonSafe(res, { title: undefined } as { title?: string });
   return jd.title ?? "Unknown role";
-}
-
-function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 const VERDICT_LABEL: Record<string, string> = {

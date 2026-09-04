@@ -10,6 +10,7 @@ import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { ClipboardList, Eye, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { formatDate, formatDateTime } from '@/lib/formatDate';
 
 interface InterviewSummary {
   id: string;
@@ -27,13 +28,11 @@ interface InterviewSummary {
 }
 
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso);
 }
 
 function fmtDatetime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
+  return formatDateTime(iso, {
     month: "short", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });

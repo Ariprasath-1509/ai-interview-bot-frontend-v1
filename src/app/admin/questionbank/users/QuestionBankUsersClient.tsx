@@ -6,6 +6,7 @@ import { Loader2, User, Shield, ShieldOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
+import { formatDate } from "@/lib/formatDate";
 
 interface UserProfile {
   id: string;
@@ -109,7 +110,7 @@ export default function QuestionBankUsersClient() {
           new Date(a.original.createdAt).getTime() - new Date(b.original.createdAt).getTime(),
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
-            {new Date(row.original.createdAt).toLocaleDateString()}
+            {formatDate(row.original.createdAt)}
           </span>
         ),
       },

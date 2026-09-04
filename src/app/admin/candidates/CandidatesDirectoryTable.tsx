@@ -8,6 +8,7 @@ import { FileText, Upload, Download, Sparkles, Eye, FileDown } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EnhancedDataTable } from "@/components/common/EnhancedDataTable";
+import { formatDate } from "@/lib/formatDate";
 import { entityBranchBadgeClass, entityBranchLabel, isStaffAdminRole } from "@/lib/staffRoles";
 import { useBranchOptions } from "@/hooks/useBranchOptions";
 import { useSkillSetOptions } from "@/hooks/useSkillSetOptions";
@@ -783,22 +784,8 @@ export function DeployedCandidatesTable({
       {
         accessorKey: "deployedDate",
         header: "Deployed Date",
-        accessorFn: (r) =>
-          r.deployedDate
-            ? new Date(r.deployedDate).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })
-            : "",
-        cell: ({ row }) =>
-          row.original.deployedDate
-            ? new Date(row.original.deployedDate).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })
-            : "—",
+        accessorFn: (r) => (r.deployedDate ? formatDate(r.deployedDate) : ""),
+        cell: ({ row }) => (row.original.deployedDate ? formatDate(row.original.deployedDate) : "—"),
       },
       { accessorKey: "mentor", header: "Mentor" },
       {

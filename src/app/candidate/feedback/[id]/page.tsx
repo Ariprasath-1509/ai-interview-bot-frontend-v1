@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
+import { formatDate } from "@/lib/formatDate";
 import { AssessmentBanners } from "@/app/interview/AssessmentBanners";
 import {
   buildAssessmentBanners,
@@ -159,9 +160,7 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
   const jdRes = await apiServer(`/interviews/jd/${interview.jdId}`, session.token).catch(() => null);
   const jdTitle = jdRes?.ok ? ((await jdRes.json()) as { title?: string }).title ?? "Interview" : "Interview";
 
-  const completedDate = interview.endedAt
-    ? new Date(interview.endedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : null;
+  const completedDate = interview.endedAt ? formatDate(interview.endedAt) : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
@@ -439,7 +438,7 @@ export default async function CandidateFeedbackPage({ params }: { params: Promis
                   </span>
                   {review.signedOffAt && (
                     <span className="text-xs text-zinc-400">
-                      {new Date(review.signedOffAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      {formatDate(review.signedOffAt)}
                     </span>
                   )}
                 </div>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatDateTime } from '@/lib/formatDate';
 
 interface Batch {
   id: string;
@@ -682,7 +683,7 @@ export function ScreeningHomeClient({ isManager }: { isManager: boolean }) {
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <span>{new Date(b.deadline).toLocaleString()}</span>
+                            <span>{formatDateTime(b.deadline)}</span>
                             {b.status === 'OPEN' && (
                               <button
                                 type="button"

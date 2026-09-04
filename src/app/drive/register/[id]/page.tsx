@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { formatDate } from '@/lib/formatDate';
 
 interface Drive {
   id: string;
@@ -165,7 +166,7 @@ export default function RegisterPage() {
             <div>
               <div className="text-zinc-500 dark:text-zinc-400">Deadline</div>
               <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                {new Date(drive.endDate).toLocaleDateString()}
+                {formatDate(drive.endDate)}
               </div>
             </div>
           </div>

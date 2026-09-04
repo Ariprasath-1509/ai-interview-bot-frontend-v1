@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatDateTime } from "@/lib/formatDate";
 import {
   Layers,
   Tag,
@@ -141,7 +142,7 @@ export default function QuestionBankDashboardClient() {
         </div>
         {stats.lastDigestDate && (
           <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
-            Last digest run: {new Date(stats.lastDigestDate).toLocaleString()}
+            Last digest run: {formatDateTime(stats.lastDigestDate)}
           </p>
         )}
       </div>

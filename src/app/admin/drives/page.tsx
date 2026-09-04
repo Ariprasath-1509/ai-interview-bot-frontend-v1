@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/formatDate';
 
 interface Drive {
   id: string;
@@ -148,8 +149,8 @@ export default function DrivesPage() {
                       {drive.batchName || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-900 dark:text-zinc-100">
-                      <div>{new Date(drive.startDate).toLocaleDateString()}</div>
-                      <div className="text-xs text-zinc-500">to {new Date(drive.endDate).toLocaleDateString()}</div>
+                      <div>{formatDate(drive.startDate)}</div>
+                      <div className="text-xs text-zinc-500">to {formatDate(drive.endDate)}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-900 dark:text-zinc-100">
                       {drive.totalPositions || '-'}

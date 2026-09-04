@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
+import { formatDate } from "@/lib/formatDate";
 import { AppShell } from "@/app/components/AppShell";
 import { Bell, CheckCircle, Clock, AlertTriangle, FileText } from "lucide-react";
 
@@ -69,7 +70,7 @@ function formatTime(iso: string) {
   const diff = now.getTime() - d.getTime();
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return formatDate(d, { month: "short", day: "numeric" });
 }
 
 export default async function NotificationsPage() {

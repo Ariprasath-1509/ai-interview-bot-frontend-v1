@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Calendar, Trash2, Users, X, Search, Pencil } from "lucide-react";
+import { formatDate } from "@/lib/formatDate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -344,7 +345,7 @@ export default function QuestionBankSessionsClient() {
                         </span>
                       </td>
                       <td className="p-3 text-muted-foreground">
-                        {session.interviewDate ? new Date(session.interviewDate).toLocaleDateString() : "-"}
+                        {session.interviewDate ? formatDate(session.interviewDate) : "-"}
                       </td>
                       <td className="p-3 text-muted-foreground">{session.interviewerName || "-"}</td>
                       <td className="p-3 text-center">
@@ -407,7 +408,7 @@ export default function QuestionBankSessionsClient() {
                 <div>
                   <span className="text-muted-foreground">Date</span>
                   <p className="font-medium">
-                    {detailSession.interviewDate ? new Date(detailSession.interviewDate).toLocaleDateString() : "—"}
+                    {detailSession.interviewDate ? formatDate(detailSession.interviewDate) : "—"}
                   </p>
                 </div>
                 <div>
