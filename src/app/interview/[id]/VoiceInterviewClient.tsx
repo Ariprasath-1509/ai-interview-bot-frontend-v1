@@ -482,6 +482,10 @@ export function VoiceInterviewClient({
         [`Exited fullscreen mode (${count} time${count === 1 ? "" : "s"})`],
         count >= 2 ? "hard" : "soft",
       );
+      // Ignore exits during the post-start grace window — the initial requestFullscreen()
+      // transition itself can briefly report as an "exit" before settling, which isn't the
+      // candidate leaving fullscreen.
+      if (Date.now() < sessionStartGraceUntilRef.current) return;
       if (strictLockdownEnabled && sessionActiveRef.current) {
         void abandonInterview(utterancesRef.current, "tab_switch_violation");
       }
@@ -796,6 +800,10 @@ export function VoiceInterviewClient({
   const botPromptIdxRef = useRef(initialSlot ?? 0);
   /** User wants an active interview session (Start … until Stop). */
   const sessionActiveRef = useRef(false);
+  /** Timestamp (ms) before which focus-loss events are ignored — absorbs the mic-permission
+   *  prompt and the fullscreen-entry transition at session start, both of which can fire a
+   *  spurious window blur that has nothing to do with the candidate switching tabs. */
+  const sessionStartGraceUntilRef = useRef(0);
   /** Recognition was stopped only so the bot can speak (do not flush / do not treat as user Stop). */
   const pausedForTtsRef = useRef(false);
   /** User clicked "Send answer" — wait for `onend` so the engine finalizes text before flush. */
@@ -2568,6 +2576,7 @@ export function VoiceInterviewClient({
       note: "Typed-only mode used. Voice continuity cannot be guaranteed.",
     });
     sessionActiveRef.current = true;
+    sessionStartGraceUntilRef.current = Date.now() + 2000;
     setSessionStarted(true);
     setProctorSessionActive(true);
     void fullscreen.requestFullscreen();
@@ -2689,6 +2698,7 @@ export function VoiceInterviewClient({
 
     void startSessionRecording();
     sessionActiveRef.current = true;
+    sessionStartGraceUntilRef.current = Date.now() + 2000;
     setSessionStarted(true);
     setProctorSessionActive(true);
     void fullscreen.requestFullscreen();
@@ -2838,6 +2848,10 @@ export function VoiceInterviewClient({
 
     const onFocusLossViolation = () => {
       if (!sessionActiveRef.current) return;
+      // Absorb the mic-permission prompt and the fullscreen-entry transition right at
+      // session start — both can fire a spurious blur/visibilitychange that has nothing
+      // to do with the candidate switching away.
+      if (Date.now() < sessionStartGraceUntilRef.current) return;
       // visibilitychange(hidden) and window blur usually fire together for the same
       // app-switch — dedupe within a tick so we don't double-count one switch.
       if (handledForThisSwitch) return;
@@ -2886,9 +2900,17 @@ export function VoiceInterviewClient({
       if (document.visibilityState === "hidden") onFocusLossViolation();
     };
     const onBlur = () => {
-      // Only a real app-switch signal when the tab isn't already accounted for via
-      // visibilitychange (e.g. multi-monitor setups where blur fires without hiding).
-      onFocusLossViolation();
+      // A bare window blur (no visibilitychange) can come from a native permission prompt,
+      // the fullscreen transition, devtools, or an in-page iframe grabbing focus — none of
+      // those are a real app-switch. Recheck after a short delay: if focus has returned, or
+      // the tab is now hidden (already handled by onHidden above), it wasn't a real switch.
+      // Only a sustained blur with the tab still visible is the multi-monitor "switched to
+      // another top-level window" case this is meant to catch.
+      window.setTimeout(() => {
+        if (!sessionActiveRef.current) return;
+        if (document.visibilityState === "hidden" || document.hasFocus()) return;
+        onFocusLossViolation();
+      }, 400);
     };
     const onPageHide = () => {
       silentEndBecauseUserLeftRef.current();

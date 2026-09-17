@@ -128,12 +128,6 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
       ? interview.proctoringMode
       : resolveProctoringMode(candidateSource);
 
-  // TEMPORARILY forced lenient (warn-then-terminate on 2nd tab switch, not immediate) —
-  // the admin toggle for this isn't reliably reaching candidate sessions yet (root cause
-  // still being diagnosed: /auth/proctoring-settings fetch failing or timing out from the
-  // frontend container). Revert to the settings-driven value below once that's fixed.
-  const strictLockdownEnabled = false;
-  /*
   let strictLockdownEnabled = true;
   const proctoringSettingsRes = await apiServer("/auth/proctoring-settings", session?.token).catch((err) => {
     console.warn("[proctoring-settings] fetch threw — defaulting strictLockdownEnabled=true", err);
@@ -152,7 +146,6 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
   } else if (proctoringSettingsRes) {
     console.warn("[proctoring-settings] non-ok response — defaulting strictLockdownEnabled=true", proctoringSettingsRes.status);
   }
-  */
 
   // Parse checkpoint for IN_PROGRESS interviews so we can resume from where the candidate left off
   let checkpoint: CheckpointData | null = null;
