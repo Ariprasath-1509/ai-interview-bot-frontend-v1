@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/common/Toast";
 import { formatDate as formatDateIST } from "@/lib/formatDate";
+import { uploadResumeForCandidate } from "@/lib/uploadResume";
 
 export interface InitialResume {
   filename: string | null;
@@ -130,26 +131,17 @@ export function ResumeUploadWidget({
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("resume", file);
+      const result = await uploadResumeForCandidate(candidateId, file);
 
-      const response = await fetch(`/api/candidates/${candidateId}/resume`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-
-      const result = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        toast((result?.error as string) || "Upload failed", "error");
+      if (!result.ok) {
+        toast(result.error || "Upload failed", "error");
         return;
       }
 
-      const summary = (result?.summary as string) || existingResume?.summary || null;
+      const summary = result.summary || existingResume?.summary || null;
 
       setExistingResume({
-        filename: (result?.filename as string) || file.name,
+        filename: result.filename || file.name,
         uploadedAt: new Date().toISOString(),
         summary,
       });
@@ -161,9 +153,6 @@ export function ResumeUploadWidget({
       }
       onUploadComplete?.();
       toast("Resume uploaded and processed successfully", "success");
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast("Upload failed", "error");
     } finally {
       setUploading(false);
     }
