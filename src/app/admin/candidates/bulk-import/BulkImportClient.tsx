@@ -51,6 +51,9 @@ interface ImportResult {
   errors: string[];
   sessionId: string;
   createdCandidates?: { rowNumber: number; candidateId: string }[];
+  /** Only present on failure (confirmBulkImport's catch paths) — the actual reason the whole
+   *  batch was rejected, e.g. a duplicate email on one row. `errors` stays empty in that case. */
+  error?: string;
 }
 
 interface ResumeUploadRowResult {
@@ -173,7 +176,7 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
       const result: ImportResult = await response.json();
 
       if (result.ok === false) {
-        setError((result.errors?.[0]) || 'Import failed');
+        setError(result.error || 'Import failed');
         return;
       }
 
@@ -238,11 +241,15 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
       }
     };
 
-    await Promise.all(
-      Array.from({ length: Math.min(RESUME_UPLOAD_CONCURRENCY, jobs.length) }, () => worker())
-    );
-
-    setUploadingResumes(false);
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(RESUME_UPLOAD_CONCURRENCY, jobs.length) }, () => worker())
+      );
+    } finally {
+      // uploadResumeForCandidate never throws (it catches its own errors), but guard anyway so an
+      // unexpected failure can't leave rows stuck showing "Uploading…" forever.
+      setUploadingResumes(false);
+    }
   };
 
   const handleDownloadCredentials = async () => {

@@ -25,10 +25,38 @@ export interface ResumeMatchResult {
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
-/** Pulls the first email-shaped token out of a filename, e.g. "john.doe@acme.com_resume.pdf". */
+/** Pulls the first email-shaped token out of a filename, e.g. "john.doe@acme.com_resume.pdf".
+ *  The extension is stripped first: the regex's domain part is greedy, so on "john@acme.com.pdf"
+ *  it would otherwise capture "john@acme.com.pdf" and never equal the row's "john@acme.com". */
 export function extractEmailFromFilename(filename: string): string | null {
-  const match = filename.match(EMAIL_REGEX);
+  const withoutExtension = filename.replace(/\.(pdf|docx?)$/i, "");
+  const match = withoutExtension.match(EMAIL_REGEX);
   return match ? match[0].toLowerCase() : null;
+}
+
+/**
+ * Every plausible address hidden in a filename, longest first. "_" and "-" are legal in an
+ * email's local part, so a filename prefix like "Resume_" gets absorbed into the extracted token
+ * ("resume_jane@acme.com") and is indistinguishable from part of the address without the roster.
+ * Callers keep the first candidate that is a real roster email, so shorter suffixes can only ever
+ * match an address that actually exists. Dots are deliberately NOT split points: "first.last" is
+ * the most common address shape, so splitting there would risk matching "john.doe@x.com" to a
+ * different person whose address is just "doe@x.com".
+ */
+export function emailCandidatesFromFilename(filename: string): string[] {
+  const token = extractEmailFromFilename(filename);
+  if (!token) return [];
+  const at = token.indexOf("@");
+  const local = token.slice(0, at);
+  const domain = token.slice(at);
+  const candidates = [token];
+  for (let i = 0; i < local.length; i++) {
+    if (local[i] === "_" || local[i] === "-") {
+      const rest = local.slice(i + 1);
+      if (rest) candidates.push(rest + domain);
+    }
+  }
+  return candidates;
 }
 
 /**
@@ -58,8 +86,11 @@ export function matchResumesToRows(
   const unmatchedFiles: File[] = [];
 
   for (const file of files) {
-    const email = extractEmailFromFilename(file.name);
-    const matchedRows = email ? rowsByEmail.get(email) : undefined;
+    let matchedRows: MatchableRow[] | undefined;
+    for (const candidate of emailCandidatesFromFilename(file.name)) {
+      matchedRows = rowsByEmail.get(candidate);
+      if (matchedRows && matchedRows.length > 0) break;
+    }
     if (!matchedRows || matchedRows.length === 0) {
       unmatchedFiles.push(file);
       continue;
@@ -87,5 +118,31 @@ export function matchResumesToRows(
     return { rowNumber: row.rowNumber, status: "none", file: null };
   });
 
-  return { rows: resultRows, unmatchedFiles };
+  // A file the admin has already assigned to a row is resolved — drop it from the pool so it can't
+  // be picked for a second row (which would attach one resume to two candidates) and so the
+  // "didn't auto-match" warning clears once everything has been assigned.
+  const keyOf = (f: File) => `${f.name}:${f.size}`;
+  const assignedKeys = new Set<string>();
+  manualAssignments?.forEach((f) => assignedKeys.add(keyOf(f)));
+
+  // Resolving a conflict by picking one file frees the row's other candidate file(s) — return them
+  // to the pool so they can be assigned elsewhere instead of silently dropping out.
+  const pool = [...unmatchedFiles];
+  for (const row of rows) {
+    const picked = manualAssignments?.get(row.rowNumber);
+    const candidates = filesByRow.get(row.rowNumber) ?? [];
+    if (picked && candidates.length > 1) {
+      for (const c of candidates) if (keyOf(c) !== keyOf(picked)) pool.push(c);
+    }
+  }
+
+  const seen = new Set<string>();
+  const remainingUnmatched = pool.filter((f) => {
+    const k = keyOf(f);
+    if (assignedKeys.has(k) || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  return { rows: resultRows, unmatchedFiles: remainingUnmatched };
 }
