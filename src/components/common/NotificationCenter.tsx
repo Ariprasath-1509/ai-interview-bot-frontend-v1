@@ -132,17 +132,17 @@ export function NotificationCenter() {
 
   return (
     <div className="relative">
-      {/* Bell Icon — white on the purple topbar, matching the other nav controls */}
+      {/* Bell Icon — theme-aware, matching the other header controls */}
       <button
         ref={triggerRef}
         type="button"
         onClick={toggleOpen}
         aria-label="Notifications"
-        className="relative rounded-lg p-2 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+        className="relative rounded-lg p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-[#5B2D8E]">
+          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-[var(--surface)]">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

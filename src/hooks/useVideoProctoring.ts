@@ -17,7 +17,7 @@ import {
   syncProctoringEvents,
   uploadProctoringSnapshot,
 } from "@/lib/proctoring/sync";
-import { DEFAULT_DETECTION_CONFIG, MONITORING_GRACE_PERIOD_MS, SOFT_STRIKE_COOLDOWN_MS, STRIKE_LIMITS, TERMINATABLE_VIOLATIONS } from "@/lib/proctoring/thresholds";
+import { DEFAULT_DETECTION_CONFIG, MONITORING_GRACE_PERIOD_MS, SOFT_STRIKE_COOLDOWN_MS, STRIKE_LIMITS, SUSTAINED_VIOLATION_RESTRIKE_MS, TERMINATABLE_VIOLATIONS } from "@/lib/proctoring/thresholds";
 import type {
   BlazeFaceModel,
   CocoModel,
@@ -80,7 +80,6 @@ function strikeLevel(
   const terminatable = TERMINATABLE_VIOLATIONS.has(eventType);
   if (terminatable && strikes >= limits.terminate) return "paused";
   if (strikes >= limits.pause) return "warning";
-  if (strikes >= 1) return "warning";
   return "none";
 }
 
@@ -119,6 +118,9 @@ export function useVideoProctoring({
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSnapshotAtRef = useRef<Record<string, number>>({});
   const lastSoftStrikeAtRef = useRef<Partial<Record<ProctorEventType, number>>>({});
+  /** Last time a strike was actually counted for a given type — drives sustained-violation
+   *  re-striking in recordEvent (see SUSTAINED_VIOLATION_RESTRIKE_MS). */
+  const lastStrikeAtRef = useRef<Partial<Record<ProctorEventType, number>>>({});
   const monitoringStartedAtRef = useRef<number | null>(null);
   const requestInFlightRef = useRef(false);
 
@@ -202,8 +204,16 @@ export function useVideoProctoring({
       lastReasonsRef.current = reasons;
 
       const isNewEpisode = !activeViolationsRef.current.has(type);
+      // A sustained violation (e.g. a phone held up the whole interview) never returns
+      // "clear" from the frame-detection loop, so isNewEpisode alone would cap it at one
+      // strike forever. Let terminatable types keep re-striking on a timer while they stay
+      // active, so genuine sustained violations can still reach the terminate threshold.
+      const sustainedRestrike =
+        !isNewEpisode &&
+        TERMINATABLE_VIOLATIONS.has(type) &&
+        Date.now() - (lastStrikeAtRef.current[type] ?? 0) >= SUSTAINED_VIOLATION_RESTRIKE_MS;
       let countStrike = false;
-      if (isNewEpisode) {
+      if (isNewEpisode || sustainedRestrike) {
         activeViolationsRef.current.add(type);
 
         countStrike = true;
@@ -229,6 +239,7 @@ export function useVideoProctoring({
             ...strikesRef.current,
             [type]: (strikesRef.current[type] || 0) + 1,
           };
+          lastStrikeAtRef.current[type] = Date.now();
         }
       }
 
@@ -247,7 +258,7 @@ export function useVideoProctoring({
         integrityScore,
       });
 
-      if (isNewEpisode && countStrike) {
+      if ((isNewEpisode || sustainedRestrike) && countStrike) {
         scheduleSync();
         void maybeCaptureSnapshot(type, severity);
       }
@@ -464,6 +475,12 @@ export function useVideoProctoring({
     }
 
     requestInFlightRef.current = true;
+    // A double-click (or a retry after a model-load failure) can re-enter this function
+    // while a previous stream is still live — release it first so its tracks don't leak.
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
     setCameraError(null);
     setLoadingMessage("Requesting camera access…");
     updateSnapshot({
