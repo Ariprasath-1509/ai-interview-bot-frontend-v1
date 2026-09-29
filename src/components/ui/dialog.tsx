@@ -1,5 +1,8 @@
 import * as React from "react"
-import { cn } from "@/lib/utils"
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+const cn = (...inputs: any[]) => twMerge(clsx(inputs))
 
 interface DialogProps {
   open?: boolean
@@ -16,16 +19,25 @@ const DialogContext = React.createContext<DialogContextType | undefined>(undefin
 
 const Dialog: React.FC<DialogProps> = ({ open = false, onOpenChange, children }) => {
   const [isOpen, setIsOpen] = React.useState(open)
-  
+
   React.useEffect(() => {
     setIsOpen(open)
   }, [open])
-  
+
+  React.useEffect(() => {
+    if (!isOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [isOpen])
+
   const handleOpenChange = (newOpen: boolean) => {
     setIsOpen(newOpen)
     onOpenChange?.(newOpen)
   }
-  
+
   return (
     <DialogContext.Provider value={{ open: isOpen, onOpenChange: handleOpenChange }}>
       {children}
@@ -36,44 +48,55 @@ const Dialog: React.FC<DialogProps> = ({ open = false, onOpenChange, children })
 const DialogTrigger: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const context = React.useContext(DialogContext)
   if (!context) throw new Error("DialogTrigger must be used within Dialog")
-  
-  return (
-    <div onClick={() => context.onOpenChange(true)}>
-      {children}
-    </div>
-  )
+
+  return <div onClick={() => context.onOpenChange(true)}>{children}</div>
 }
 
-const DialogContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => {
+const DialogContent: React.FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className,
+}) => {
   const context = React.useContext(DialogContext)
   if (!context) throw new Error("DialogContent must be used within Dialog")
-  
+
   const { open, onOpenChange } = context
+  const ref = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     if (!open) return
+
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault()
         onOpenChange(false)
       }
     }
+
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [open, onOpenChange])
 
   if (!open) return null
-  
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Overlay */}
       <div
-        className="fixed inset-0 bg-zinc-900/25 backdrop-blur-[2px] dark:bg-black/40"
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
+
+      {/* Modal */}
       <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
         className={cn(
-          "relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95",
+          "relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto",
+          "rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]",
+          "p-6 shadow-lg transition-all duration-150",
+          "animate-in fade-in zoom-in-95",
           className
         )}
       >
@@ -83,14 +106,25 @@ const DialogContent: React.FC<{ children: React.ReactNode; className?: string }>
   )
 }
 
-const DialogHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
-  <div className={`flex flex-col space-y-1.5 text-center sm:text-left p-6 pb-0 ${className}`}>
+const DialogHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className,
+}) => (
+  <div className={cn("flex flex-col space-y-1.5 pb-4 text-center sm:text-left", className)}>
     {children}
   </div>
 )
 
-const DialogTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
-  <h2 className={`text-lg font-semibold leading-none tracking-tight ${className}`}>
+const DialogTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className,
+}) => (
+  <h2
+    className={cn(
+      "text-lg font-semibold leading-tight tracking-tight text-[var(--text-primary)]",
+      className
+    )}
+  >
     {children}
   </h2>
 )

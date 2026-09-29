@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useRef, useMemo, type ComponentType } from "react";
-import { createPortal } from "react-dom";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { useState, useEffect, useMemo, useRef, type ComponentType } from "react";
+import { Menu, X, ChevronLeft, ChevronDown } from "lucide-react";
 import { LogoutButton } from "@/app/components/LogoutButton";
 import { NotificationCenter } from "@/components/common/NotificationCenter";
 import { entityBranchBadgeClass, entityBranchLabel } from "@/lib/staffRoles";
@@ -12,80 +11,78 @@ import type { SidebarItem } from "@/config/roleConfig";
 import * as LucideIcons from "lucide-react";
 import { TourRunner } from "@/components/tour/TourRunner";
 import { TourButton } from "@/components/tour/TourButton";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+const cn = (...inputs: any[]) => twMerge(clsx(inputs));
+
+let globalSidebarScrollPos = 0;
 
 const NAV_GROUP_LABEL: Record<string, string> = {
   candidates: "Candidates",
-  clients:    "Clients",
-  masterData: "Data",
-  admin:      "Admin",
+  clients: "Clients",
+  masterData: "Master Data",
+  admin: "Admin",
 };
 
-/* Items shown directly in the topbar as standalone links. */
-const TOP_HREFS = new Set([
-  "/admin",
-  "/admin/interviews/create",
-  "/admin/review",
-  "/admin/screening",
-  "/admin/candidates",
-  "/admin/clients",
-  "/admin/recruiter-bot",
-  "/admin/calendar",
-  "/candidate/dashboard",
-  "/candidate/profile",
-  "/candidate/resume",
-  "/candidate/notifications",
-  "/talent",
-  "/talent/questions",
-  "/talent/rubrics",
-  "/engineer",
-  "/dashboard",
-]);
+type NavChunk =
+  | { type: "flat"; items: SidebarItem[] }
+  | { type: "group"; id: string; label: string; items: SidebarItem[] };
 
-/* Items displayed near the user avatar rather than inline nav. */
-const USER_AREA_HREFS = new Set([
-  "/admin/profile",
-]);
+function chunkSidebarNav(items: SidebarItem[]): NavChunk[] {
+  const chunks: NavChunk[] = [];
+  let flat: SidebarItem[] = [];
+  let groupId: string | null = null;
+  let groupItems: SidebarItem[] = [];
 
-const getIcon = (iconName: string) => {
-  const Ic = (LucideIcons as unknown as Record<string, ComponentType<{ size?: number; className?: string }>>)[iconName];
-  return Ic ?? LucideIcons.Circle;
-};
-
-type NavGroup = { id: string; label: string; items: SidebarItem[] };
-
-function buildNav(items: SidebarItem[]) {
-  const primary: SidebarItem[] = [];
-  const groupMap = new Map<string, NavGroup>();
-  const groupOrder: string[] = [];
-  const overflow: SidebarItem[] = [];
+  const flushFlat = () => {
+    if (flat.length) {
+      chunks.push({ type: "flat", items: [...flat] });
+      flat = [];
+    }
+  };
+  const flushGroup = () => {
+    if (groupId && groupItems.length) {
+      chunks.push({
+        type: "group",
+        id: groupId,
+        label: NAV_GROUP_LABEL[groupId] ?? groupId,
+        items: [...groupItems],
+      });
+      groupItems = [];
+      groupId = null;
+    }
+  };
 
   for (const item of items) {
-    if (USER_AREA_HREFS.has(item.href)) continue;
-
-    if (item.navGroup) {
-      if (!groupMap.has(item.navGroup)) {
-        groupOrder.push(item.navGroup);
-        groupMap.set(item.navGroup, {
-          id: item.navGroup,
-          label: NAV_GROUP_LABEL[item.navGroup] ?? item.navGroup,
-          items: [],
-        });
-      }
-      groupMap.get(item.navGroup)!.items.push(item);
-    } else if (TOP_HREFS.has(item.href)) {
-      primary.push(item);
+    const g = item.navGroup;
+    if (!g) {
+      flushGroup();
+      flat.push(item);
     } else {
-      overflow.push(item);
+      flushFlat();
+      if (groupId !== g) {
+        flushGroup();
+        groupId = g;
+      }
+      groupItems.push(item);
     }
   }
-
-  const groups = groupOrder.map((id) => groupMap.get(id)!);
-  return { primary, groups, overflow };
+  flushFlat();
+  flushGroup();
+  return chunks;
 }
 
-const TOPBAR_BG = "#5B2D8E";
+const iconCache = new Map<string, ComponentType<{ size?: number; className?: string }>>();
 
-type PanelPos = { top: number; left?: number; right?: number };
+const getIcon = (iconName: string) => {
+  if (iconCache.has(iconName)) return iconCache.get(iconName)!;
+  const IconComponent = (
+    LucideIcons as unknown as Record<string, ComponentType<{ size?: number; className?: string }>>
+  )[iconName] || LucideIcons.Circle;
+  iconCache.set(iconName, IconComponent);
+  return IconComponent;
+};
 
 export function SidebarLayout({
   title,
@@ -104,317 +101,273 @@ export function SidebarLayout({
   role?: string;
   branch?: string;
 }) {
-  const currentPathname = usePathname();
-  const [pathname, setPathname] = useState("/");
+  const pathname = usePathname() || "/";
+  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const headerRef = useRef<HTMLElement>(null);
-  const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const panelRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    candidates: true,
+    clients: true,
+    masterData: true,
+  });
 
   useEffect(() => {
-    setMounted(true);
+    const t = window.setTimeout(() => {
+      try {
+        setOpenGroups((prev) => {
+          const next = { ...prev };
+          for (const id of Object.keys(next)) {
+            const v = localStorage.getItem(`navgrp-${id}`);
+            if (v !== null) next[id] = v === "1";
+          }
+          return next;
+        });
+      } catch {}
+    }, 0);
+    return () => window.clearTimeout(t);
   }, []);
 
   useEffect(() => {
-    if (currentPathname) setPathname(currentPathname);
-  }, [currentPathname]);
-
-  const closeDropdown = () => {
-    setOpenDropdown(null);
-    setPanelPos(null);
-  };
-
-  const toggleDropdown = (id: string, align: "left" | "right" = "left") => {
-    if (openDropdown === id) {
-      closeDropdown();
-      return;
-    }
-    const trigger = triggerRefs.current[id];
-    if (trigger) {
-      const rect = trigger.getBoundingClientRect();
-      setPanelPos(
-        align === "right"
-          ? { top: rect.bottom + 6, right: window.innerWidth - rect.right }
-          : { top: rect.bottom + 6, left: rect.left }
-      );
-    }
-    setOpenDropdown(id);
-  };
-
-  useEffect(() => {
-    if (!openDropdown) return;
-
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const insideTrigger = headerRef.current?.contains(target);
-      const insidePanel = panelRef.current?.contains(target);
-      if (!insideTrigger && !insidePanel) closeDropdown();
+    const restoreScroll = () => {
+      if (navRef.current) {
+        try {
+          const stored = sessionStorage.getItem("sidebarScrollPos");
+          const pos = stored !== null ? parseInt(stored, 10) : globalSidebarScrollPos;
+          if (!isNaN(pos) && pos > 0) {
+            navRef.current.scrollTop = pos;
+          }
+        } catch {
+          if (globalSidebarScrollPos > 0) {
+            navRef.current.scrollTop = globalSidebarScrollPos;
+          }
+        }
+      }
     };
-    const handleScrollOrResize = () => closeDropdown();
 
-    document.addEventListener("mousedown", handleClick);
-    window.addEventListener("resize", handleScrollOrResize);
-    window.addEventListener("scroll", handleScrollOrResize, true);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      window.removeEventListener("resize", handleScrollOrResize);
-      window.removeEventListener("scroll", handleScrollOrResize, true);
-    };
-  }, [openDropdown]);
-
-  useEffect(() => {
-    setMobileOpen(false);
-    closeDropdown();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    restoreScroll();
+    const timer = setTimeout(restoreScroll, 50);
+    return () => clearTimeout(timer);
   }, [pathname]);
 
-  const { primary, groups, overflow } = useMemo(() => buildNav(items), [items]);
+  const handleNavScroll = (e: React.UIEvent<HTMLElement>) => {
+    const pos = e.currentTarget.scrollTop;
+    globalSidebarScrollPos = pos;
+    try {
+      sessionStorage.setItem("sidebarScrollPos", String(pos));
+    } catch {}
+  };
+
+  const navChunks = useMemo(() => chunkSidebarNav(items), [items]);
 
   const isActive = (href: string) => {
     if (pathname === href) return true;
     if (href === "/admin/review" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) return true;
+    if (href === "/admin") {
+      if (/^\/admin\/interviews\/[^/]+\/review/.test(pathname)) return false;
+      return pathname === "/admin";
+    }
+
     if (pathname.startsWith(href + "/") || pathname.startsWith(href + "?")) {
-      if (href === "/admin" && /^\/admin\/interviews\/[^/]+\/review/.test(pathname)) return false;
-      const hasSpecific = items.some(
+      const hasMoreSpecificMatch = items.some(
         (item) =>
           item.href !== href &&
           item.href.startsWith(href) &&
-          (pathname === item.href || pathname.startsWith(item.href + "/") || pathname.startsWith(item.href + "?"))
+          (pathname === item.href ||
+            pathname.startsWith(item.href + "/") ||
+            pathname.startsWith(item.href + "?"))
       );
-      return !hasSpecific;
+      return !hasMoreSpecificMatch;
     }
+
     return false;
   };
 
-  const isGroupActive = (groupItems: SidebarItem[]) => groupItems.some((item) => isActive(item.href));
+  const toggleNavGroup = (id: string) => {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem(`navgrp-${id}`, next[id] ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  };
 
-  const linkCls = (active: boolean) =>
-    `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 ${
-      active
-        ? "bg-white/20 text-white font-semibold"
-        : "text-white/75 hover:text-white hover:bg-white/12"
-    }`;
-
-  const dropdownTriggerCls = (active: boolean) =>
-    `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 ${
-      active
-        ? "bg-white/20 text-white font-semibold"
-        : "text-white/75 hover:text-white hover:bg-white/12"
-    }`;
-
-  const renderLink = (item: SidebarItem) => {
+  const renderNavLink = (item: SidebarItem) => {
     const Icon = getIcon(item.icon);
+    const active = isActive(item.href);
+
     return (
-      <Link key={item.href} href={item.href} className={linkCls(isActive(item.href))}>
-        <Icon size={15} className="shrink-0" />
-        <span>{item.label}</span>
+      <Link
+        key={item.href}
+        href={item.href}
+        scroll={false}
+        title={collapsed ? item.label : undefined}
+        onClick={() => {
+          if (mobileOpen) setMobileOpen(false);
+          if (navRef.current) {
+            const pos = navRef.current.scrollTop;
+            globalSidebarScrollPos = pos;
+            try {
+              sessionStorage.setItem("sidebarScrollPos", String(pos));
+            } catch {}
+          }
+        }}
+        className={cn(
+          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 cursor-pointer active:scale-[0.98] focus:outline-none border",
+          active
+            ? "bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] text-white font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_10px_rgba(42,0,53,0.4)] border-purple-300/30"
+            : "border-transparent text-[var(--text-secondary)] hover:text-white hover:bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_10px_rgba(42,0,53,0.4)] hover:border-purple-300/30",
+          collapsed && "justify-center px-2"
+        )}
+      >
+        <Icon className={cn("h-4 w-4 shrink-0 transition-transform duration-150 group-hover:scale-110", active ? "text-white" : "group-hover:text-white")} />
+        {!collapsed && <span>{item.label}</span>}
       </Link>
     );
   };
 
-  const renderDropdownTrigger = (id: string, label: string, dropItems: SidebarItem[], triggerIcon?: string) => {
-    const active = isGroupActive(dropItems);
-    const open = openDropdown === id;
-    const TriggerIcon = triggerIcon ? getIcon(triggerIcon) : (getIcon(dropItems[0]?.icon ?? "MoreHorizontal"));
-    return (
-      <button
-        key={id}
-        type="button"
-        ref={(el) => { triggerRefs.current[id] = el; }}
-        onClick={() => toggleDropdown(id)}
-        className={dropdownTriggerCls(active)}
-      >
-        <TriggerIcon size={15} className="shrink-0" />
-        <span>{label}</span>
-        <ChevronDown size={12} className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
-      </button>
-    );
-  };
 
-  const renderDropdownPanel = (id: string, dropItems: SidebarItem[]) => {
-    if (openDropdown !== id || !panelPos || !mounted) return null;
-    return createPortal(
-      <div
-        ref={panelRef}
-        className="fixed z-[100] min-w-[192px] rounded-xl border border-zinc-200 dark:border-[#2e224e] bg-white dark:bg-[#17112b] shadow-lg py-1.5 animate-dropdown"
-        style={{ top: panelPos.top, left: panelPos.left, right: panelPos.right }}
-      >
-        {dropItems.map((item) => {
-          const ItemIcon = getIcon(item.icon);
-          const a = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={closeDropdown}
-              className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
-                a
-                  ? "bg-purple-50 dark:bg-purple-950/30 text-purple-800 dark:text-purple-300 font-semibold"
-                  : "text-zinc-700 dark:text-[#c4b8d8] hover:bg-purple-50/70 dark:hover:bg-purple-950/20 hover:text-purple-800 dark:hover:text-purple-300"
-              }`}
-            >
-              <ItemIcon size={15} className={`shrink-0 ${a ? "text-purple-600 dark:text-purple-400" : "text-zinc-400 dark:text-[#6e5f8a]"}`} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>,
-      document.body
-    );
-  };
+  const userInitial = username ? username.charAt(0).toUpperCase() : "U";
 
-  /* User avatar dropdown */
-  const renderUserMenu = () => {
-    if (!username) return null;
-    const open = openDropdown === "__user__";
-    const initial = username.charAt(0).toUpperCase();
-    return (
-      <>
-        <button
-          type="button"
-          ref={(el) => { triggerRefs.current.__user__ = el; }}
-          onClick={() => toggleDropdown("__user__", "right")}
-          className="flex items-center gap-2 rounded-full bg-white/15 pl-1.5 pr-3 py-1 text-white hover:bg-white/25 transition-colors"
-        >
-          <div className="h-7 w-7 rounded-full bg-white/30 flex items-center justify-center text-[12px] font-bold text-white">
-            {initial}
-          </div>
-          <span className="hidden sm:block text-xs font-medium">{username}</span>
-          <ChevronDown size={12} className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
-        </button>
-        {open && panelPos && mounted && createPortal(
-          <div
-            ref={panelRef}
-            className="fixed z-[100] min-w-[210px] rounded-xl border border-zinc-200 dark:border-[#2e224e] bg-white dark:bg-[#17112b] shadow-lg py-1.5 animate-dropdown"
-            style={{ top: panelPos.top, left: panelPos.left, right: panelPos.right }}
-          >
-            <div className="px-4 py-3 border-b border-zinc-100 dark:border-[#2e224e]">
-              <div className="text-sm font-semibold text-zinc-900 dark:text-[#ede8f5]">{username}</div>
-              <div className="text-xs text-zinc-500 dark:text-[#9585b3] mt-0.5">{role}</div>
-              {branch && (
-                <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${entityBranchBadgeClass(branch)}`}>
-                  {entityBranchLabel(branch)}
-                </span>
-              )}
-            </div>
-            {/* Profile link if exists */}
-            {items.find((i) => USER_AREA_HREFS.has(i.href)) && (
-              <Link
-                href="/admin/profile"
-                onClick={closeDropdown}
-                className="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-[#c4b8d8] hover:bg-purple-50/70 dark:hover:bg-purple-950/20 hover:text-purple-800 dark:hover:text-purple-300 transition-colors"
-              >
-                <LucideIcons.User size={15} className="shrink-0 text-zinc-400 dark:text-[#6e5f8a]" />
-                Profile
-              </Link>
-            )}
-            <div className="px-3 py-1.5">
-              <LogoutButton />
-            </div>
-          </div>,
-          document.body
+  const sidebarContent = (
+    <div className="flex h-full flex-col backdrop-blur-md">
+      {/* Header / Logo */}
+      <div className="flex h-14 items-center justify-between border-b border-[var(--border)] px-4">
+        {!collapsed && (
+          <Link href="/" scroll={false} className="flex items-center gap-2 text-sm font-extrabold tracking-tight text-[var(--color-primary)] cursor-pointer hover:opacity-90 transition-opacity">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm text-xs font-bold">
+              BR
+            </span>
+            <span>Bench Readiness</span>
+          </Link>
         )}
-      </>
-    );
-  };
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden lg:flex cursor-pointer p-1.5 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] transition-all duration-150"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <ChevronLeft size={16} className={cn("transition-transform duration-200 ease-in-out", collapsed && "rotate-180")} />
+        </button>
+      </div>
 
-  return (
-    <div className="app-shell flex flex-col">
-      <TourRunner role={role ?? ""} />
+      {/* Nav items */}
+      <nav ref={navRef} onScroll={handleNavScroll} className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+        {navChunks.map((chunk) => {
+          if (chunk.type === "flat") {
+            return chunk.items.map(renderNavLink);
+          }
 
-      {/* ── Top navigation bar ──────────────────────────────────────── */}
-      <header
-        ref={headerRef}
-        className="relative z-30 flex h-14 shrink-0 items-center justify-between px-4 sm:px-6 shadow-md"
-        style={{ background: TOPBAR_BG }}
-      >
-        {/* Logo */}
-        <Link href="/" className="shrink-0 mr-4 text-base font-extrabold tracking-tight text-white hover:opacity-90 transition-opacity">
-          Bench Readiness
-        </Link>
+          const open = openGroups[chunk.id] ?? true;
 
-        {/* Desktop nav items */}
-        <nav className="hidden lg:flex flex-1 items-center gap-0.5 overflow-x-auto min-w-0">
-          {primary.map((item) => renderLink(item))}
-          {groups.map((g) => renderDropdownTrigger(g.id, g.label, g.items))}
-          {overflow.length > 0 && renderDropdownTrigger("__more__", "More", overflow, "MoreHorizontal")}
-        </nav>
+          return (
+            <div key={chunk.id} className="space-y-0.5">
+              {!collapsed ? (
+                <button
+                  type="button"
+                  onClick={() => toggleNavGroup(chunk.id)}
+                  className="flex w-full items-center justify-between px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                >
+                  <span>{chunk.label}</span>
+                  <ChevronDown
+                    size={13}
+                    className={cn("transition-transform duration-150 shrink-0 opacity-70", open ? "rotate-0" : "-rotate-90")}
+                  />
+                </button>
+              ) : null}
 
-        {/* Right side: notifications, tour, user */}
-        <div className="flex items-center gap-2 shrink-0 ml-4">
-          <span className="text-white" data-tour="notification-bell">
-            <NotificationCenter />
-          </span>
-          <TourButton role={role ?? ""} />
-          <div className="hidden lg:block">
-            {renderUserMenu()}
-          </div>
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="rounded-md p-1.5 text-white/80 hover:bg-white/15 hover:text-white lg:hidden transition-colors"
-            aria-label="Toggle menu"
-          >
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-      </header>
-
-      {/* Portal-rendered dropdown panels (escape header/nav overflow clipping) */}
-      {groups.map((g) => renderDropdownPanel(g.id, g.items))}
-      {overflow.length > 0 && renderDropdownPanel("__more__", overflow)}
-
-      {/* ── Mobile nav slide-down ────────────────────────────────────── */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-20 lg:hidden" style={{ top: "56px" }}>
-          <div className="absolute inset-0 bg-black/25" onClick={() => setMobileOpen(false)} />
-          <div className="relative bg-white dark:bg-[#17112b] shadow-xl max-h-[75vh] overflow-y-auto">
-            <nav className="flex flex-col p-2 gap-0.5">
-              {items.map((item) => {
-                const Icon = getIcon(item.icon);
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                      active
-                        ? "bg-purple-50 dark:bg-purple-950/30 text-purple-800 dark:text-purple-300 font-semibold"
-                        : "text-zinc-700 dark:text-[#c4b8d8] hover:bg-purple-50/60 dark:hover:bg-purple-950/20 hover:text-purple-700 dark:hover:text-purple-300"
-                    }`}
-                  >
-                    <Icon size={16} className="shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-            <div className="border-t border-zinc-100 dark:border-[#2e224e] px-4 py-3">
-              {username && (
-                <div className="mb-2 text-xs text-zinc-500 dark:text-[#9585b3]">
-                  <span className="font-semibold text-zinc-700 dark:text-[#c4b8d8]">{username}</span>{" "}
-                  <span>· {role}</span>
-                  {branch && (
-                    <span className={`ml-1.5 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${entityBranchBadgeClass(branch)}`}>
-                      {entityBranchLabel(branch)}
-                    </span>
-                  )}
+              {(collapsed || open) && (
+                <div className={cn("space-y-0.5 transition-all duration-150", !collapsed && "pl-0.5")}>
+                  {chunk.items.map(renderNavLink)}
                 </div>
               )}
-              <LogoutButton />
+            </div>
+          );
+        })}
+      </nav>
+
+      {/* User profile card */}
+      <div className="border-t border-[var(--border)] p-3">
+        {!collapsed && username && (
+          <div className="mb-2.5 flex items-center gap-2.5 rounded-lg p-2 bg-[var(--surface-subtle)] border border-[var(--border)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold text-xs shadow-sm">
+              {userInitial}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-[var(--text-primary)]">{username}</p>
+              <div className="flex items-center gap-1">
+                <span className="truncate text-[10px] text-[var(--text-secondary)]">{role}</span>
+                {branch && (
+                  <span className={cn("rounded-full px-1.5 py-0.2 text-[9px] font-medium shrink-0", entityBranchBadgeClass(branch))}>
+                    {entityBranchLabel(branch)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
+        )}
+        <LogoutButton />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex h-screen bg-[var(--background)] text-[var(--text-primary)]">
+      <TourRunner role={role ?? ""} />
+
+      {/* Desktop Sidebar */}
+      <aside
+        data-tour="sidebar"
+        className={cn(
+          "hidden lg:flex flex-col border-r border-[var(--border)] bg-[var(--surface)] shadow-sm transition-all duration-150 ease-in-out",
+          collapsed ? "w-16" : "w-64"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Drawer Overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity cursor-pointer" onClick={() => setMobileOpen(false)} />
+          <aside className="relative w-64 h-full bg-[var(--surface)] shadow-2xl border-r border-[var(--border)]">
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute right-3 top-4 rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+            {sidebarContent}
+          </aside>
         </div>
       )}
 
-      {/* ── Page content ─────────────────────────────────────────────── */}
-      <main className="app-main-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-4 sm:p-6 w-full min-w-0 max-w-full">
-        <div className="page-content min-w-0">{children}</div>
-      </main>
+      {/* Main Content Viewport */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 sm:px-6 shadow-sm z-20">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="lg:hidden p-1.5 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <h1 className="text-base font-semibold text-[var(--text-primary)] sm:text-lg">{title}</h1>
+              {subtitle && <p className="hidden text-xs text-[var(--text-secondary)] sm:block">{subtitle}</p>}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span data-tour="notification-bell">
+              <NotificationCenter />
+            </span>
+            <TourButton role={role ?? ""} />
+          </div>
+        </header>
+
+        <main className="app-main-scroll flex-1 overflow-y-auto p-6">
+          <div className="mx-auto max-w-7xl space-y-6">{children}</div>
+        </main>
+      </div>
     </div>
   );
-}
+}

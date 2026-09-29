@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
-const inputCls = "input-base";
+const inputCls =
+  "w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#5C0062] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#5C0062] transition-colors";
 
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState<"email" | "otp">("email");
@@ -88,26 +89,49 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-zinc-50 px-4 py-8 dark:bg-[#050505] sm:px-6">
-      {/* Background glow effects */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/10 blur-[100px] dark:bg-emerald-600/15" />
-      <div className="pointer-events-none absolute right-0 top-0 -z-10 h-[400px] w-[400px] -translate-y-1/4 translate-x-1/4 rounded-full bg-sky-500/10 blur-[100px] dark:bg-sky-600/15" />
-      <div className="pointer-events-none absolute bottom-0 left-0 -z-10 h-[400px] w-[400px] -translate-x-1/4 translate-y-1/4 rounded-full bg-purple-500/10 blur-[100px] dark:bg-purple-600/15" />
+  const btnCls =
+    "mt-2 w-full rounded-full bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] px-4 py-2.5 text-sm font-bold text-white shadow-md transition-all duration-150 hover:opacity-90 disabled:opacity-50 cursor-pointer active:scale-[0.98]";
 
-      <main className="z-10 w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Reset Password</h1>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            {step === "email" ? "Enter your email to receive an OTP" : "Enter the OTP sent to your email"}
+  return (
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#15001c] px-6 py-12 lg:px-16">
+
+      <main className="z-10 flex w-full max-w-6xl flex-col items-center justify-between gap-12 lg:flex-row lg:items-center">
+        {/* Left Side: White Heading & Hero Text */}
+        <div className="flex flex-col justify-center space-y-5 max-w-lg text-left">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] text-white font-black text-sm border border-white/20 shadow-md">
+              BR
+            </div>
+            <span className="text-2xl font-black tracking-tight text-white">BENCH READINESS</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight !text-white uppercase leading-tight" style={{ color: "#ffffff" }}>
+            RECOVER ACCOUNT. AMPLIFY QUALITY.
+          </h1>
+
+          <p className="text-sm text-purple-100/90 leading-relaxed font-normal">
+            Forgot your password? Enter your registered email address to receive a secure OTP and reset your credentials.
+          </p>
+
+          <p className="text-base font-extrabold text-white">
+            Get. Set. Bench Readiness!
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
+        {/* Right Side: Reset Password Card */}
+        <div className="w-full max-w-sm shrink-0 rounded-2xl border border-white/20 bg-white p-8 shadow-2xl shadow-purple-950/40 text-zinc-900">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-extrabold text-zinc-900">Reset Password</h2>
+            <p className="mt-1 text-xs text-zinc-500 font-medium">
+              {step === "email" ? "Enter your email to receive an OTP" : "Enter the OTP sent to your email"}
+            </p>
+            <div className="w-8 h-1 bg-[#5C0062] rounded-full mx-auto mt-2" />
+          </div>
+
           {step === "email" ? (
             <div className="grid gap-3">
-              <label className="grid gap-1.5 text-sm font-medium">
-                Email
+              <label className="grid gap-1.5 text-xs font-semibold text-zinc-700">
+                <span className="flex items-center gap-1"><span className="text-red-500">*</span> Email</span>
                 <input
                   className={inputCls}
                   type="email"
@@ -119,19 +143,19 @@ export default function ForgotPasswordPage() {
               </label>
 
               {error && (
-                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                   {error}
                 </p>
               )}
 
               {success && (
-                <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-400">
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 font-semibold">
                   {success}
                 </p>
               )}
 
               <button
-                className="mt-1 w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-opacity duration-200 hover:opacity-80 disabled:opacity-50"
+                className={btnCls}
                 type="button"
                 onClick={handleRequestOtp}
                 disabled={loading || !email}
@@ -139,17 +163,17 @@ export default function ForgotPasswordPage() {
                 {loading ? "Sending..." : "Send OTP"}
               </button>
 
-              <p className="text-center text-sm text-zinc-500">
+              <p className="text-center text-xs text-zinc-500 mt-2">
                 Remember your password?{" "}
-                <Link href="/login" className="font-medium text-zinc-900 underline dark:text-zinc-100">
+                <Link href="/login" className="font-semibold text-[#5C0062] underline hover:text-[#3B0045]">
                   Back to login
                 </Link>
               </p>
             </div>
           ) : (
             <div className="grid gap-3">
-              <label className="grid gap-1.5 text-sm font-medium">
-                OTP Code
+              <label className="grid gap-1.5 text-xs font-semibold text-zinc-700">
+                <span className="flex items-center gap-1"><span className="text-red-500">*</span> OTP Code</span>
                 <input
                   className={inputCls}
                   type="text"
@@ -161,8 +185,8 @@ export default function ForgotPasswordPage() {
                 />
               </label>
 
-              <label className="grid gap-1.5 text-sm font-medium">
-                New Password
+              <label className="grid gap-1.5 text-xs font-semibold text-zinc-700">
+                <span className="flex items-center gap-1"><span className="text-red-500">*</span> New Password</span>
                 <input
                   className={inputCls}
                   type="password"
@@ -173,8 +197,8 @@ export default function ForgotPasswordPage() {
                 />
               </label>
 
-              <label className="grid gap-1.5 text-sm font-medium">
-                Confirm Password
+              <label className="grid gap-1.5 text-xs font-semibold text-zinc-700">
+                <span className="flex items-center gap-1"><span className="text-red-500">*</span> Confirm Password</span>
                 <input
                   className={inputCls}
                   type="password"
@@ -186,19 +210,19 @@ export default function ForgotPasswordPage() {
               </label>
 
               {error && (
-                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                   {error}
                 </p>
               )}
 
               {success && (
-                <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-400">
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 font-semibold">
                   {success}
                 </p>
               )}
 
               <button
-                className="mt-1 w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-opacity duration-200 hover:opacity-80 disabled:opacity-50"
+                className={btnCls}
                 type="button"
                 onClick={handleResetPassword}
                 disabled={loading || !otp || !newPassword || !confirmPassword}
@@ -207,7 +231,7 @@ export default function ForgotPasswordPage() {
               </button>
 
               <button
-                className="text-center text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                className="text-center text-xs font-semibold text-zinc-500 hover:text-zinc-800 transition-colors mt-2"
                 type="button"
                 onClick={() => {
                   setStep("email");

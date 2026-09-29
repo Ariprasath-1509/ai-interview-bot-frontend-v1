@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+import { Clock, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type AccentColor =
@@ -16,39 +16,40 @@ export type AccentColor =
   | "rose";
 
 const ACCENT_STAT: Record<AccentColor, string> = {
-  blue: "border-l-blue-500 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 hover:border-l-blue-400 dark:from-blue-500/10 dark:to-cyan-500/5",
-  indigo: "border-l-indigo-500 bg-gradient-to-br from-indigo-500/5 to-violet-500/5 hover:border-l-indigo-400 dark:from-indigo-500/10 dark:to-violet-500/5",
-  purple: "border-l-purple-500 bg-gradient-to-br from-purple-500/5 to-fuchsia-500/5 hover:border-l-purple-400 dark:from-purple-500/10 dark:to-fuchsia-500/5",
-  teal: "border-l-teal-500 bg-gradient-to-br from-teal-500/5 to-cyan-500/5 hover:border-l-teal-400 dark:from-teal-500/10 dark:to-cyan-500/5",
-  amber: "border-l-amber-500 bg-gradient-to-br from-amber-500/5 to-orange-500/5 hover:border-l-amber-400 dark:from-amber-500/10 dark:to-orange-500/5",
-  emerald: "border-l-emerald-500 bg-gradient-to-br from-emerald-500/5 to-green-500/5 hover:border-l-emerald-400 dark:from-emerald-500/10 dark:to-green-500/5",
-  green: "border-l-emerald-500 bg-gradient-to-br from-emerald-500/5 to-lime-500/5 hover:border-l-emerald-400 dark:from-emerald-500/10 dark:to-lime-500/5",
-  yellow: "border-l-yellow-500 bg-gradient-to-br from-yellow-500/5 to-amber-500/5 hover:border-l-yellow-400 dark:from-yellow-500/10 dark:to-amber-500/5",
-  rose: "border-l-rose-500 bg-gradient-to-br from-rose-500/5 to-pink-500/5 hover:border-l-rose-400 dark:from-rose-500/10 dark:to-pink-500/5",
+  blue: "border border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-cyan-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-blue-500/15 dark:to-cyan-500/5",
+  indigo: "border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 via-violet-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-indigo-500/15 dark:to-violet-500/5",
+  purple: "border border-purple-500/20 bg-gradient-to-br from-purple-500/10 via-fuchsia-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-purple-500/15 dark:to-fuchsia-500/5",
+  teal: "border border-teal-500/20 bg-gradient-to-br from-teal-500/10 via-cyan-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-teal-500/15 dark:to-cyan-500/5",
+  amber: "border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-amber-500/15 dark:to-orange-500/5",
+  emerald: "border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-emerald-500/15 dark:to-green-500/5",
+  green: "border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-lime-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-emerald-500/15 dark:to-lime-500/5",
+  yellow: "border border-yellow-500/20 bg-gradient-to-br from-yellow-500/10 via-amber-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-yellow-500/15 dark:to-amber-500/5",
+  rose: "border border-rose-500/20 bg-gradient-to-br from-rose-500/10 via-pink-500/5 to-transparent shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] dark:from-rose-500/15 dark:to-pink-500/5",
 };
 
+
 const ACCENT_ICON: Record<AccentColor, string> = {
-  blue: "bg-gradient-to-br from-blue-400 to-cyan-500 text-white shadow-md shadow-blue-500/20",
-  indigo: "bg-gradient-to-br from-indigo-400 to-violet-500 text-white shadow-md shadow-indigo-500/20",
-  purple: "bg-gradient-to-br from-purple-400 to-fuchsia-500 text-white shadow-md shadow-purple-500/20",
-  teal: "bg-gradient-to-br from-teal-400 to-cyan-500 text-white shadow-md shadow-teal-500/20",
-  amber: "bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-amber-500/20",
-  emerald: "bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-md shadow-emerald-500/20",
-  green: "bg-gradient-to-br from-green-400 to-emerald-500 text-white shadow-md shadow-green-500/20",
-  yellow: "bg-gradient-to-br from-yellow-400 to-amber-500 text-white shadow-md shadow-yellow-500/20",
-  rose: "bg-gradient-to-br from-rose-400 to-pink-500 text-white shadow-md shadow-rose-500/20",
+  blue: "bg-gradient-to-br from-blue-500 to-cyan-600 text-white shadow-md shadow-blue-500/25",
+  indigo: "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25",
+  purple: "bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white shadow-md shadow-purple-500/25",
+  teal: "bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-md shadow-teal-500/25",
+  amber: "bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/25",
+  emerald: "bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-md shadow-emerald-500/25",
+  green: "bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-md shadow-green-500/25",
+  yellow: "bg-gradient-to-br from-amber-500 to-yellow-600 text-white shadow-md shadow-amber-500/25",
+  rose: "bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-md shadow-rose-500/25",
 };
 
 const ACCENT_LINK: Record<AccentColor, string> = {
-  blue: "border-l-blue-500 hover:border-blue-400 hover:shadow-blue-500/5",
-  indigo: "border-l-indigo-500 hover:border-indigo-400 hover:shadow-indigo-500/5",
-  purple: "border-l-purple-500 hover:border-purple-400 hover:shadow-purple-500/5",
-  teal: "border-l-teal-500 hover:border-teal-400 hover:shadow-teal-500/5",
-  amber: "border-l-amber-500 hover:border-amber-400 hover:shadow-amber-500/5",
-  emerald: "border-l-emerald-500 hover:border-emerald-400 hover:shadow-emerald-500/5",
-  green: "border-l-emerald-500 hover:border-emerald-400 hover:shadow-emerald-500/5",
-  yellow: "border-l-yellow-500 hover:border-yellow-400 hover:shadow-yellow-500/5",
-  rose: "border-l-rose-500 hover:border-rose-400 hover:shadow-rose-500/5",
+  blue: "hover:border-blue-500/40 hover:shadow-blue-500/5",
+  indigo: "hover:border-indigo-500/40 hover:shadow-indigo-500/5",
+  purple: "hover:border-purple-500/40 hover:shadow-purple-500/5",
+  teal: "hover:border-teal-500/40 hover:shadow-teal-500/5",
+  amber: "hover:border-amber-500/40 hover:shadow-amber-500/5",
+  emerald: "hover:border-emerald-500/40 hover:shadow-emerald-500/5",
+  green: "hover:border-emerald-500/40 hover:shadow-emerald-500/5",
+  yellow: "hover:border-amber-500/40 hover:shadow-amber-500/5",
+  rose: "hover:border-rose-500/40 hover:shadow-rose-500/5",
 };
 
 const ACCENT_TEXT: Record<AccentColor, string> = {
@@ -59,7 +60,7 @@ const ACCENT_TEXT: Record<AccentColor, string> = {
   amber: "text-amber-600 dark:text-amber-400",
   emerald: "text-emerald-600 dark:text-emerald-400",
   green: "text-emerald-600 dark:text-emerald-400",
-  yellow: "text-yellow-600 dark:text-yellow-400",
+  yellow: "text-amber-600 dark:text-amber-400",
   rose: "text-rose-600 dark:text-rose-400",
 };
 
@@ -71,7 +72,7 @@ const ACCENT_HOVER_TEXT: Record<AccentColor, string> = {
   amber: "group-hover:text-amber-600 dark:group-hover:text-amber-400",
   emerald: "group-hover:text-emerald-600 dark:group-hover:text-emerald-400",
   green: "group-hover:text-emerald-600 dark:group-hover:text-emerald-400",
-  yellow: "group-hover:text-yellow-600 dark:group-hover:text-yellow-400",
+  yellow: "group-hover:text-amber-600 dark:group-hover:text-amber-400",
   rose: "group-hover:text-rose-600 dark:group-hover:text-rose-400",
 };
 
@@ -95,7 +96,7 @@ const PANEL_BORDER: Record<AccentColor, string> = {
   amber: "border-l-amber-500",
   emerald: "border-l-emerald-500",
   green: "border-l-emerald-500",
-  yellow: "border-l-yellow-500",
+  yellow: "border-l-amber-500",
   rose: "border-l-rose-500",
 };
 
@@ -118,19 +119,12 @@ export function StatCard({
 }) {
   const content = (
     <div
-      className={`stat-card h-full transition-all duration-350 ${ACCENT_STAT[accent]} ${
-        linkTo ? "cursor-pointer hover:scale-[1.015] hover:shadow-lg" : ""
+      className={`stat-card h-full ${ACCENT_STAT[accent]} ${
+        linkTo ? "cursor-pointer" : ""
       }`}
     >
       <div className="flex h-full flex-col justify-between">
-        <div className="flex items-start gap-3">
-          {Icon && (
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110 ${ACCENT_ICON[accent]}`}
-            >
-              <Icon className="h-5 w-5" />
-            </div>
-          )}
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold leading-snug text-zinc-800 dark:text-zinc-200">
               {title}
@@ -141,8 +135,15 @@ export function StatCard({
               </p>
             )}
           </div>
+          {Icon && (
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110 ${ACCENT_ICON[accent]}`}
+            >
+              <Icon className="h-5 w-5" />
+            </div>
+          )}
         </div>
-        <div className={Icon ? "mt-4 pl-[52px]" : "mt-4"}>
+        <div className="mt-4">
           <p className="text-3xl font-bold tracking-tight tabular-nums text-zinc-900 dark:text-zinc-50">
             {value}
           </p>
@@ -168,6 +169,8 @@ export function StatCard({
   }
   return content;
 }
+
+
 
 export type HeroVariant =
   | "blue"
@@ -298,10 +301,16 @@ export function SectionHeader({
   description?: string;
 }) {
   return (
-    <div className="mb-4">
-      <h2 className="section-label">{title}</h2>
+    <div className="mb-4 flex flex-wrap items-center gap-2.5">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/25 bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-purple-500/5 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-purple-600 dark:text-purple-300 shadow-2xs">
+        <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-pulse" />
+        {title}
+      </span>
       {description && (
-        <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{description}</p>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-subtle)]/70 px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] shadow-2xs">
+          <Clock size={12} className="text-purple-500 opacity-80" />
+          {description}
+        </span>
       )}
     </div>
   );

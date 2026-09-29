@@ -3,10 +3,8 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, Download, CheckCircle, XCircle, AlertTriangle, Users, FileSpreadsheet } from 'lucide-react';
+import { Upload, Download, CheckCircle, XCircle, AlertTriangle, Users, FileSpreadsheet, Building2, Loader2, X, FileCheck, Sparkles } from 'lucide-react';
 
 interface DeploymentDetail {
   rowNumber: number;
@@ -33,17 +31,44 @@ export default function DeploymentBulkImportClient() {
   const [uploading, setUploading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const processSelectedFile = (selectedFile: File) => {
+    if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
+      setError('Please select an Excel (.xlsx) file');
+      return;
+    }
+    setFile(selectedFile);
+    setError(null);
+    setImportResult(null);
+  };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
-      if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
-        setError('Please select an Excel (.xlsx) file');
-        return;
-      }
-      setFile(selectedFile);
-      setError(null);
-      setImportResult(null);
+      processSelectedFile(selectedFile);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      processSelectedFile(droppedFile);
     }
   };
 
@@ -111,70 +136,123 @@ export default function DeploymentBulkImportClient() {
   };
 
   return (
-    <div className="w-full p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Bulk Import Deployment Data</h1>
-        <p className="text-zinc-600">Upload Excel file to update deployment information for multiple candidates</p>
-        <div className="mt-4">
-          <Button 
-            variant="outline" 
+    <div className="w-full space-y-6 animate-in">
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xl transition-all duration-300">
+        <div className="absolute top-0 right-0 h-48 w-48 -mr-12 -mt-12 rounded-full bg-gradient-to-br from-[#6D28D9]/10 via-[#7C3AED]/5 to-transparent blur-2xl pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6D28D9] to-[#4C1D95] text-white shadow-md shadow-purple-500/20">
+              <Building2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">Bulk Import Deployment Data</h1>
+              <p className="mt-1 text-xs font-medium text-[var(--text-secondary)]">
+                Upload Excel file to update deployment information for multiple candidates
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button"
             onClick={downloadTemplate}
-            className="flex items-center gap-2"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#6D28D9]/30 bg-[#6D28D9]/10 px-4 py-2.5 text-xs font-bold text-[#6D28D9] dark:text-purple-300 shadow-2xs transition-all hover:bg-[#6D28D9] hover:text-white cursor-pointer hover:scale-[1.02] active:scale-[0.98] shrink-0"
           >
             <Download className="h-4 w-4" />
             Download Excel Template
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* File Upload Section */}
       {!importResult && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
+        <Card className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden relative">
+          <div className="h-1.5 w-full bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95]" />
+          <CardHeader className="pb-4 border-b border-[var(--border)]">
+            <CardTitle className="flex items-center gap-2.5 text-lg font-extrabold text-[var(--text-primary)]">
+              <Upload className="h-5 w-5 text-[#6D28D9]" />
               Upload Excel File
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs font-medium text-[var(--text-secondary)]">
               Select an Excel (.xlsx) file with deployment data. Required columns: No., Emp ID (optional), Name, Contact Number, Official Mail ID, Personal Mail ID, YOE, Technology, Client Name, Deployed Date (YYYY-MM-DD), Mentor (optional)
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Input
+          <CardContent className="pt-6 space-y-5">
+            {/* Drag & Drop Dropzone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => document.getElementById('file-input')?.click()}
+              className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 flex flex-col items-center justify-center gap-3 ${
+                isDragging
+                  ? 'border-[#6D28D9] bg-[#6D28D9]/10 scale-[1.005]'
+                  : 'border-[#6D28D9]/30 bg-[#6D28D9]/5 hover:border-[#6D28D9] hover:bg-[#6D28D9]/10'
+              }`}
+            >
+              <input
                 id="file-input"
                 type="file"
                 accept=".xlsx"
                 onChange={handleFileSelect}
-                className="cursor-pointer"
+                className="hidden"
               />
-              
-              {file && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                  <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                  <span className="text-sm font-medium">{file.name}</span>
-                  <span className="text-sm text-zinc-500">({(file.size / 1024).toFixed(1)} KB)</span>
-                </div>
-              )}
 
-              <Button 
-                onClick={handleUpload} 
-                disabled={!file || uploading}
-                className="w-full"
-              >
-                {uploading ? 'Processing...' : 'Upload & Import'}
-              </Button>
+              {file ? (
+                <div className="flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <FileCheck className="h-7 w-7" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-[var(--text-primary)]">{file.name}</span>
+                    <span className="text-xs font-semibold text-[var(--text-secondary)] bg-[var(--surface-subtle)] px-2 py-0.5 rounded-full border border-[var(--border)]">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFile(null)}
+                      className="rounded-lg p-1 text-[var(--text-secondary)] hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                      title="Remove file"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Ready to process</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6D28D9]/10 text-[#6D28D9] dark:text-purple-300">
+                    <Upload className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[var(--text-primary)]">Click to upload or drag and drop</p>
+                    <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">Supports Microsoft Excel files (.xlsx)</p>
+                  </div>
+                </>
+              )}
             </div>
+
+            <Button 
+              type="button"
+              onClick={handleUpload} 
+              disabled={!file || uploading}
+              className="w-full rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] py-3 text-xs font-bold text-white shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {uploading ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Uploading &amp; Processing...</>
+              ) : (
+                <><Sparkles className="h-4 w-4" />Upload &amp; Process</>
+              )}
+            </Button>
           </CardContent>
         </Card>
       )}
 
       {/* Error Display */}
       {error && (
-        <Alert className="mb-6 border-red-200 bg-red-50">
-          <XCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="text-red-800">{error}</AlertDescription>
-        </Alert>
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-center gap-3 text-xs font-semibold text-rose-700 dark:text-rose-300 shadow-sm">
+          <XCircle className="h-5 w-5 text-rose-600 shrink-0" />
+          <span>{error}</span>
+        </div>
       )}
 
       {/* Import Results */}
@@ -182,109 +260,103 @@ export default function DeploymentBulkImportClient() {
         <div className="space-y-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <p className="text-sm text-zinc-600">Total Rows</p>
-                    <p className="text-2xl font-bold">{importResult.totalRows}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-[var(--surface)] p-4 shadow-sm flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Total Rows</p>
+                <p className="text-2xl font-extrabold text-[var(--text-primary)]">{importResult.totalRows}</p>
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <div>
-                    <p className="text-sm text-zinc-600">Success</p>
-                    <p className="text-2xl font-bold text-green-600">{importResult.successCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-[var(--surface)] p-4 shadow-sm flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Success</p>
+                <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{importResult.successCount}</p>
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                  <div>
-                    <p className="text-sm text-zinc-600">Warnings</p>
-                    <p className="text-2xl font-bold text-yellow-600">{importResult.warningCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-[var(--surface)] p-4 shadow-sm flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Warnings</p>
+                <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{importResult.warningCount}</p>
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <XCircle className="h-5 w-5 text-red-600" />
-                  <div>
-                    <p className="text-sm text-zinc-600">Failures</p>
-                    <p className="text-2xl font-bold text-red-600">{importResult.failureCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-[var(--surface)] p-4 shadow-sm flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                <XCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Failures</p>
+                <p className="text-2xl font-extrabold text-rose-600 dark:text-rose-400">{importResult.failureCount}</p>
+              </div>
+            </div>
           </div>
 
           {/* Detailed Results */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Import Details</CardTitle>
-              <CardDescription>
+          <Card className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden">
+            <CardHeader className="pb-3 border-b border-[var(--border)]">
+              <CardTitle className="text-base font-extrabold text-[var(--text-primary)]">Import Details</CardTitle>
+              <CardDescription className="text-xs text-[var(--text-secondary)]">
                 Review the status of each deployment record
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="max-h-96 overflow-y-auto space-y-2">
+            <CardContent className="pt-4">
+              <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1">
                 {importResult.details.map((detail, index) => (
                   <div 
                     key={index} 
-                    className={`flex items-start gap-3 p-3 rounded border ${
-                      detail.status === 'SUCCESS' ? 'bg-green-50 border-green-200' :
-                      detail.status === 'WARNING' ? 'bg-yellow-50 border-yellow-200' :
-                      'bg-red-50 border-red-200'
+                    className={`flex items-start justify-between gap-3 p-3.5 rounded-2xl border text-xs transition-all ${
+                      detail.status === 'SUCCESS' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-200' :
+                      detail.status === 'WARNING' ? 'bg-amber-500/10 border-amber-500/20 text-amber-950 dark:text-amber-200' :
+                      'bg-rose-500/10 border-rose-500/20 text-rose-950 dark:text-rose-200'
                     }`}
                   >
-                    <Badge 
-                      variant="outline"
-                      className="mt-0.5 shrink-0"
-                    >
-                      Row {detail.rowNumber}
-                    </Badge>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        {detail.name && (
-                          <span className="text-sm font-medium">{detail.name}</span>
-                        )}
-                        {detail.email && (
-                          <span className="text-xs text-zinc-600">{detail.email}</span>
-                        )}
-                        {detail.empId && (
-                          <Badge variant="outline" className="text-xs">{detail.empId}</Badge>
-                        )}
-                      </div>
-                      {detail.clientName && detail.deployedDate && (
-                        <div className="text-xs text-zinc-600 mb-1">
-                          {detail.clientName} • {detail.deployedDate}
-                          {detail.mentor && ` • Mentor: ${detail.mentor}`}
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <Badge 
+                        variant="outline"
+                        className="mt-0.5 shrink-0 rounded-lg font-bold"
+                      >
+                        Row {detail.rowNumber}
+                      </Badge>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {detail.name && (
+                            <span className="font-extrabold text-[var(--text-primary)] text-xs">{detail.name}</span>
+                          )}
+                          {detail.email && (
+                            <span className="font-medium text-[var(--text-secondary)] text-xs">{detail.email}</span>
+                          )}
+                          {detail.empId && (
+                            <span className="font-mono text-[10px] font-bold bg-[var(--surface-subtle)] px-2 py-0.5 rounded border border-[var(--border)]">{detail.empId}</span>
+                          )}
                         </div>
-                      )}
-                      <p className={`text-sm ${
-                        detail.status === 'SUCCESS' ? 'text-green-700' :
-                        detail.status === 'WARNING' ? 'text-yellow-700' :
-                        'text-red-700'
-                      }`}>
-                        {detail.message}
-                      </p>
+                        {detail.clientName && detail.deployedDate && (
+                          <div className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                            {detail.clientName} • {detail.deployedDate}
+                            {detail.mentor && ` • Mentor: ${detail.mentor}`}
+                          </div>
+                        )}
+                        <p className={`font-bold ${
+                          detail.status === 'SUCCESS' ? 'text-emerald-600 dark:text-emerald-400' :
+                          detail.status === 'WARNING' ? 'text-amber-600 dark:text-amber-400' :
+                          'text-rose-600 dark:text-rose-400'
+                        }`}>
+                          {detail.message}
+                        </p>
+                      </div>
                     </div>
-                    {detail.status === 'SUCCESS' && <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />}
-                    {detail.status === 'WARNING' && <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />}
-                    {detail.status === 'ERROR' && <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />}
+                    {detail.status === 'SUCCESS' && <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />}
+                    {detail.status === 'WARNING' && <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />}
+                    {detail.status === 'ERROR' && <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />}
                   </div>
                 ))}
               </div>
@@ -292,8 +364,8 @@ export default function DeploymentBulkImportClient() {
           </Card>
 
           {/* Action Buttons */}
-          <div className="flex gap-4">
-            <Button variant="outline" onClick={resetForm} className="flex-1">
+          <div className="flex pt-2">
+            <Button variant="secondary" onClick={resetForm} className="flex-1 rounded-xl bg-[var(--surface-subtle)] font-bold text-xs cursor-pointer py-2.5">
               Import More Deployments
             </Button>
           </div>

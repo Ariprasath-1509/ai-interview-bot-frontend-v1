@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PriorityBadge } from '@/components/common/PriorityBadge';
 
 interface Candidate {
@@ -142,53 +143,60 @@ export function Round2QueueClient() {
   };
 
   const backLink = (
-    <Link href="/admin/screening" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4">
+    <Link
+      href="/admin/screening"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:bg-[var(--surface-subtle)] hover:border-[#6D28D9] transition-all cursor-pointer mb-4"
+    >
       ← Back to Screening
     </Link>
   );
 
   if (loading) {
     return (
-      <div>
+      <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
         {backLink}
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)]">Loading…</p>
       </div>
     );
   }
   if (candidates.length === 0) {
     return (
-      <div>
+      <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
         {backLink}
-        <p className="text-sm text-zinc-500">No candidates waiting for Round 2.</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)]">No candidates waiting for Round 2.</p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-7xl space-y-6 animate-in">
       {backLink}
-      <p className="mb-4 text-sm text-zinc-500">{candidates.length} candidate{candidates.length === 1 ? '' : 's'} in Round 2</p>
+      <p className="text-xs font-extrabold text-[var(--text-secondary)] uppercase tracking-wider">
+        {candidates.length} Candidate{candidates.length === 1 ? '' : 's'} in Round 2
+      </p>
       <div className="space-y-4">
         {candidates.map((c) => {
           const f = fieldsFor(c.id);
           return (
-            <Card key={c.id}>
-              <CardHeader className="flex flex-row items-start justify-between space-y-0">
+            <div key={c.id} className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+              <div className="panel-header panel-header-accent-purple rounded-t-2xl flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">{c.name}</CardTitle>
+                    <h3 className="text-base font-extrabold text-[var(--text-primary)]">{c.name}</h3>
                     <PriorityBadge priority={c.round1Priority} />
                   </div>
-                  <p className="text-sm text-zinc-500">{c.email}</p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">{c.email}</p>
+                  <p className="text-xs font-semibold text-[var(--text-secondary)] mt-1">
                     Round 1: {c.round1Score != null ? `${c.round1Score} / 35` : '—'}
                     {c.proctoringViolation && (
-                      <span className="ml-2 text-red-600 dark:text-red-400">⚠ Multiple tab switches</span>
+                      <span className="ml-2 inline-flex px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                        ⚠ Multiple tab switches
+                      </span>
                     )}
                   </p>
                   <button
                     type="button"
-                    className="mt-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                    className="mt-2 text-xs font-bold text-[#6D28D9] hover:underline cursor-pointer"
                     onClick={() => toggleAnswers(c.id)}
                   >
                     {expanded === c.id ? 'Hide Round 1 answers' : 'View Round 1 answers'}
@@ -198,97 +206,130 @@ export function Round2QueueClient() {
                   type="button"
                   onClick={() => removeCandidate(c.id)}
                   disabled={removingId === c.id}
-                  className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 font-bold text-xs hover:bg-rose-500/20 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                 >
                   {removingId === c.id ? 'Removing…' : 'Delete'}
                 </button>
-              </CardHeader>
-              <CardContent>
+              </div>
+
+              <div className="p-5 space-y-4">
                 {expanded === c.id && (
-                  <div className="mb-4 space-y-3">
+                  <div className="space-y-3 p-4 rounded-xl bg-[var(--surface-subtle)] border border-[var(--border)]">
                     {answersLoading ? (
-                      <p className="text-sm text-zinc-500">Loading answers…</p>
+                      <p className="text-xs font-medium text-[var(--text-secondary)]">Loading answers…</p>
                     ) : answers.length === 0 ? (
-                      <p className="text-sm text-zinc-500">No Round 1 answers recorded.</p>
+                      <p className="text-xs font-medium text-[var(--text-secondary)]">No Round 1 answers recorded.</p>
                     ) : (
                       answers.map((a) => (
-                        <div key={a.questionId} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 text-sm">
-                          <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">
+                        <div key={a.questionId} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-xs">
+                          <p className="text-[10px] font-extrabold uppercase tracking-wide text-[var(--text-secondary)] mb-1">
                             {a.questionType} · {a.score} / {a.marks}
                           </p>
-                          <p className="font-medium text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap">{a.prompt}</p>
-                          <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-400">Candidate&apos;s answer</p>
-                          <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono text-xs">{a.rawAnswer || '(no answer)'}</p>
+                          <p className="font-bold text-[var(--text-primary)] whitespace-pre-wrap">{a.prompt}</p>
+                          <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Candidate&apos;s answer</p>
+                          <p className="text-[var(--text-primary)] whitespace-pre-wrap font-mono text-xs mt-0.5">{a.rawAnswer || '(no answer)'}</p>
                           {a.referenceAnswer && (
                             <>
-                              <p className="mt-2 text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Expected answer</p>
-                              <p className="text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap font-mono text-xs">{a.referenceAnswer}</p>
+                              <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Expected answer</p>
+                              <p className="text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap font-mono text-xs mt-0.5">{a.referenceAnswer}</p>
                             </>
                           )}
                           {a.aiFeedback && (
-                            <p className="mt-2 text-zinc-500 dark:text-zinc-400 italic">{a.aiFeedback}</p>
+                            <p className="mt-2 text-[var(--text-secondary)] italic">{a.aiFeedback}</p>
                           )}
                         </div>
                       ))
                     )}
                   </div>
                 )}
+
                 {c.stage === 'ROUND1_PASSED' && (
-                  <Button size="sm" onClick={() => start(c.id)} disabled={busy === c.id}>
+                  <button
+                    type="button"
+                    onClick={() => start(c.id)}
+                    disabled={busy === c.id}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                  >
                     Start Round 2
-                  </Button>
+                  </button>
                 )}
+
                 {c.stage === 'ROUND2_IN_PROGRESS' && (
-                  <div className="space-y-3">
-                    <div>
-                      <Label>Strengths — what they&apos;re good at</Label>
-                      <Textarea className="mt-1" value={f.strengths} onChange={(e) => updateField(c.id, 'strengths', e.target.value)} />
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Strengths — what they&apos;re good at</Label>
+                      <Textarea
+                        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs p-3 focus:border-[#6D28D9]"
+                        value={f.strengths}
+                        onChange={(e) => updateField(c.id, 'strengths', e.target.value)}
+                      />
                     </div>
-                    <div>
-                      <Label>Weaknesses / lags in</Label>
-                      <Textarea className="mt-1" value={f.weaknesses} onChange={(e) => updateField(c.id, 'weaknesses', e.target.value)} />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Weaknesses / lags in</Label>
+                      <Textarea
+                        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs p-3 focus:border-[#6D28D9]"
+                        value={f.weaknesses}
+                        onChange={(e) => updateField(c.id, 'weaknesses', e.target.value)}
+                      />
                     </div>
-                    <div>
-                      <Label>Practical skills</Label>
-                      <Textarea className="mt-1" value={f.practical} onChange={(e) => updateField(c.id, 'practical', e.target.value)} />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Practical skills</Label>
+                      <Textarea
+                        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs p-3 focus:border-[#6D28D9]"
+                        value={f.practical}
+                        onChange={(e) => updateField(c.id, 'practical', e.target.value)}
+                      />
                     </div>
-                    <div>
-                      <Label>Where they must improve</Label>
-                      <Textarea className="mt-1" value={f.improvements} onChange={(e) => updateField(c.id, 'improvements', e.target.value)} />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Where they must improve</Label>
+                      <Textarea
+                        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs p-3 focus:border-[#6D28D9]"
+                        value={f.improvements}
+                        onChange={(e) => updateField(c.id, 'improvements', e.target.value)}
+                      />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <Label>Marks (out of 35)</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-[var(--text-primary)]">Marks (out of 35)</Label>
                         <Input
                           type="number"
                           min={0}
                           max={35}
-                          className="mt-1"
+                          className="rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs h-10 font-medium focus:border-[#6D28D9]"
                           value={f.marks}
                           onChange={(e) => updateField(c.id, 'marks', e.target.value)}
                         />
                       </div>
-                      <div>
-                        <Label>Result</Label>
-                        <select
-                          className="mt-1 w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 text-sm text-zinc-900 dark:text-zinc-100"
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-[var(--text-primary)]">Result</Label>
+                        <Select
                           value={f.result}
-                          onChange={(e) => updateField(c.id, 'result', e.target.value)}
+                          onValueChange={(val) => updateField(c.id, 'result', val as Decision)}
                         >
-                          <option value="SELECTED">Selected</option>
-                          <option value="HOLD">Hold</option>
-                          <option value="REJECTED">Rejected</option>
-                        </select>
+                          <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                            <SelectValue placeholder="Select Result" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-44">
+                            <SelectItem value="SELECTED" className="text-xs font-semibold">Selected</SelectItem>
+                            <SelectItem value="HOLD" className="text-xs font-semibold">Hold</SelectItem>
+                            <SelectItem value="REJECTED" className="text-xs font-semibold">Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
-                    <Button size="sm" onClick={() => submitFeedback(c.id)} disabled={busy === c.id}>
-                      Submit
-                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => submitFeedback(c.id)}
+                      disabled={busy === c.id}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-5 py-2.5 text-xs font-extrabold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                    >
+                      Submit Feedback
+                    </button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>

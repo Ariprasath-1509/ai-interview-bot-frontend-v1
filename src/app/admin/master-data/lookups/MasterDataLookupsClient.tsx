@@ -2,16 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Loader2, Plus, Pencil, Trash2, Check, X, ListTree } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  ListTree,
+  Info,
+  Sparkles,
+  ShieldAlert,
+  Eye,
+  Hash,
+  Tag,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LOOKUP_CATEGORIES, type LookupCategoryKey } from "@/config/masterDataConfig";
 import {
   MasterDataEmptyState,
-  MasterDataFormCard,
-  MasterDataListCard,
   MasterDataLoading,
-  STATUS_BADGE,
 } from "@/components/admin/master-data/MasterDataUi";
 
 interface LookupEntry {
@@ -146,179 +157,274 @@ export default function MasterDataLookupsClient({ canEdit }: { canEdit: boolean 
   };
 
   return (
-    <div className="space-y-6 animate-in">
-      <div className="tab-bar flex-wrap">
-        {LOOKUP_CATEGORIES.map((cat) => (
-          <button
-            key={cat.key}
-            type="button"
-            onClick={() => setActiveCategory(cat.key)}
-            className={
-              activeCategory === cat.key ? "tab-bar-item tab-bar-item-active" : "tab-bar-item"
-            }
-          >
-            {cat.label}
-          </button>
-        ))}
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      {/* Category Pills Bar */}
+      <div className="panel-card p-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {LOOKUP_CATEGORIES.map((cat) => {
+            const isActive = activeCategory === cat.key;
+            return (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => setActiveCategory(cat.key)}
+                className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 cursor-pointer ${
+                  isActive
+                    ? "border border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 shadow-2xs ring-1 ring-purple-500/30"
+                    : "border border-transparent text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <Tag className={`h-3.5 w-3.5 ${isActive ? "text-purple-600 dark:text-purple-400" : "opacity-60"}`} />
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      {/* Active Category Description Banner */}
       {categoryMeta && (
-        <p className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-2.5 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
-          {categoryMeta.description}
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-            className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
-          />
-          Show inactive
-        </label>
-        {!canEdit && (
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-            Read-only — Admin or Super Admin required to edit
-          </span>
-        )}
-      </div>
-
-      {canEdit && (
-        <MasterDataFormCard title={`Add ${categoryMeta?.label ?? "entry"}`} icon={Plus}>
-          <div className="flex flex-wrap gap-3">
-            <Input
-              placeholder="Code (e.g. NODE_JS)"
-              value={newCode}
-              onChange={(e) => setNewCode(e.target.value.toUpperCase())}
-              className="max-w-[180px]"
-            />
-            <Input
-              placeholder="Display label"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              className="max-w-[220px]"
-            />
-            <Input
-              placeholder="Order"
-              type="number"
-              value={newOrder}
-              onChange={(e) => setNewOrder(e.target.value)}
-              className="max-w-[80px]"
-            />
-            <Button onClick={handleCreate} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add entry"}
-            </Button>
+        <div className="flex items-start gap-3 rounded-2xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 text-xs sm:text-sm font-medium text-[var(--text-primary)] shadow-2xs backdrop-blur-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            <Info className="h-4 w-4" />
           </div>
-        </MasterDataFormCard>
+          <div className="flex-1 min-w-0 pt-0.5">
+            <p className="font-bold text-sm text-[var(--text-primary)]">{categoryMeta.label} Configuration</p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)] leading-relaxed">{categoryMeta.description}</p>
+          </div>
+        </div>
       )}
 
-      <MasterDataListCard
-        title={categoryMeta?.label ?? "Entries"}
-        icon={ListTree}
-        count={loading ? undefined : entries.length}
-        empty={
-          <MasterDataEmptyState
-            icon={ListTree}
-            title="No entries found"
-            description={
-              canEdit
-                ? "Add your first lookup value using the form above."
-                : "No values exist for this category yet."
-            }
-          />
-        }
-      >
-        {loading ? (
-          <MasterDataLoading />
-        ) : entries.length === 0 ? null : (
-          <div className="overflow-x-auto -mx-5 -mb-5">
-            <table className="master-data-table w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                  <th className="px-5 py-3 font-medium">Code</th>
-                  <th className="px-5 py-3 font-medium">Label</th>
-                  <th className="px-5 py-3 font-medium">Order</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  {canEdit && <th className="px-5 py-3 text-right font-medium">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="px-5 py-3 font-mono text-xs text-blue-700 dark:text-blue-300">
-                      {entry.code}
-                    </td>
-                    <td className="px-5 py-3">
-                      {editingId === entry.id ? (
-                        <Input
-                          value={editLabel}
-                          onChange={(e) => setEditLabel(e.target.value)}
-                          className="h-8"
-                        />
-                      ) : (
-                        entry.label
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {editingId === entry.id ? (
-                        <Input
-                          type="number"
-                          value={editOrder}
-                          onChange={(e) => setEditOrder(e.target.value)}
-                          className="h-8 w-20"
-                        />
-                      ) : (
-                        entry.displayOrder
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={`badge-pill ${
-                          entry.active ? STATUS_BADGE.active : STATUS_BADGE.inactive
-                        }`}
-                      >
-                        {entry.active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    {canEdit && (
-                      <td className="px-5 py-3 text-right">
+      {/* Add New Entry Form Card */}
+      {canEdit && (
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-purple flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <Plus className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              Add New {categoryMeta?.label ?? "Entry"}
+            </h3>
+            <span className="text-xs font-semibold text-[var(--text-secondary)]">
+              New enum key-value mapping
+            </span>
+          </div>
+          <div className="p-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[160px] flex-1 sm:flex-none">
+                <Input
+                  placeholder="Code (e.g. NODE_JS)"
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+                  className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 font-mono text-xs"
+                />
+              </div>
+              <div className="relative min-w-[200px] flex-1">
+                <Input
+                  placeholder="Display label"
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 text-xs font-medium"
+                />
+              </div>
+              <div className="relative w-24">
+                <Input
+                  placeholder="Order"
+                  type="number"
+                  value={newOrder}
+                  onChange={(e) => setNewOrder(e.target.value)}
+                  className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 text-xs font-medium"
+                />
+              </div>
+              <Button
+                onClick={handleCreate}
+                disabled={saving || !newCode.trim() || !newLabel.trim()}
+                className="rounded-xl font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-1.5" />
+                    Add Entry
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Entries List Card */}
+      <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-indigo-300/30">
+        <div className="panel-header panel-header-accent-indigo flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ListTree className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-base font-bold text-[var(--text-primary)]">
+              {categoryMeta?.label ?? "Entries"} List
+            </h3>
+            {!loading && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
+                {entries.length} records
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--text-secondary)] shadow-2xs hover:text-[var(--text-primary)] transition-colors">
+              <Eye className="h-3.5 w-3.5 text-indigo-500" />
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                className="rounded accent-purple-600"
+              />
+              Show inactive
+            </label>
+
+            {!canEdit && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Read-only mode
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="p-5">
+          {loading ? (
+            <MasterDataLoading label={`Loading ${categoryMeta?.label ?? "entries"}...`} />
+          ) : entries.length === 0 ? (
+            <MasterDataEmptyState
+              icon={ListTree}
+              title="No entries found"
+              description={
+                canEdit
+                  ? "Add your first lookup value using the form above."
+                  : "No values exist for this category yet."
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="h-11 border-b border-[var(--border)] bg-[#F1F5F9] dark:bg-zinc-800 text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                    <th className="px-4 py-2.5">Code</th>
+                    <th className="px-4 py-2.5">Label</th>
+                    <th className="px-4 py-2.5">Order</th>
+                    <th className="px-4 py-2.5">Status</th>
+                    {canEdit && <th className="px-4 py-2.5 text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {entries.map((entry) => (
+                    <tr
+                      key={entry.id}
+                      className="h-13 transition-colors duration-150 hover:bg-[#F5F3FF] dark:hover:bg-[#1C1827]"
+                    >
+                      <td className="px-4 py-3">
+                        <span className="inline-block font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-md">
+                          {entry.code}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">
                         {editingId === entry.id ? (
-                          <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => handleUpdate(entry.id)}>
-                              <Check className="h-4 w-4 text-emerald-600" />
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <Input
+                            value={editLabel}
+                            onChange={(e) => setEditLabel(e.target.value)}
+                            className="h-8 rounded-lg border-[var(--border)] bg-[var(--surface)] text-xs font-medium"
+                          />
                         ) : (
-                          <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => startEdit(entry)}>
-                              <Pencil className="h-4 w-4 text-blue-600" />
-                            </Button>
-                            {entry.active && (
+                          entry.label
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {editingId === entry.id ? (
+                          <Input
+                            type="number"
+                            value={editOrder}
+                            onChange={(e) => setEditOrder(e.target.value)}
+                            className="h-8 w-20 rounded-lg border-[var(--border)] bg-[var(--surface)] text-xs font-medium"
+                          />
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-subtle)] border border-[var(--border)] px-2 py-0.5 text-xs font-mono font-semibold text-[var(--text-secondary)]">
+                            <Hash className="h-3 w-3 text-indigo-500" />
+                            {entry.displayOrder}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+                            entry.active
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                              : "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              entry.active ? "bg-emerald-500" : "bg-zinc-400"
+                            }`}
+                          />
+                          {entry.active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      {canEdit && (
+                        <td className="px-4 py-3 text-right">
+                          {editingId === entry.id ? (
+                            <div className="flex justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2.5 rounded-lg border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                                onClick={() => handleUpdate(entry.id)}
+                                disabled={saving}
+                              >
+                                {saving ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="text-destructive hover:text-red-700"
-                                onClick={() => handleDeactivate(entry.id, entry.code)}
+                                className="h-8 px-2.5 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
+                                onClick={() => setEditingId(null)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <X className="h-3.5 w-3.5" />
                               </Button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </MasterDataListCard>
+                            </div>
+                          ) : (
+                            <div className="flex justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2.5 rounded-lg border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 hover:scale-105 transition-all"
+                                onClick={() => startEdit(entry)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              {entry.active && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2.5 rounded-lg border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 hover:scale-105 transition-all"
+                                  onClick={() => handleDeactivate(entry.id, entry.code)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

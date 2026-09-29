@@ -3,13 +3,33 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Users, TrendingUp, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
 import { formatDate } from '@/lib/formatDate';
+import { PageHeader } from '@/components/common/PageHeader';
+import { EmptyState } from '@/components/common/EmptyState';
+
+
+const getScoreColor = (score: number) => {
+  if (score >= 0.8) return 'text-green-600 bg-green-50';
+  if (score >= 0.6) return 'text-yellow-600 bg-yellow-50';
+  return 'text-red-600 bg-red-50';
+};
+
+const getRatingBadge = (rating: string) => {
+  const colors = {
+    ASSET: 'bg-green-100 text-green-800',
+    MEDIUM: 'bg-yellow-100 text-yellow-800',
+    LIABILITY: 'bg-red-100 text-red-800'
+  };
+  return colors[rating as keyof typeof colors] || 'bg-zinc-100 text-zinc-800';
+};
 
 interface Client {
   id: string;
@@ -75,7 +95,7 @@ export default function AIMatchingClient() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched clients data:', data); // Debug log
+        console.log('Fetched clients data:', data);
         setClients(data);
       } else {
         console.error('Failed to fetch clients, status:', response.status);
@@ -99,7 +119,6 @@ export default function AIMatchingClient() {
         headers: {
           'Content-Type': 'application/json'
         },
-        credentials: 'include',
         body: JSON.stringify({
           clientId: selectedClient.id,
           source: source,
@@ -110,13 +129,14 @@ export default function AIMatchingClient() {
       if (response.ok) {
         const data = await response.json();
         setMatchingResults(data);
-        toast(`Found ${data.totalFound} matching candidates`, 'success');
+        toast(`Found ${data.matches.length} matching candidates!`, 'success');
       } else {
         const error = await response.json();
-        toast(error.error || 'Failed to find matching candidates', 'error');
+        toast(`Matching failed: ${error.message || 'Unknown error'}`, 'error');
       }
     } catch (error) {
-      toast('Error during candidate matching', 'error');
+      console.error('Error triggering matching:', error);
+      toast('Error running AI matching', 'error');
     } finally {
       setMatchingLoading(false);
     }
@@ -154,46 +174,24 @@ export default function AIMatchingClient() {
     }
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 0.8) return 'text-green-600 bg-green-50';
-    if (score >= 0.6) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
-  };
-
-  const getRatingBadge = (rating: string) => {
-    const colors = {
-      ASSET: 'bg-green-100 text-green-800',
-      MEDIUM: 'bg-yellow-100 text-yellow-800',
-      LIABILITY: 'bg-red-100 text-red-800'
-    };
-    return colors[rating as keyof typeof colors] || 'bg-zinc-100 text-zinc-800';
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
       </div>
     );
   }
 
   return (
-    <div className="w-full p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">
-            AI Candidate Matching
-            {selectedClient && (
-              <span className="text-blue-600"> - {selectedClient.clientName}</span>
-            )}
-          </h1>
-          <p className="text-zinc-600 mt-2">
-            {selectedClient 
-              ? `Find the best candidates for ${selectedClient.jdRole} at ${selectedClient.clientName}` 
-              : 'Find the best candidates for client positions using AI-powered matching'
-            }
-          </p>
-        </div>
+    <div className="w-full space-y-6 animate-in">
+      <PageHeader
+        title={selectedClient ? `AI Matching - ${selectedClient.clientName}` : "AI Candidate Matching"}
+        subtitle={
+          selectedClient
+            ? `Find the best candidates for ${selectedClient.jdRole} at ${selectedClient.clientName}`
+            : "Find the best candidates for client positions using AI-powered matching."
+        }
+      >
         <Button
           variant="outline"
           size="sm"
@@ -203,36 +201,23 @@ export default function AIMatchingClient() {
           <ArrowLeft className="h-4 w-4" />
           Back to Clients
         </Button>
-      </div>
+      </PageHeader>
 
       {/* Client Selection */}
-      <Card>
-        <CardHeader>
+      <Card className="p-6">
+        <CardHeader className="px-0 pt-0">
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Select Client Position
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0 pb-0">
           {clients.length === 0 ? (
-            <div className="text-center py-8 text-zinc-500">
-              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-semibold mb-2">No client positions available</p>
-              <p className="text-sm mb-4">Create a new client position to start matching candidates</p>
-              <div className="bg-blue-50 p-4 rounded-lg max-w-md mx-auto">
-                <h4 className="font-medium text-blue-900 mb-2">Quick Setup:</h4>
-                <p className="text-sm text-blue-800 mb-3">
-                  Sample clients should be available after running database migrations.
-                </p>
-                <Button 
-                  onClick={() => window.location.reload()}
-                  variant="outline"
-                  size="sm"
-                >
-                  Refresh Page
-                </Button>
-              </div>
-            </div>
+            <EmptyState
+              title="No client positions available"
+              description="Create a new client position or run database migrations to start matching candidates."
+              icon={Users}
+            />
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {clients.map((client) => (
