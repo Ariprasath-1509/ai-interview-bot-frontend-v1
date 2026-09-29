@@ -2,44 +2,56 @@
 
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, Database, Loader2 } from "lucide-react";
+import { ArrowLeft, Database, Loader2, ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type MasterDataAccent = "blue" | "indigo" | "purple" | "teal" | "amber" | "emerald";
 
 const ACCENT: Record<
   MasterDataAccent,
-  { stat: string; icon: string; link: string }
+  { statBg: string; statBorder: string; iconBg: string; linkBorder: string; badge: string }
 > = {
   blue: {
-    stat: "border-l-blue-500 bg-blue-50/80 dark:bg-blue-950/20",
-    icon: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-    link: "border-l-blue-500 hover:border-blue-300 dark:hover:border-blue-700",
+    statBg: "from-blue-500/10 via-indigo-500/5 to-transparent",
+    statBorder: "border-blue-500/30 hover:border-blue-500/60",
+    iconBg: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20",
+    linkBorder: "hover:border-blue-500/40 hover:shadow-blue-500/5",
+    badge: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20",
   },
   indigo: {
-    stat: "border-l-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/20",
-    icon: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
-    link: "border-l-indigo-500 hover:border-indigo-300 dark:hover:border-indigo-700",
+    statBg: "from-indigo-500/10 via-purple-500/5 to-transparent",
+    statBorder: "border-indigo-500/30 hover:border-indigo-500/60",
+    iconBg: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
+    linkBorder: "hover:border-indigo-500/40 hover:shadow-indigo-500/5",
+    badge: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20",
   },
   purple: {
-    stat: "border-l-purple-500 bg-purple-50/80 dark:bg-purple-950/20",
-    icon: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-    link: "border-l-purple-500 hover:border-purple-300 dark:hover:border-purple-700",
+    statBg: "from-purple-500/10 via-fuchsia-500/5 to-transparent",
+    statBorder: "border-purple-500/30 hover:border-purple-500/60",
+    iconBg: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20",
+    linkBorder: "hover:border-purple-500/40 hover:shadow-purple-500/5",
+    badge: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20",
   },
   teal: {
-    stat: "border-l-teal-500 bg-teal-50/80 dark:bg-teal-950/20",
-    icon: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
-    link: "border-l-teal-500 hover:border-teal-300 dark:hover:border-teal-700",
+    statBg: "from-teal-500/10 via-emerald-500/5 to-transparent",
+    statBorder: "border-teal-500/30 hover:border-teal-500/60",
+    iconBg: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/20",
+    linkBorder: "hover:border-teal-500/40 hover:shadow-teal-500/5",
+    badge: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20",
   },
   amber: {
-    stat: "border-l-amber-500 bg-amber-50/80 dark:bg-amber-950/20",
-    icon: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    link: "border-l-amber-500 hover:border-amber-300 dark:hover:border-amber-700",
+    statBg: "from-amber-500/10 via-orange-500/5 to-transparent",
+    statBorder: "border-amber-500/30 hover:border-amber-500/60",
+    iconBg: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+    linkBorder: "hover:border-amber-500/40 hover:shadow-amber-500/5",
+    badge: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20",
   },
   emerald: {
-    stat: "border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20",
-    icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    link: "border-l-emerald-500 hover:border-emerald-300 dark:hover:border-emerald-700",
+    statBg: "from-emerald-500/10 via-teal-500/5 to-transparent",
+    statBorder: "border-emerald-500/30 hover:border-emerald-500/60",
+    iconBg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+    linkBorder: "hover:border-emerald-500/40 hover:shadow-emerald-500/5",
+    badge: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20",
   },
 };
 
@@ -57,19 +69,30 @@ export function MasterDataBackLink() {
 
 export function MasterDataHero() {
   return (
-    <div className="master-data-hero mb-2">
-      <div className="relative flex items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-          <Database className="h-6 w-6" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-white">
-            Configuration Hub
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-blue-100">
-            Manage lookup values, question bank categories, tags, and companies from one place —
-            no code deploys required.
-          </p>
+    <div className="relative overflow-hidden rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-900/90 via-purple-900/80 to-slate-900/90 p-6 text-white shadow-lg backdrop-blur-sm">
+      {/* Decorative ambient background glows */}
+      <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-indigo-500/20 blur-2xl" />
+      <div className="pointer-events-none absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-purple-500/20 blur-2xl" />
+
+      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20 backdrop-blur-md shadow-inner">
+            <Database className="h-6 w-6 text-indigo-200 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-xl font-bold tracking-tight text-white">
+                Master Data Configuration Hub
+              </h2>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Live Sync Enabled
+              </span>
+            </div>
+            <p className="mt-1 max-w-2xl text-xs sm:text-sm leading-relaxed text-indigo-100/90 font-medium">
+              Centralized platform repository for lookup values, question bank categories, tags, and enterprise company directories.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -80,17 +103,29 @@ export function MasterDataStatCard({
   label,
   value,
   accent = "blue",
+  icon: Icon,
 }: {
   label: string;
   value: number | string;
   accent?: MasterDataAccent;
+  icon?: LucideIcon;
 }) {
+  const style = ACCENT[accent] || ACCENT.blue;
   return (
-    <div className={`master-data-stat ${ACCENT[accent].stat}`}>
-      <p className="section-label text-zinc-500 dark:text-zinc-400">{label}</p>
-      <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
-        {value}
-      </p>
+    <div className={`group relative overflow-hidden rounded-2xl border border-[var(--border)] bg-gradient-to-br ${style.statBg} bg-[var(--surface)] p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${style.statBorder}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">{label}</p>
+          <p className="mt-2 text-3xl font-extrabold tabular-nums text-[var(--text-primary)] tracking-tight">
+            {value}
+          </p>
+        </div>
+        {Icon && (
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110 ${style.iconBg}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -108,26 +143,26 @@ export function MasterDataQuickLink({
   icon: LucideIcon;
   accent?: MasterDataAccent;
 }) {
+  const style = ACCENT[accent] || ACCENT.blue;
   return (
     <Link href={href} className="block h-full">
-      <div
-        className={`card group h-full border-l-4 p-5 transition-all duration-200 hover:shadow-md ${ACCENT[accent].link}`}
-      >
-        <div className="flex gap-4">
-          <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${ACCENT[accent].icon}`}
-          >
+      <div className={`group relative h-full overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${style.linkBorder}`}>
+        <div className="flex gap-4 items-start">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all duration-200 group-hover:scale-105 ${style.iconBg}`}>
             <Icon className="h-5 w-5" />
           </div>
-          <div>
-            <p className="font-semibold text-zinc-900 group-hover:text-blue-700 dark:text-zinc-100 dark:group-hover:text-blue-300">
-              {label}
-            </p>
-            <p className="mt-1 text-sm leading-snug text-zinc-500 dark:text-zinc-400">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-base text-[var(--text-primary)] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                {label}
+              </p>
+              <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all duration-200 group-hover:translate-x-0.5 ${style.badge}`}>
+                Manage
+                <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </div>
+            <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-[var(--text-secondary)] font-medium">
               {description}
-            </p>
-            <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">
-              Manage →
             </p>
           </div>
         </div>

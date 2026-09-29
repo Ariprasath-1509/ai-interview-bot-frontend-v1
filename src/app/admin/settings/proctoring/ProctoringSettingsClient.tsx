@@ -106,19 +106,19 @@ export default function ProctoringSettingsClient() {
       <div className="bg-white dark:bg-zinc-950 p-6 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
         <h2 className="text-lg font-semibold mb-2 text-zinc-900 dark:text-zinc-100">Strict Lockdown Mode</h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-          When enabled, any tab switch, window switch, or exit from fullscreen immediately ends the interview
-          (no warnings). The page also attempts to capture the Windows/Meta key and Alt+Tab while in fullscreen
+          Both modes now warn once, then end the interview on the 2nd tab switch, window
+          switch, or exit from fullscreen. When enabled, strict lockdown additionally
+          attempts to capture the Windows/Meta key and Alt+Tab while in fullscreen
           (Chrome/Edge only — this is a best-effort browser restriction, not a guarantee, since no website can fully
-          block OS-level app switching). When disabled, candidates get two warnings before the interview ends on the
-          3rd tab switch, and fullscreen exits are only flagged for reviewers, not enforced.
+          block OS-level app switching), and moves straight to the dashboard slightly faster after the final warning.
         </p>
         <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40">
           <div>
             <div className="font-medium text-zinc-900 dark:text-zinc-100">Strict lockdown</div>
             <div className="text-xs mt-2 text-zinc-500">
               {settings.STRICT_LOCKDOWN
-                ? 'Enabled — zero tolerance for tab switches, window switches, and fullscreen exits'
-                : 'Disabled — warn-then-terminate policy (2 warnings, ends on 3rd switch)'}
+                ? 'Enabled — one warning, then ends on the 2nd violation, plus best-effort OS key capture'
+                : 'Disabled — one warning, then ends on the 2nd violation'}
             </div>
           </div>
           <button

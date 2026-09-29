@@ -129,10 +129,20 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
       : resolveProctoringMode(candidateSource);
 
   let strictLockdownEnabled = true;
-  const proctoringSettingsRes = await apiServer("/auth/proctoring-settings", session?.token).catch((err) => {
-    console.warn("[proctoring-settings] fetch threw — defaulting strictLockdownEnabled=true", err);
-    return null;
-  });
+  // Retry once before falling back to the fail-safe default — a transient blip talking to
+  // auth-service shouldn't be enough to silently escalate every candidate into strict mode.
+  let proctoringSettingsRes: Response | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 300));
+    proctoringSettingsRes = await apiServer("/auth/proctoring-settings", session?.token).catch((err) => {
+      console.warn(`[proctoring-settings] fetch threw (attempt ${attempt + 1}/2)`, err);
+      return null;
+    });
+    if (proctoringSettingsRes?.ok) break;
+  }
+  if (!proctoringSettingsRes) {
+    console.warn("[proctoring-settings] fetch failed after retry — defaulting strictLockdownEnabled=true");
+  }
   if (proctoringSettingsRes?.ok) {
     const settingsBody = (await proctoringSettingsRes.json().catch(() => null)) as
       | { settings?: Record<string, boolean> }

@@ -6,9 +6,10 @@ import { useBranchOptions } from '@/hooks/useBranchOptions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, Download, CheckCircle, XCircle, AlertTriangle, Users, FileSpreadsheet, FileText } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Upload, Download, CheckCircle, XCircle, AlertTriangle, Users, FileSpreadsheet, FileText, Sparkles, Loader2, X, FileCheck } from 'lucide-react';
 import { BulkResumeDropzone } from '@/components/resume/BulkResumeDropzone';
 import { uploadResumeForCandidate } from '@/lib/uploadResume';
 import { matchResumesToRows, type RowResumeMatch } from '@/lib/resumeMatching';
@@ -83,6 +84,18 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
   const [validationResult, setValidationResult] = useState<BulkImportResponse | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const processSelectedFile = (selectedFile: File) => {
+    if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
+      setError('Please select an Excel (.xlsx) file');
+      return;
+    }
+    setFile(selectedFile);
+    setError(null);
+    setValidationResult(null);
+    setImportResult(null);
+  };
 
   const [resumeFiles, setResumeFiles] = useState<File[]>([]);
   const [manualAssignments, setManualAssignments] = useState<Map<number, File>>(new Map());
@@ -112,14 +125,29 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
-      if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
-        setError('Please select an Excel (.xlsx) file');
-        return;
-      }
-      setFile(selectedFile);
-      setError(null);
-      setValidationResult(null);
-      setImportResult(null);
+      processSelectedFile(selectedFile);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      processSelectedFile(droppedFile);
     }
   };
 
@@ -296,19 +324,30 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
   };
 
   return (
-    <div className="w-full p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Bulk Import Candidates</h1>
-        <p className="text-zinc-600">Upload Excel file to import B2B and Bench candidates with automatic credential generation</p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button
-            variant="outline"
+    <div className="w-full space-y-6 animate-in">
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xl transition-all duration-300">
+        <div className="absolute top-0 right-0 h-48 w-48 -mr-12 -mt-12 rounded-full bg-gradient-to-br from-[#6D28D9]/10 via-[#7C3AED]/5 to-transparent blur-2xl pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6D28D9] to-[#4C1D95] text-white shadow-md shadow-purple-500/20">
+              <FileSpreadsheet className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">Bulk Import Candidates</h1>
+              <p className="mt-1 text-xs font-medium text-[var(--text-secondary)]">
+                Upload Excel file to import B2B and Bench candidates with automatic credential generation
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
             onClick={() => window.open(`/api/admin/bulk-import/template?clientsEnabled=${clientsEnabled}`, '_blank')}
-            className="flex items-center gap-2"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#6D28D9]/30 bg-[#6D28D9]/10 px-4 py-2.5 text-xs font-bold text-[#6D28D9] dark:text-purple-300 shadow-2xs transition-all hover:bg-[#6D28D9] hover:text-white cursor-pointer hover:scale-[1.02] active:scale-[0.98] shrink-0"
           >
             <Download className="h-4 w-4" />
             Download Excel Template
-          </Button>
+          </button>
         </div>
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
           <p className="font-medium mb-1">Resume naming convention</p>
@@ -318,77 +357,121 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
 
       {/* File Upload Section */}
       {!validationResult && !importResult && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Upload Files
+        <Card className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden relative">
+          <div className="h-1.5 w-full bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95]" />
+          <CardHeader className="pb-4 border-b border-[var(--border)]">
+            <CardTitle className="flex items-center gap-2.5 text-lg font-extrabold text-[var(--text-primary)]">
+              <Upload className="h-5 w-5 text-[#6D28D9]" />
+              Upload Excel File
             </CardTitle>
-            <CardDescription>
-              Select the candidate roster (.xlsx) and optionally drop resume files below. At least one email (Official or Personal) must be provided per row.
+            <CardDescription className="text-xs font-medium text-[var(--text-secondary)]">
+              Select an Excel (.xlsx) file with candidate data. Required fields are marked with <span className="text-rose-500 font-bold">*</span> in the template. At least one email (Official or Personal) must be provided.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Step 1 — Candidate roster (.xlsx)</p>
-                <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Branch for imported candidates
-                  {isSuperAdmin ? (
-                    <select
-                      className="input-base max-w-xs"
-                      value={importBranch}
-                      onChange={(e) => setImportBranch(e.target.value)}
-                    >
-                      {branchOptions.map((b) => (
-                        <option key={b.code} value={b.code}>{b.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input readOnly disabled value={entityBranchLabel(staffDefaultBranch)} className="input-base max-w-xs opacity-70" />
-                  )}
-                </label>
-                <Input
-                  id="file-input"
-                  type="file"
-                  accept=".xlsx"
-                  onChange={handleFileSelect}
-                  className="cursor-pointer"
-                />
-                {file && (
-                  <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                    <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                    <span className="text-sm font-medium">{file.name}</span>
-                    <span className="text-sm text-zinc-500">({(file.size / 1024).toFixed(1)} KB)</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Step 2 — Resumes <span className="font-normal text-zinc-500">(optional, up to {MAX_RESUME_FILES} files)</span>
-                </p>
-                <BulkResumeDropzone files={resumeFiles} onFilesChange={setResumeFiles} maxFiles={MAX_RESUME_FILES} />
-              </div>
-
-              <Button
-                onClick={handleUpload}
-                disabled={!file || uploading}
-                className="w-full"
-              >
-                {uploading ? 'Validating...' : 'Upload & Validate'}
-              </Button>
+          <CardContent className="pt-6 space-y-5">
+            {/* Branch Selection */}
+            <div className="space-y-1.5 max-w-sm">
+              <Label className="text-xs font-bold text-[var(--text-primary)]">Branch for imported candidates</Label>
+              {isSuperAdmin ? (
+                <Select value={importBranch} onValueChange={setImportBranch}>
+                  <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branchOptions.map((b) => (
+                      <SelectItem key={b.code} value={b.code}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input readOnly disabled value={entityBranchLabel(staffDefaultBranch)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] text-xs font-medium opacity-80" />
+              )}
             </div>
+
+            {/* Drag & Drop Dropzone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => document.getElementById('file-input')?.click()}
+              className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 flex flex-col items-center justify-center gap-3 ${
+                isDragging
+                  ? 'border-[#6D28D9] bg-[#6D28D9]/10 scale-[1.005]'
+                  : 'border-[#6D28D9]/30 bg-[#6D28D9]/5 hover:border-[#6D28D9] hover:bg-[#6D28D9]/10'
+              }`}
+            >
+              <input
+                id="file-input"
+                type="file"
+                accept=".xlsx"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {file ? (
+                <div className="flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <FileCheck className="h-7 w-7" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-[var(--text-primary)]">{file.name}</span>
+                    <span className="text-xs font-semibold text-[var(--text-secondary)] bg-[var(--surface-subtle)] px-2 py-0.5 rounded-full border border-[var(--border)]">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFile(null)}
+                      className="rounded-lg p-1 text-[var(--text-secondary)] hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                      title="Remove file"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Ready to validate</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6D28D9]/10 text-[#6D28D9] dark:text-purple-300">
+                    <Upload className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[var(--text-primary)]">Click to upload or drag and drop</p>
+                    <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">Supports Microsoft Excel files (.xlsx)</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Resumes (optional) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-[var(--text-primary)]">
+                Resumes <span className="font-normal text-[var(--text-secondary)]">(optional, up to {MAX_RESUME_FILES} files)</span>
+              </Label>
+              <BulkResumeDropzone files={resumeFiles} onFilesChange={setResumeFiles} maxFiles={MAX_RESUME_FILES} />
+            </div>
+
+            <Button
+              type="button"
+              onClick={handleUpload}
+              disabled={!file || uploading}
+              className="w-full rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] py-3 text-xs font-bold text-white shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {uploading ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Validating Excel File...</>
+              ) : (
+                <><Sparkles className="h-4 w-4" />Upload &amp; Validate</>
+              )}
+            </Button>
           </CardContent>
         </Card>
       )}
 
       {/* Error Display */}
       {error && (
-        <Alert className="mb-6 border-red-200 bg-red-50">
-          <XCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="text-red-800">{error}</AlertDescription>
-        </Alert>
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-center gap-3 text-xs font-semibold text-rose-700 dark:text-rose-300 shadow-sm">
+          <XCircle className="h-5 w-5 text-rose-600 shrink-0" />
+          <span>{error}</span>
+        </div>
       )}
 
       {/* Validation Results */}
@@ -396,63 +479,57 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
         <div className="space-y-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <p className="text-sm text-zinc-600">Total Rows</p>
-                    <p className="text-2xl font-bold">{validationResult.totalRows}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-[var(--surface)] p-4 shadow-sm flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Total Rows</p>
+                <p className="text-2xl font-extrabold text-[var(--text-primary)]">{validationResult.totalRows}</p>
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <div>
-                    <p className="text-sm text-zinc-600">Valid Rows</p>
-                    <p className="text-2xl font-bold text-green-600">{validationResult.validRows}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-[var(--surface)] p-4 shadow-sm flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Valid Rows</p>
+                <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{validationResult.validRows}</p>
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <XCircle className="h-5 w-5 text-red-600" />
-                  <div>
-                    <p className="text-sm text-zinc-600">Error Rows</p>
-                    <p className="text-2xl font-bold text-red-600">{validationResult.errorRows}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-[var(--surface)] p-4 shadow-sm flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                <XCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Error Rows</p>
+                <p className="text-2xl font-extrabold text-rose-600 dark:text-rose-400">{validationResult.errorRows}</p>
+              </div>
+            </div>
           </div>
 
           {/* Validation Errors */}
           {validationResult.errors.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="rounded-2xl border border-rose-500/20 bg-[var(--surface)] shadow-md overflow-hidden">
+              <CardHeader className="pb-3 border-b border-[var(--border)]">
+                <CardTitle className="flex items-center gap-2 text-base font-extrabold text-rose-600 dark:text-rose-400">
                   <AlertTriangle className="h-5 w-5" />
                   Validation Issues ({validationResult.errors.length})
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="max-h-60 overflow-y-auto space-y-2">
-                  {validationResult.errors.map((error, index) => (
-                    <div key={index} className="flex items-center gap-2 p-2 rounded border">
-                      <Badge variant={error.severity === 'ERROR' ? 'destructive' : 'secondary'}>
-                        Row {error.rowNumber}
+              <CardContent className="pt-4">
+                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                  {validationResult.errors.map((errorItem, index) => (
+                    <div key={index} className="flex items-center gap-2.5 p-2.5 rounded-xl border border-rose-500/15 bg-rose-500/5 text-xs text-[var(--text-primary)]">
+                      <Badge variant={errorItem.severity === 'ERROR' ? 'destructive' : 'secondary'} className="rounded-lg font-bold">
+                        Row {errorItem.rowNumber}
                       </Badge>
-                      <span className="text-sm font-medium">{error.field}:</span>
-                      <span className="text-sm">{error.message}</span>
-                      {error.value && (
-                        <span className="text-sm text-zinc-500">({error.value})</span>
+                      <span className="font-bold text-[var(--text-primary)]">{errorItem.field}:</span>
+                      <span>{errorItem.message}</span>
+                      {errorItem.value && (
+                        <span className="text-[var(--text-secondary)] font-mono">({errorItem.value})</span>
                       )}
                     </div>
                   ))}
@@ -463,45 +540,45 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
 
           {/* Credential Preview */}
           {validationResult.credentialPreviews.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Credential Preview (First 10)</CardTitle>
-                <CardDescription>
+            <Card className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden">
+              <CardHeader className="pb-3 border-b border-[var(--border)]">
+                <CardTitle className="text-base font-extrabold text-[var(--text-primary)]">Credential Preview (First 10)</CardTitle>
+                <CardDescription className="text-xs text-[var(--text-secondary)]">
                   These login credentials will be generated for the candidates
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+              <CardContent className="pt-4">
+                <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+                  <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2">Name</th>
-                        <th className="text-left p-2">Username</th>
-                        <th className="text-left p-2">Password</th>
-                        <th className="text-left p-2">Source</th>
-                        <th className="text-left p-2">Batch</th>
+                      <tr className="border-b border-[var(--border)] bg-[var(--surface-subtle)] text-left font-bold text-[var(--text-secondary)]">
+                        <th className="p-3">Name</th>
+                        <th className="p-3">Username</th>
+                        <th className="p-3">Password</th>
+                        <th className="p-3">Source</th>
+                        <th className="p-3">Batch</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-[var(--border)]">
                       {validationResult.credentialPreviews.slice(0, 10).map((preview, index) => (
-                        <tr key={index} className="border-b">
-                          <td className="p-2">{preview.name}</td>
-                          <td className="p-2 font-mono text-xs">{preview.username}</td>
-                          <td className="p-2 font-mono text-xs">{preview.generatedPassword}</td>
-                          <td className="p-2">
-                            <Badge variant="outline">{preview.source}</Badge>
+                        <tr key={index} className="hover:bg-[var(--surface-subtle)]/50 transition-colors">
+                          <td className="p-3 font-bold text-[var(--text-primary)]">{preview.name}</td>
+                          <td className="p-3 font-mono font-medium text-[var(--text-primary)]">{preview.username}</td>
+                          <td className="p-3 font-mono font-bold text-[#6D28D9] dark:text-purple-400">{preview.generatedPassword}</td>
+                          <td className="p-3">
+                            <span className="rounded-full bg-purple-500/10 px-2.5 py-0.5 font-bold text-[10px] text-purple-700 dark:text-purple-300 border border-purple-500/20">{preview.source}</span>
                           </td>
-                          <td className="p-2">{preview.batch}</td>
+                          <td className="p-3 font-medium text-[var(--text-secondary)]">{preview.batch}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {validationResult.credentialPreviews.length > 10 && (
-                    <p className="text-sm text-zinc-500 mt-2">
-                      ... and {validationResult.credentialPreviews.length - 10} more candidates
-                    </p>
-                  )}
                 </div>
+                {validationResult.credentialPreviews.length > 10 && (
+                  <p className="text-xs font-semibold text-[var(--text-secondary)] mt-3">
+                    ... and {validationResult.credentialPreviews.length - 10} more candidates
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
@@ -604,22 +681,24 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-4">
+          <div className="flex items-center gap-3 pt-2">
+            <Button variant="secondary" onClick={resetForm} className="bg-[var(--surface-subtle)] font-bold text-xs cursor-pointer px-5">
+              Cancel
+            </Button>
             <Button
               onClick={handleConfirmImport}
               disabled={!validationResult.canProceed || processing || uploadingResumes}
-              className="flex-1"
+              className="flex-1 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-bold text-xs shadow-md hover:scale-[1.01] active:scale-[0.99] cursor-pointer py-2.5 flex items-center justify-center gap-2"
             >
-              {processing
-                ? 'Creating Accounts...'
-                : uploadingResumes
-                ? 'Uploading Resumes...'
-                : validationResult.canProceed
-                ? `Confirm Import (${validationResult.validRows} candidates)`
-                : 'Fix validation errors to import'}
-            </Button>
-            <Button variant="outline" onClick={resetForm}>
-              Cancel
+              {processing ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Creating Accounts...</>
+              ) : uploadingResumes ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Uploading Resumes...</>
+              ) : validationResult.canProceed ? (
+                <><CheckCircle className="h-4 w-4" />Confirm Import ({validationResult.validRows} candidates)</>
+              ) : (
+                'Fix validation errors to import'
+              )}
             </Button>
           </div>
         </div>
@@ -627,93 +706,85 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
 
       {/* Import Results */}
       {importResult && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {importResult.successCount > 0 ? (
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                ) : (
-                  <XCircle className="h-5 w-5 text-red-600" />
-                )}
-                Import {importResult.successCount > 0 ? 'Completed' : 'Failed'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-zinc-600">Successfully Created</p>
-                    <p className="text-2xl font-bold text-green-600">{importResult.successCount}</p>
-                  </div>
-                  <div className="p-4 bg-red-50 rounded-lg">
-                    <p className="text-sm text-zinc-600">Failed</p>
-                    <p className="text-2xl font-bold text-red-600">{importResult.errorCount}</p>
-                  </div>
-                </div>
+        <Card className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl overflow-hidden">
+          <CardHeader className="pb-4 border-b border-[var(--border)]">
+            <CardTitle className="flex items-center gap-2.5 text-lg font-extrabold text-[var(--text-primary)]">
+              {importResult.successCount > 0 ? (
+                <CheckCircle className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <XCircle className="h-6 w-6 text-rose-600 dark:text-rose-400" />
+              )}
+              Import {importResult.successCount > 0 ? 'Completed Successfully' : 'Failed'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Successfully Created</p>
+                <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{importResult.successCount}</p>
+              </div>
+              <div className="p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                <p className="text-xs font-bold text-rose-800 dark:text-rose-300">Failed</p>
+                <p className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">{importResult.errorCount}</p>
+              </div>
+            </div>
 
-                {importResult.errors.length > 0 && (
-                  <div>
-                    <h4 className="font-medium mb-2">Import Errors:</h4>
-                    <div className="max-h-40 overflow-y-auto space-y-1">
-                      {importResult.errors.map((error, index) => (
-                        <p key={index} className="text-sm text-red-600 p-2 bg-red-50 rounded">
-                          {error}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-4">
-                  {importResult.successCount > 0 && (
-                    <Button 
-                      onClick={handleDownloadCredentials}
-                      className="flex items-center gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download Login Credentials ({importResult.successCount} accounts)
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={resetForm}>
-                    Import More Candidates
-                  </Button>
+            {importResult.errors.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400">Import Errors:</h4>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {importResult.errors.map((err, index) => (
+                    <p key={index} className="text-xs text-rose-700 dark:text-rose-300 p-2.5 bg-rose-500/10 rounded-xl border border-rose-500/20 font-medium">
+                      {err}
+                    </p>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
 
-          {resumeUploadResults.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
+            <div className="flex flex-wrap gap-3 pt-2">
+              {importResult.successCount > 0 && (
+                <Button
+                  onClick={handleDownloadCredentials}
+                  className="rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-bold text-xs shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center gap-2 px-5 py-2.5"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Login Credentials ({importResult.successCount} accounts)
+                </Button>
+              )}
+              <Button variant="secondary" onClick={resetForm} className="bg-[var(--surface-subtle)] font-bold text-xs cursor-pointer px-5">
+                Import More Candidates
+              </Button>
+            </div>
+
+            {resumeUploadResults.length > 0 && (
+              <div className="pt-4 border-t border-[var(--border)] space-y-3">
+                <h4 className="flex items-center gap-2 text-sm font-extrabold text-[var(--text-primary)]">
+                  <FileText className="h-4 w-4" />
                   Resume Uploads
                   {uploadingResumes && (
-                    <span className="text-sm font-normal text-zinc-500">— uploading…</span>
+                    <span className="text-xs font-normal text-[var(--text-secondary)]">— uploading…</span>
                   )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                </h4>
+                <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+                  <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2">Row</th>
-                        <th className="text-left p-2">Candidate</th>
-                        <th className="text-left p-2">File</th>
-                        <th className="text-left p-2">Status</th>
+                      <tr className="border-b border-[var(--border)] bg-[var(--surface-subtle)] text-left font-bold text-[var(--text-secondary)]">
+                        <th className="p-3">Row</th>
+                        <th className="p-3">Candidate</th>
+                        <th className="p-3">File</th>
+                        <th className="p-3">Status</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-[var(--border)]">
                       {resumeUploadResults.map((r) => (
-                        <tr key={r.rowNumber} className="border-b">
-                          <td className="p-2">
+                        <tr key={r.rowNumber} className="hover:bg-[var(--surface-subtle)]/50 transition-colors">
+                          <td className="p-3">
                             <Badge variant="outline">Row {r.rowNumber}</Badge>
                           </td>
-                          <td className="p-2">{r.name}</td>
-                          <td className="p-2 font-mono text-xs truncate max-w-[200px]">{r.filename}</td>
-                          <td className="p-2">
+                          <td className="p-3 font-bold text-[var(--text-primary)]">{r.name}</td>
+                          <td className="p-3 font-mono text-[var(--text-secondary)] truncate max-w-[200px]">{r.filename}</td>
+                          <td className="p-3">
                             {r.status === 'uploading' && (
                               <Badge variant="secondary">Uploading…</Badge>
                             )}
@@ -723,10 +794,10 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
                             {r.status === 'failed' && (
                               <span className="flex flex-col gap-1">
                                 <Badge variant="destructive">Failed</Badge>
-                                {r.error && <span className="text-xs text-red-600">{r.error}</span>}
+                                {r.error && <span className="text-[10px] text-rose-600 dark:text-rose-400">{r.error}</span>}
                                 <a
                                   href={`/admin/candidates/${r.candidateId}`}
-                                  className="text-xs text-blue-600 underline"
+                                  className="text-[10px] text-blue-600 dark:text-blue-400 underline"
                                 >
                                   Add resume from profile →
                                 </a>
@@ -738,10 +809,10 @@ export default function BulkImportClient({ userRole, userBranch, clientsEnabled 
                     </tbody>
                   </table>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

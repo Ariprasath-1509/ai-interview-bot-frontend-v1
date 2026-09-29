@@ -40,8 +40,8 @@ const VERDICT_COLOR: Record<string, string> = {
   MISMATCH_WITH_JD: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
 };
 
-function cleanText(text: string | undefined): string {
-  if (!text) return "";
+function cleanText(text: unknown): string {
+  if (!text || typeof text !== "string") return "";
   return text
     .replace(/Heuristic only \(no (OPENAI_API_KEY|CLAUDE_API_KEY)\):\s*/gi, "")
     .replace(/Heuristic only:\s*/gi, "")

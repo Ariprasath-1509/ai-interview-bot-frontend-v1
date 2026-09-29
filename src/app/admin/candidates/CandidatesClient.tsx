@@ -4,17 +4,23 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/common/Toast';
 import { useConfirm } from '@/components/common/ConfirmDialog';
 import { ResumeUploadWidget } from '@/components/resume/ResumeUploadWidget';
-import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown, UserCheck, UserPlus, ChevronRight, ChevronLeft } from 'lucide-react';
+import { FileText, Upload, Download, Eye, Sparkles, TrendingUp, Users, Briefcase, X, FileDown, UserCheck, UserPlus, ChevronRight, ChevronLeft, Layers, Filter, Calendar, Building2, Clock, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { downloadCandidateReview } from '@/lib/downloadPdf';
 import { formatDate } from '@/lib/formatDate';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { PageHero, StatCard } from '@/components/common/AppUi';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/common/EmptyState';
+
 import {
   CandidatesMainTable,
   DeployedCandidatesTable,
+  CandidateEditDialog,
   type CandidateEditForm,
 } from '@/app/admin/candidates/CandidatesDirectoryTable';
 import { isStaffReadRole } from '@/lib/staffRoles';
@@ -51,7 +57,7 @@ export interface Candidate {
 }
 
 interface Props { role: string; features?: Record<string, boolean>; }
-type TreeParent = 'all' | 'deployed';
+type TreeParent = 'all' | 'matched' | 'deployed';
 
 type ImportDetail = {
   row?: number;
@@ -104,6 +110,10 @@ const emptyAddForm = (): AddCandidateForm => ({
   branch: 'DEVELOPMENT',
 });
 
+function getEffectiveInterviewCount(candidate: Candidate): number {
+  return Math.max(candidate.noOfInterviews ?? 0, candidate.systemInterviewCount ?? 0);
+}
+
 export default function CandidatesClient({ role, features = {} }: Props) {
   const clientsEnabled = features.CLIENTS !== false;
   const { options: branchOptions } = useBranchOptions();
@@ -113,6 +123,7 @@ export default function CandidatesClient({ role, features = {} }: Props) {
   const [selectedSubParent, setSelectedSubParent] = useState<string>('ALL');
   const [openTreeGroups, setOpenTreeGroups] = useState<Record<TreeParent, boolean>>({
     all: true,
+    matched: true,
     deployed: true,
   });
   const [masterPaneCollapsed, setMasterPaneCollapsed] = useState(false);
@@ -292,12 +303,22 @@ export default function CandidatesClient({ role, features = {} }: Props) {
     return matchesSearch && matchesSkill && matchesSource && matchesStatus && matchesRating;
   });
 
+  const matchedCandidates = allCandidates.filter(c => (c.systemInterviewCount ?? 0) > 0);
+  const effectiveBandFor = (candidate: Candidate) => {
+    const count = getEffectiveInterviewCount(candidate);
+    if (count >= 7) return 'REVIEW_NEEDED';
+    if (count >= 5) return 'HIGH_ATTEMPTS';
+    if (count >= 3) return 'ELIGIBLE';
+    return 'EARLY_STAGE';
+  };
+
   const allStatusGroups = ['ALL', ...Array.from(new Set(allCandidates.map(c => c.candidateStatus || 'UNKNOWN')))];
   const allStatusCounts = allCandidates.reduce<Record<string, number>>((acc, c) => {
     const key = c.candidateStatus || 'UNKNOWN';
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, { ALL: allCandidates.length });
+  const matchedSubGroups = ['ALL', 'ELIGIBLE', 'HIGH_ATTEMPTS', 'REVIEW_NEEDED', 'EARLY_STAGE'];
   const deployedClientGroups = ['ALL', ...Array.from(new Set(deployedCandidates.map(c => c.deployedClientName || 'UNASSIGNED')))];
 
   const deployedFilteredBySearch = deployedCandidates.filter(c => {
@@ -314,6 +335,10 @@ export default function CandidatesClient({ role, features = {} }: Props) {
   const allTreeFiltered = selectedSubParent === 'ALL'
       ? allCandidates
       : allCandidates.filter(c => (c.candidateStatus || 'UNKNOWN') === selectedSubParent);
+
+  const matchedTreeFiltered = selectedSubParent === 'ALL'
+      ? matchedCandidates
+      : matchedCandidates.filter(c => effectiveBandFor(c) === selectedSubParent);
 
   const deployedTreeFiltered = selectedSubParent === 'ALL'
       ? deployedFilteredBySearch
@@ -564,6 +589,8 @@ export default function CandidatesClient({ role, features = {} }: Props) {
 
   const treeData = effectiveParent === 'deployed'
       ? deployedTreeFiltered
+      : effectiveParent === 'matched'
+      ? matchedTreeFiltered
       : allTreeFiltered;
 
   const toggleTreeGroup = useCallback((key: TreeParent) => {
@@ -588,7 +615,7 @@ export default function CandidatesClient({ role, features = {} }: Props) {
 
   useEffect(() => {
     try {
-      const keys: TreeParent[] = ['all', 'deployed'];
+      const keys: TreeParent[] = ['all', 'matched', 'deployed'];
       setOpenTreeGroups((prev) => {
         const next = { ...prev };
         for (const k of keys) {
@@ -611,219 +638,303 @@ export default function CandidatesClient({ role, features = {} }: Props) {
   if (loading) return <LoadingSpinner message="Loading candidates..." />;
 
   return (
-      <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full animate-in">
-        <PageHero
-            icon={Users}
-            title="Candidate Directory"
-            description="Browse, filter, and manage candidates across the pipeline and deployed groups."
-            variant="teal"
-        />
-
-        <div className={`grid gap-4 ${clientsEnabled ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}>
-          <StatCard title="All Candidates" value={allCandidates.length} accent="blue" icon={Users} />
-          {clientsEnabled && <StatCard title="Deployed" value={deployedCandidates.length} accent="purple" icon={Briefcase} />}
-        </div>
-
-        {/* Tree View Structure Wrapper */}
-        <div className="card flex min-h-0 flex-1 flex-col overflow-hidden w-full min-w-0 max-w-full">
-          <div
-              className={`grid h-full min-h-0 w-full min-w-0 flex-1 grid-cols-1 grid-rows-1 transition-[grid-template-columns] duration-200 ease-out ${
-                  masterPaneCollapsed
-                      ? 'xl:grid-cols-[2.75rem_minmax(0,1fr)]'
-                      : 'xl:grid-cols-[240px_minmax(0,1fr)]'
-              }`}
-          >
-            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col border-r border-zinc-200 dark:border-[#2e224e]">
-              {!masterPaneCollapsed && (
-                  <div className="hidden shrink-0 items-center justify-end border-b border-zinc-200 bg-zinc-50/70 px-1 py-1 dark:border-[#2e224e] dark:bg-[#1f1839]/50 xl:flex">
-                    <button
-                        type="button"
-                        onClick={toggleMasterPane}
-                        className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:text-[#9585b3] dark:hover:bg-[#2e224e]/60 dark:hover:text-[#ede8f5]"
-                        aria-label="Collapse candidate list"
-                        title="Collapse list"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                  </div>
-              )}
-              {masterPaneCollapsed && (
-                  <div className="hidden shrink-0 flex-col items-center border-b border-zinc-200 bg-zinc-50/70 py-3 dark:border-[#2e224e] dark:bg-[#1f1839]/50 xl:flex">
-                    <button
-                        type="button"
-                        onClick={toggleMasterPane}
-                        className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 dark:text-[#9585b3] dark:hover:bg-[#2e224e]/60 dark:hover:text-[#ede8f5]"
-                        aria-label="Expand candidate list"
-                        title="Expand list"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-              )}
-
-              <div className={`min-h-0 flex-1 overflow-y-auto ${masterPaneCollapsed ? 'xl:hidden' : ''}`}>
-                <button
-                    type="button"
-                    aria-expanded={openTreeGroups.all}
-                    onClick={() => toggleTreeGroup('all')}
-                    className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-purple-50/80 dark:border-[#2e224e] dark:bg-[#1f1839]/40 dark:text-[#9585b3] dark:hover:bg-[#1f1839]/70"
-                >
-                  <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.all ? 'rotate-90' : ''}`} />
-                  <span className="flex-1">All Candidates ({allCandidates.length})</span>
-                </button>
-                {openTreeGroups.all && (
-                    <div className="border-b border-zinc-200 dark:border-[#2e224e]">
-                      {allStatusGroups.map(group => (
-                          <button
-                              type="button"
-                              key={`all-${group}`}
-                              onClick={() => {
-                                setSelectedParent('all');
-                                setSelectedSubParent(group);
-                              }}
-                              className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
-                                  selectedParent === 'all' && selectedSubParent === group
-                                      ? 'bg-purple-50 dark:bg-purple-950/25 text-purple-700 dark:text-purple-300 font-medium'
-                                      : 'text-zinc-700 dark:text-[#c4b8d8] hover:bg-purple-50/50 dark:hover:bg-[#1f1839]/60'
-                              }`}
-                          >
-                            {group === 'ALL' ? 'All' : group}
-                            {' '}
-                            <span className="text-zinc-400 dark:text-[#6e5f8a]">({allStatusCounts[group] ?? 0})</span>
-                          </button>
-                      ))}
-                    </div>
-                )}
-
-                {clientsEnabled && (
-                  <>
-                <button
-                    type="button"
-                    aria-expanded={openTreeGroups.deployed}
-                    onClick={() => toggleTreeGroup('deployed')}
-                    className="flex w-full items-center gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-purple-50/80 dark:border-[#2e224e] dark:bg-[#1f1839]/40 dark:text-[#9585b3] dark:hover:bg-[#1f1839]/70"
-                >
-                  <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.deployed ? 'rotate-90' : ''}`} />
-                  <span className="flex-1">Deployed Candidates ({deployedCandidates.length})</span>
-                </button>
-                {openTreeGroups.deployed && (
-                    <div>
-                      {deployedClientGroups.map(group => (
-                          <button
-                              type="button"
-                              key={`deployed-${group}`}
-                              onClick={() => {
-                                setSelectedParent('deployed');
-                                setSelectedSubParent(group);
-                              }}
-                              className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${
-                                  selectedParent === 'deployed' && selectedSubParent === group
-                                      ? 'bg-purple-50 dark:bg-purple-950/25 text-purple-700 dark:text-purple-300 font-medium'
-                                      : 'text-zinc-700 dark:text-[#c4b8d8] hover:bg-purple-50/50 dark:hover:bg-[#1f1839]/60'
-                              }`}
-                          >
-                            {group === 'ALL' ? 'All' : group}
-                          </button>
-                      ))}
-                    </div>
-                )}
-                  </>
-                )}
+    <div className="flex min-h-0 flex-1 flex-col gap-6 w-full min-w-0 max-w-full animate-in">
+        <div className={`grid gap-4 ${clientsEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-1'}`}>
+          <div className="panel-card p-4 rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-[var(--surface)] shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">All Candidates</p>
+                <p className="text-2xl font-extrabold text-[var(--text-primary)] mt-0.5">{allCandidates.length}</p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <Users className="h-5 w-5" />
               </div>
             </div>
+          </div>
 
-            {/* Main Dashboard Panel Content */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-6 space-y-4">
-              {effectiveParent !== 'deployed' ? (
-                  <div className="card p-6">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
-                      <div className="md:col-span-2">
-                        <input
-                            className={inputCls}
-                            placeholder="Search by name, email, or batch…"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                      </div>
-                      <select className={inputCls} value={filterSkill} onChange={(e) => setFilterSkill(e.target.value)}>
-                        <option value="">All Skills</option>
-                        {skillOptions.map((s) => (
-                            <option key={s.value} value={s.value}>{s.label}</option>
-                        ))}
-                      </select>
-                      <select className={inputCls} value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
-                        <option value="">All Sources</option>
-                        <option value="B2B">B2B</option>
-                        <option value="BENCH">Bench</option>
-                        <option value="MARKET">Market</option>
-                      </select>
-                      <select className={inputCls} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                        <option value="">All Statuses</option>
-                        <option value="RFD">RFD</option>
-                        <option value="WFD">WFD</option>
-                        <option value="DOB">DOB</option>
-                        <option value="TRAINING">Training</option>
-                      </select>
-                      <select className={inputCls} value={filterRating} onChange={(e) => setFilterRating(e.target.value)}>
-                        <option value="">All Ratings</option>
-                        <option value="ASSET">Asset</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="LIABILITY">Liability</option>
-                      </select>
-                    </div>
-                  </div>
-              ) : (
-                  <div className="card p-6">
-                    <input
-                        className={inputCls}
-                        placeholder="Search deployed candidates by name, email, client, emp id..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </div>
-              )}
-
+          {clientsEnabled && (
+            <div className="panel-card p-4 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-[var(--surface)] shadow-xs">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-zinc-600 dark:text-[#9585b3]">
-                  <span className="font-semibold text-zinc-900 dark:text-[#ede8f5]">{treeData.length}</span> candidate
-                  {treeData.length !== 1 ? "s" : ""} found
+                <div>
+                  <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Matched</p>
+                  <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">{matchedCandidates.length}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  {canAddCandidate && effectiveParent !== 'deployed' && (
-                    <>
-                      <Button
-                          onClick={() => setShowAddDialog(true)}
-                          className="h-8 rounded-full bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                      >
-                        <UserPlus className="mr-1 h-3.5 w-3.5" />
-                        Bench/B2B Candidate
-                      </Button>
-                      {clientsEnabled && (
-                        <Button
-                            onClick={() => { setShowMarketCandidateDialog(true); setMarketCreated(null); setMarketForm({ name: '', email: '', contactNumber: '', branch: 'DEVELOPMENT' }); }}
-                            className="h-8 rounded-full text-white shadow-sm"
-                            style={{ backgroundColor: '#7B3FA0' }}
-                        >
-                          <UserPlus className="mr-1 h-3.5 w-3.5" />
-                          Market Candidate
-                        </Button>
-                      )}
-                    </>
-                  )}
-                  {effectiveParent === "deployed" && (
-                      <Button
-                          onClick={() => setShowBulkImportDialog(true)}
-                          className="h-8 rounded-full bg-blue-600 text-white shadow-sm hover:bg-blue-700"
-                      >
-                        <Upload className="mr-1 h-3.5 w-3.5" />
-                        Bulk Import
-                      </Button>
-                  )}
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <UserCheck className="h-5 w-5" />
                 </div>
               </div>
+            </div>
+          )}
+
+          {clientsEnabled && (
+            <div className="panel-card p-4 rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-[var(--surface)] shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Deployed</p>
+                  <p className="text-2xl font-extrabold text-[#6D28D9] dark:text-purple-400 mt-0.5">{deployedCandidates.length}</p>
+                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-[#6D28D9] dark:text-purple-400">
+                  <Briefcase className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Filter Container at Top */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 relative z-20">
+          <div className="panel-header panel-header-accent-indigo rounded-t-2xl flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <Filter className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              Filter Candidates
+            </h2>
+            <span className="text-xs font-medium text-[var(--text-secondary)]">Search and filter candidates across pipeline</span>
+          </div>
+
+          <div className="p-5">
+            {effectiveParent !== 'deployed' ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--text-primary)]">Search</label>
+                  <input
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 px-3.5 font-medium focus:border-[#6D28D9] focus:outline-none"
+                      placeholder="Search by name, email, or batch…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--text-primary)]">Skill</label>
+                  <Select value={filterSkill || "ALL"} onValueChange={(val) => setFilterSkill(val === "ALL" ? "" : val)}>
+                    <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                      <SelectValue placeholder="All Skills" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-44 z-50">
+                      <SelectItem value="ALL" className="text-xs font-semibold">All Skills</SelectItem>
+                      {skillOptions.map((s) => (
+                        <SelectItem key={s.value} value={s.value} className="text-xs font-semibold">{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--text-primary)]">Source</label>
+                  <Select value={filterSource || "ALL"} onValueChange={(val) => setFilterSource(val === "ALL" ? "" : val)}>
+                    <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                      <SelectValue placeholder="All Sources" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-44 z-50">
+                      <SelectItem value="ALL" className="text-xs font-semibold">All Sources</SelectItem>
+                      <SelectItem value="B2B" className="text-xs font-semibold">B2B</SelectItem>
+                      <SelectItem value="BENCH" className="text-xs font-semibold">Bench</SelectItem>
+                      <SelectItem value="MARKET" className="text-xs font-semibold">Market</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--text-primary)]">Status</label>
+                  <Select value={filterStatus || "ALL"} onValueChange={(val) => setFilterStatus(val === "ALL" ? "" : val)}>
+                    <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-44 z-50">
+                      <SelectItem value="ALL" className="text-xs font-semibold">All Statuses</SelectItem>
+                      <SelectItem value="RFD" className="text-xs font-semibold">RFD</SelectItem>
+                      <SelectItem value="WFD" className="text-xs font-semibold">WFD</SelectItem>
+                      <SelectItem value="DOB" className="text-xs font-semibold">DOB</SelectItem>
+                      <SelectItem value="TRAINING" className="text-xs font-semibold">Training</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--text-primary)]">Rating</label>
+                  <Select value={filterRating || "ALL"} onValueChange={(val) => setFilterRating(val === "ALL" ? "" : val)}>
+                    <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 font-medium focus:border-[#6D28D9]">
+                      <SelectValue placeholder="All Ratings" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-44 z-50">
+                      <SelectItem value="ALL" className="text-xs font-semibold">All Ratings</SelectItem>
+                      <SelectItem value="ASSET" className="text-xs font-semibold">Asset</SelectItem>
+                      <SelectItem value="MEDIUM" className="text-xs font-semibold">Medium</SelectItem>
+                      <SelectItem value="LIABILITY" className="text-xs font-semibold">Liability</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-primary)]">Search Deployed Candidates</label>
+                <input
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-10 px-3.5 font-medium focus:border-[#6D28D9] focus:outline-none"
+                    placeholder="Search deployed candidates by name, email, client, emp id..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Top-aligned Full-width Tree Navigation Card */}
+        <div className="panel-card flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs overflow-hidden w-full">
+          {/* ALL CANDIDATES Accordion Header */}
+          <button
+            type="button"
+            aria-expanded={openTreeGroups.all}
+            onClick={() => {
+              setSelectedParent('all');
+              setSelectedSubParent('ALL');
+              toggleTreeGroup('all');
+            }}
+            className="flex w-full items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-subtle)]/50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] cursor-pointer"
+          >
+            <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.all ? 'rotate-90' : ''}`} />
+            <span className="flex-1">ALL CANDIDATES ({allCandidates.length})</span>
+          </button>
+          {openTreeGroups.all && (
+            <div className="flex flex-wrap items-center gap-2 p-3 bg-[var(--surface)] border-b border-[var(--border)]">
+              {allStatusGroups.map(group => (
+                <button
+                  type="button"
+                  key={`all-${group}`}
+                  onClick={() => {
+                    setSelectedParent('all');
+                    setSelectedSubParent(group);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    selectedParent === 'all' && selectedSubParent === group
+                      ? 'bg-[#6D28D9] text-white shadow-xs'
+                      : 'bg-[var(--surface-subtle)] text-[var(--text-primary)] hover:bg-[#6D28D9]/10 hover:text-[#6D28D9]'
+                  }`}
+                >
+                  {group === 'ALL' ? 'All' : group} ({allStatusCounts[group] ?? 0})
+                </button>
+              ))}
+            </div>
+          )}
+
+          {clientsEnabled && (
+            <>
+              {/* MATCHED CANDIDATES Accordion Header */}
+              <button
+                type="button"
+                aria-expanded={openTreeGroups.matched}
+                onClick={() => {
+                  setSelectedParent('matched');
+                  setSelectedSubParent('ALL');
+                  toggleTreeGroup('matched');
+                }}
+                className="flex w-full items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-subtle)]/50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.matched ? 'rotate-90' : ''}`} />
+                <span className="flex-1">MATCHED CANDIDATES ({matchedCandidates.length})</span>
+              </button>
+              {openTreeGroups.matched && (
+                <div className="flex flex-wrap items-center gap-2 p-3 bg-[var(--surface)] border-b border-[var(--border)]">
+                  {matchedSubGroups.map(group => (
+                    <button
+                      type="button"
+                      key={`matched-${group}`}
+                      onClick={() => {
+                        setSelectedParent('matched');
+                        setSelectedSubParent(group);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        selectedParent === 'matched' && selectedSubParent === group
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-[var(--surface-subtle)] text-[var(--text-primary)] hover:bg-emerald-500/10 hover:text-emerald-600'
+                      }`}
+                    >
+                      {group.replaceAll('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* DEPLOYED CANDIDATES Accordion Header */}
+              <button
+                type="button"
+                aria-expanded={openTreeGroups.deployed}
+                onClick={() => {
+                  setSelectedParent('deployed');
+                  setSelectedSubParent('ALL');
+                  toggleTreeGroup('deployed');
+                }}
+                className="flex w-full items-center gap-2 bg-[var(--surface-subtle)]/50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${openTreeGroups.deployed ? 'rotate-90' : ''}`} />
+                <span className="flex-1">DEPLOYED CANDIDATES ({deployedCandidates.length})</span>
+              </button>
+              {openTreeGroups.deployed && (
+                <div className="flex flex-wrap items-center gap-2 p-3 bg-[var(--surface)]">
+                  {deployedClientGroups.map(group => (
+                    <button
+                      type="button"
+                      key={`deployed-${group}`}
+                      onClick={() => {
+                        setSelectedParent('deployed');
+                        setSelectedSubParent(group);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        selectedParent === 'deployed' && selectedSubParent === group
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'bg-[var(--surface-subtle)] text-[var(--text-primary)] hover:bg-purple-500/10 hover:text-purple-600'
+                      }`}
+                    >
+                      {group === 'ALL' ? 'All Clients' : group}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Action Buttons & Main Table Container */}
+        <div className="w-full space-y-4">
+          <div className="flex items-center justify-end">
+            <div className="flex items-center gap-2">
+              {canAddCandidate && effectiveParent !== 'deployed' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDialog(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Add Candidate
+                  </button>
+                  {clientsEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => { setShowMarketCandidateDialog(true); setMarketCreated(null); setMarketForm({ name: '', email: '', contactNumber: '', branch: 'DEVELOPMENT' }); }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[#6D28D9] bg-[#6D28D9]/10 px-3.5 py-2 text-xs font-bold text-[#6D28D9] dark:text-purple-300 shadow-2xs transition-all hover:bg-[#6D28D9] hover:text-white cursor-pointer"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Market Candidate
+                    </button>
+                  )}
+                </>
+              )}
+              {effectiveParent === "deployed" && (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkImportDialog(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Bulk Import
+                </button>
+              )}
+            </div>
+          </div>
 
               {effectiveParent !== "deployed" ? (
-                  <div className="card min-w-0 p-4">
+                  <div className="panel-card min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs transition-all duration-200 relative z-20">
                     <CandidatesMainTable
                         data={treeData}
                         role={role}
@@ -853,10 +964,12 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                         selectSmCls={selectSmCls}
                         showBranchColumn={isStaffReadRole(role)}
                         clientsEnabled={clientsEnabled}
+                        recordsCount={treeData.length}
+                        headerTitle="Candidate Directory"
                     />
                   </div>
               ) : (
-                  <div className="card min-w-0 overflow-hidden p-4">
+                  <div className="panel-card min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs transition-all duration-200 relative z-20">
                     <DeployedCandidatesTable
                         data={treeData}
                         endingDeploymentId={endingDeployment}
@@ -864,59 +977,76 @@ export default function CandidatesClient({ role, features = {} }: Props) {
                           onViewHistory: handleViewHistory,
                           onEndDeployment: handleEndDeployment,
                         }}
+                        recordsCount={treeData.length}
+                        headerTitle="Deployed Candidates Directory"
                     />
                     {treeData.length === 0 && (
-                        <div className="mt-6 border-t border-zinc-200 pt-6 text-center dark:border-[#2e224e]">
-                          <Briefcase className="mx-auto mb-3 h-12 w-12 text-zinc-300 dark:text-[#2e224e]" />
-                          <p className="text-sm text-zinc-500 dark:text-[#9585b3]">No deployed candidates found.</p>
+                        <div className="mt-6 border-t border-[var(--border)] pt-6 text-center">
+                          <Briefcase className="mx-auto mb-3 h-12 w-12 text-[var(--text-secondary)] opacity-40" />
+                          <p className="text-sm font-medium text-[var(--text-secondary)]">No deployed candidates found.</p>
                         </div>
                     )}
                   </div>
               )}
-            </div>
-          </div>
         </div>
+
+        {/* Candidate Edit Dialog */}
+        <CandidateEditDialog
+          isOpen={!!editingId}
+          role={role}
+          editForm={editForm}
+          setEditForm={setEditForm}
+          saving={saving}
+          onSave={() => editingId && saveEdit(editingId)}
+          onCancel={() => setEditingId(null)}
+          clientsEnabled={clientsEnabled}
+        />
 
         {/* Resume Upload Dialog */}
         <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
-          <DialogContent className="max-w-2xl dark:bg-zinc-950">
-            <DialogHeader className="border-b border-zinc-200 pb-4 dark:border-zinc-800">
+          <DialogContent className="max-w-2xl w-full max-h-[88vh] overflow-hidden flex flex-col p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-xl">
+            <DialogHeader className="border-b border-[var(--border)] pb-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <DialogTitle className="text-left text-xl">
-                    {selectedCandidate?.resumeFilename ? "Replace Resume" : "Upload Resume"}
-                  </DialogTitle>
-                  <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    Upload on behalf of the candidate. The file is parsed and an AI summary is generated automatically.
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6D28D9]/10 text-[#6D28D9] dark:text-purple-400">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <DialogTitle className="text-xl font-extrabold text-[var(--text-primary)] text-left">
+                      {selectedCandidate?.resumeFilename ? "Replace Resume" : "Upload Resume"}
+                    </DialogTitle>
+                    <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5 text-left">
+                      Upload on behalf of the candidate. The file is parsed and an AI summary is generated automatically.
+                    </p>
+                  </div>
                 </div>
                 <button
-                    type="button"
-                    onClick={() => setShowResumeDialog(false)}
-                    className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                    aria-label="Close"
+                  type="button"
+                  onClick={() => setShowResumeDialog(false)}
+                  className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </DialogHeader>
-            <div className="px-6 pb-6 pt-2">
+            <div className="flex-1 overflow-y-auto py-4 px-1">
               {selectedCandidate && (
-                  <ResumeUploadWidget
-                      candidateId={selectedCandidate.id}
-                      candidateName={selectedCandidate.name}
-                      candidateEmail={selectedCandidate.officialEmail || selectedCandidate.personalEmail || selectedCandidate.email}
-                      initialResume={{
-                        filename: selectedCandidate.resumeFilename ?? null,
-                        summary: selectedCandidate.resumeSummary ?? null,
-                        uploadedAt: selectedCandidate.resumeUploadedAt ?? null,
-                      }}
-                      onDownload={() => handleDownloadResume(selectedCandidate.id, selectedCandidate.resumeFilename || "resume.pdf")}
-                      onUploadComplete={() => {
-                        fetchCandidates();
-                        setShowResumeDialog(false);
-                      }}
-                  />
+                <ResumeUploadWidget
+                  candidateId={selectedCandidate.id}
+                  candidateName={selectedCandidate.name}
+                  candidateEmail={selectedCandidate.officialEmail || selectedCandidate.personalEmail || selectedCandidate.email}
+                  initialResume={{
+                    filename: selectedCandidate.resumeFilename ?? null,
+                    summary: selectedCandidate.resumeSummary ?? null,
+                    uploadedAt: selectedCandidate.resumeUploadedAt ?? null,
+                  }}
+                  onDownload={() => handleDownloadResume(selectedCandidate.id, selectedCandidate.resumeFilename || "resume.pdf")}
+                  onUploadComplete={() => {
+                    fetchCandidates();
+                    setShowResumeDialog(false);
+                  }}
+                />
               )}
             </div>
           </DialogContent>
@@ -1033,234 +1163,334 @@ export default function CandidatesClient({ role, features = {} }: Props) {
 
         {/* Deployment History Dialog */}
         <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-semibold">Deployment History</DialogTitle>
-            </DialogHeader>
-            {loadingHistory ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-                    <div className="text-sm text-zinc-500">Loading history...</div>
-                  </div>
+          <DialogContent className="max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-xl">
+            <DialogHeader className="border-b border-[var(--border)] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6D28D9]/10 text-[#6D28D9] dark:text-purple-400">
+                  <Eye className="h-5 w-5" />
                 </div>
-            ) : deploymentHistory.length > 0 ? (
-                <div className="space-y-3">
+                <div>
+                  <DialogTitle className="text-xl font-extrabold text-[var(--text-primary)]">Deployment History</DialogTitle>
+                  <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">
+                    View client deployment timeline and assignment details.
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto py-4 px-1 space-y-4">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner message="Loading deployment history..." />
+                </div>
+              ) : deploymentHistory.length > 0 ? (
+                <div className="space-y-4">
                   {deploymentHistory.map((history) => (
-                      <div
-                          key={history.id}
-                          className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 hover:shadow-md transition-shadow bg-white dark:bg-zinc-900"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-semibold text-base text-zinc-900 dark:text-zinc-100">{history.clientName}</h4>
-                              <Badge
-                                  variant={history.status === 'ACTIVE' ? 'default' : 'secondary'}
-                                  className={history.status === 'ACTIVE' ? 'bg-green-100 text-green-800 border-green-200' : ''}
-                              >
-                                {history.status}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                              {history.empId && <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{history.empId}</span>}
-                              {history.empId && ' • '}
-                              {history.candidateName} <span className="text-zinc-400">({history.candidateEmail})</span>
-                            </p>
+                    <div
+                      key={history.id}
+                      className="group relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-all duration-200 hover:border-[#6D28D9]/40 hover:shadow-md space-y-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h4 className="font-extrabold text-base text-[var(--text-primary)] flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-[#6D28D9] dark:text-purple-400 shrink-0" />
+                              {history.clientName}
+                            </h4>
+                            <span
+                              className={`inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-0.5 text-xs font-extrabold rounded-full border ${
+                                history.status === 'ACTIVE'
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
+                                  : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20'
+                              }`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${history.status === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : 'bg-purple-500'}`} />
+                              {history.status}
+                            </span>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3">
-                          <div>
-                            <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">Deployed Date</span>
-                            <div className="font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
-                              {formatDate(history.deployedDate)}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">End Date</span>
-                            <div className="font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
-                              {history.endDate ? formatDate(history.endDate) : (
-                                  <span className="text-green-600 dark:text-green-400">Currently Active</span>
-                              )}
-                            </div>
+                          <div className="flex items-center flex-wrap gap-2 text-xs font-medium text-[var(--text-secondary)] pt-0.5">
+                            {history.empId && (
+                              <span className="font-mono bg-[var(--surface-subtle)] text-[var(--text-primary)] px-2 py-0.5 rounded-md border border-[var(--border)] font-bold text-[11px]">
+                                {history.empId}
+                              </span>
+                            )}
+                            {history.empId && history.candidateName && <span>•</span>}
+                            {history.candidateName && (
+                              <span className="font-semibold text-[var(--text-primary)]">{history.candidateName}</span>
+                            )}
+                            {history.candidateEmail && (
+                              <span className="text-[var(--text-secondary)]">({history.candidateEmail})</span>
+                            )}
                           </div>
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-2 gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)]/50 p-3.5">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
+                            <Calendar className="h-3 w-3 text-[#6D28D9] dark:text-purple-400" />
+                            Deployed Date
+                          </span>
+                          <p className="text-sm font-extrabold text-[var(--text-primary)]">
+                            {formatDate(history.deployedDate)}
+                          </p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
+                            <Clock className="h-3 w-3 text-[#6D28D9] dark:text-purple-400" />
+                            End Date
+                          </span>
+                          <p className="text-sm font-extrabold text-[var(--text-primary)]">
+                            {history.endDate ? (
+                              formatDate(history.endDate)
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                Currently Active
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
-            ) : (
-                <div className="text-center py-12">
-                  <Briefcase className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No deployment history found.</p>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-subtle)] text-[var(--text-secondary)] opacity-60">
+                    <Briefcase className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm font-bold text-[var(--text-secondary)]">No deployment history found.</p>
                 </div>
-            )}
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-[var(--border)] flex items-center justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowHistoryDialog(false)}
+                className="bg-[var(--surface-subtle)] active:scale-[0.98] transition-all duration-150 cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 
         {/* Add Candidate Dialog */}
         <Dialog open={showAddDialog} onOpenChange={(open) => { if (!open) closeAddDialog(); else setShowAddDialog(true); }}>
-          <DialogContent className="max-w-4xl w-full max-h-[92vh] overflow-y-auto">
-            <DialogHeader className="pb-4 border-b border-zinc-200 dark:border-zinc-800">
-              <DialogTitle className="flex items-center gap-2.5 text-xl font-bold">
-                <div className="bg-emerald-100 dark:bg-emerald-900/30 p-1.5 rounded-lg">
-                  <UserPlus className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-xl">
+            <DialogHeader className="border-b border-[var(--border)] pb-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <UserPlus className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <DialogTitle className="text-xl font-extrabold text-[var(--text-primary)] text-left">Add New Candidate</DialogTitle>
+                    <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5 text-left">
+                      Fields marked <span className="text-rose-500 font-bold">*</span> are required. At least one email must be provided.
+                    </p>
+                  </div>
                 </div>
-                Add New Candidate
-              </DialogTitle>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                Fields marked <span className="text-red-500 font-semibold">*</span> are required. At least one email must be provided.
-              </p>
+                <button
+                  type="button"
+                  onClick={closeAddDialog}
+                  className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </DialogHeader>
 
             {createdCredentials ? (
-              <div className="space-y-4 p-1">
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 p-4 flex items-start gap-3">
+              <div className="space-y-4 py-4 px-1">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-start gap-3">
                   <UserCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-semibold text-emerald-800 dark:text-emerald-200">Candidate created successfully</p>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-0.5">Credentials emailed if an address was provided. Save them below.</p>
+                    <p className="font-extrabold text-sm text-emerald-800 dark:text-emerald-200">Candidate created successfully</p>
+                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300 mt-0.5">Credentials emailed if an address was provided. Save them below.</p>
                   </div>
                 </div>
-                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-700">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]/50 divide-y divide-[var(--border)] overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Username (Email)</span>
-                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{createdCredentials.username}</span>
+                    <span className="text-xs font-bold text-[var(--text-secondary)]">Username (Email)</span>
+                    <span className="font-mono font-bold text-sm text-[var(--text-primary)]">{createdCredentials.username}</span>
                   </div>
                   <div className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Temporary Password</span>
-                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{createdCredentials.password}</span>
+                    <span className="text-xs font-bold text-[var(--text-secondary)]">Temporary Password</span>
+                    <span className="font-mono font-bold text-sm text-[#6D28D9] dark:text-purple-400">{createdCredentials.password}</span>
                   </div>
                 </div>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-800 dark:text-amber-200">
                   <strong>Note:</strong> The password cannot be retrieved later — share it with the candidate now.
                 </div>
                 <div className="flex justify-end pt-2">
-                  <Button onClick={closeAddDialog} className="bg-emerald-600 hover:bg-emerald-700">Done</Button>
+                  <Button onClick={closeAddDialog} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs px-5 py-2 cursor-pointer">Done</Button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-5 p-1">
+              <div className="space-y-6 overflow-y-auto py-4 px-1 flex-1">
                 {/* Basic Information */}
                 <div>
-                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <div className="h-3 w-1 bg-blue-500 rounded-full"></div>
+                  <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#6D28D9] dark:text-purple-400 mb-3">
+                    <div className="h-3 w-1 bg-[#6D28D9] rounded-full" />
                     Basic Information
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="col-span-2 grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Full Name <span className="text-red-500">*</span></span>
-                      <input className={`${inputCls}`} placeholder="Enter candidate's full name" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Official Email</span>
-                      <input className={inputCls} type="email" placeholder="official@company.com" value={addForm.officialEmail} onChange={(e) => setAddForm((f) => ({ ...f, officialEmail: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Personal Email</span>
-                      <input className={inputCls} type="email" placeholder="personal@email.com" value={addForm.personalEmail} onChange={(e) => setAddForm((f) => ({ ...f, personalEmail: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Contact Number <span className="text-red-500">*</span></span>
-                      <input className={inputCls} placeholder="+91 98765 43210" value={addForm.contactNumber} onChange={(e) => setAddForm((f) => ({ ...f, contactNumber: e.target.value }))} />
-                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="col-span-1 md:col-span-2 space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Full Name <span className="text-rose-500">*</span></Label>
+                      <Input placeholder="Enter candidate's full name" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Official Email</Label>
+                      <Input type="email" placeholder="official@company.com" value={addForm.officialEmail} onChange={(e) => setAddForm((f) => ({ ...f, officialEmail: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Personal Email</Label>
+                      <Input type="email" placeholder="personal@email.com" value={addForm.personalEmail} onChange={(e) => setAddForm((f) => ({ ...f, personalEmail: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Contact Number <span className="text-rose-500">*</span></Label>
+                      <Input placeholder="+91 98765 43210" value={addForm.contactNumber} onChange={(e) => setAddForm((f) => ({ ...f, contactNumber: e.target.value }))} />
+                    </div>
                   </div>
                 </div>
 
                 {/* Organization Details — hidden when CLIENTS feature is disabled */}
                 {clientsEnabled && (
                 <div>
-                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <div className="h-3 w-1 bg-emerald-500 rounded-full"></div>
+                  <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-3">
+                    <div className="h-3 w-1 bg-emerald-500 rounded-full" />
                     Organization Details
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Batch (DOH) <span className="text-red-500">*</span></span>
-                      <input className={inputCls} placeholder="e.g., 2024-01" value={addForm.batch} onChange={(e) => setAddForm((f) => ({ ...f, batch: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Batch Mentor</span>
-                      <input className={inputCls} placeholder="Mentor name" value={addForm.batchMentor} onChange={(e) => setAddForm((f) => ({ ...f, batchMentor: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Interview Mentor</span>
-                      <input className={inputCls} placeholder="Mentor name" value={addForm.interviewMentorName} onChange={(e) => setAddForm((f) => ({ ...f, interviewMentorName: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Source <span className="text-red-500">*</span></span>
-                      <select className={inputCls} value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))}>
-                        <option value="">Select source</option>
-                        <option value="B2B">B2B</option>
-                        <option value="BENCH">Bench</option>
-                        <option value="MARKET">Market</option>
-                      </select>
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Status</span>
-                      <select className={inputCls} value={addForm.candidateStatus} onChange={(e) => setAddForm((f) => ({ ...f, candidateStatus: e.target.value }))}>
-                        <option value="TRAINING">Training</option>
-                        <option value="RFD">RFD</option>
-                        <option value="WFD">WFD</option>
-                        <option value="DOB">DOB</option>
-                      </select>
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Rating</span>
-                      <select className={inputCls} value={addForm.rating} onChange={(e) => setAddForm((f) => ({ ...f, rating: e.target.value }))}>
-                        <option value="">None</option>
-                        <option value="ASSET">Asset</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="LIABILITY">Liability</option>
-                      </select>
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Branch <span className="text-red-500">*</span></span>
-                      <select className={inputCls} value={addForm.branch} onChange={(e) => setAddForm((f) => ({ ...f, branch: e.target.value }))}>
-                        {branchOptions.map((b) => (
-                          <option key={b.code} value={b.code}>{b.label}</option>
-                        ))}
-                      </select>
-                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Batch (DOH) <span className="text-rose-500">*</span></Label>
+                      <Input placeholder="e.g., 2024-01" value={addForm.batch} onChange={(e) => setAddForm((f) => ({ ...f, batch: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Batch Mentor</Label>
+                      <Input placeholder="Mentor name" value={addForm.batchMentor} onChange={(e) => setAddForm((f) => ({ ...f, batchMentor: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Interview Mentor</Label>
+                      <Input placeholder="Mentor name" value={addForm.interviewMentorName} onChange={(e) => setAddForm((f) => ({ ...f, interviewMentorName: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Source <span className="text-rose-500">*</span></Label>
+                      <Select value={addForm.source} onValueChange={(val) => setAddForm((f) => ({ ...f, source: val }))}>
+                        <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-sm h-10 font-medium focus:border-[#6D28D9]">
+                          <SelectValue placeholder="Select source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="B2B">B2B</SelectItem>
+                          <SelectItem value="BENCH">Bench</SelectItem>
+                          <SelectItem value="MARKET">Market</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Status</Label>
+                      <Select value={addForm.candidateStatus} onValueChange={(val) => setAddForm((f) => ({ ...f, candidateStatus: val }))}>
+                        <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-sm h-10 font-medium focus:border-[#6D28D9]">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="TRAINING">Training</SelectItem>
+                          <SelectItem value="RFD">RFD</SelectItem>
+                          <SelectItem value="WFD">WFD</SelectItem>
+                          <SelectItem value="DOB">DOB</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Rating</Label>
+                      <Select value={addForm.rating || 'NONE'} onValueChange={(val) => setAddForm((f) => ({ ...f, rating: val === 'NONE' ? '' : val }))}>
+                        <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-sm h-10 font-medium focus:border-[#6D28D9]">
+                          <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NONE">None</SelectItem>
+                          <SelectItem value="ASSET">Asset</SelectItem>
+                          <SelectItem value="MEDIUM">Medium</SelectItem>
+                          <SelectItem value="LIABILITY">Liability</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Branch <span className="text-rose-500">*</span></Label>
+                      <Select value={addForm.branch} onValueChange={(val) => setAddForm((f) => ({ ...f, branch: val }))}>
+                        <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-sm h-10 font-medium focus:border-[#6D28D9]">
+                          <SelectValue placeholder="Select branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {branchOptions.map((b) => (
+                            <SelectItem key={b.code} value={b.code}>{b.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
                 )}
 
                 {/* Skills & Experience */}
                 <div>
-                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <div className="h-3 w-1 bg-purple-500 rounded-full"></div>
+                  <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-3">
+                    <div className="h-3 w-1 bg-purple-500 rounded-full" />
                     Skills &amp; Experience
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Skill Set <span className="text-red-500">*</span></span>
-                      <select className={inputCls} value={addForm.skillSet} onChange={(e) => setAddForm((f) => ({ ...f, skillSet: e.target.value }))}>
-                        <option value="">Select skill</option>
-                        {skillOptions.map((s) => (
-                          <option key={s.value} value={s.value}>{s.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Client Name</span>
-                      <input className={inputCls} placeholder="Current/target client name" value={addForm.clientName} onChange={(e) => setAddForm((f) => ({ ...f, clientName: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">YOE</span>
-                      <input className={inputCls} type="number" step="0.1" placeholder="e.g., 5.0" value={addForm.yoePortrayed} onChange={(e) => setAddForm((f) => ({ ...f, yoePortrayed: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Year of Passing</span>
-                      <input className={inputCls} type="number" placeholder="e.g., 2020" value={addForm.yop} onChange={(e) => setAddForm((f) => ({ ...f, yop: e.target.value }))} />
-                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Skill Set <span className="text-rose-500">*</span></Label>
+                      <Select value={addForm.skillSet} onValueChange={(val) => setAddForm((f) => ({ ...f, skillSet: val }))}>
+                        <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-sm h-10 font-medium focus:border-[#6D28D9]">
+                          <SelectValue placeholder="Select skill" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {skillOptions.map((s) => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Client Name</Label>
+                      <Input placeholder="Current/target client name" value={addForm.clientName} onChange={(e) => setAddForm((f) => ({ ...f, clientName: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">YOE</Label>
+                      <Input type="number" step="0.1" placeholder="e.g., 5.0" value={addForm.yoePortrayed} onChange={(e) => setAddForm((f) => ({ ...f, yoePortrayed: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">Year of Passing</Label>
+                      <Input type="number" placeholder="e.g., 2020" value={addForm.yop} onChange={(e) => setAddForm((f) => ({ ...f, yop: e.target.value }))} />
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                  <Button variant="outline" onClick={closeAddDialog} disabled={creatingCandidate}>Cancel</Button>
-                  <Button onClick={handleAddCandidate} disabled={creatingCandidate} className="bg-emerald-600 hover:bg-emerald-700">
+                <div className="pt-4 border-t border-[var(--border)] flex items-center justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={closeAddDialog}
+                    disabled={creatingCandidate}
+                    className="bg-[var(--surface-subtle)] active:scale-[0.98] transition-all duration-150 cursor-pointer font-bold text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleAddCandidate}
+                    disabled={creatingCandidate}
+                    className="rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-bold text-xs shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer transition-all px-4 py-2"
+                  >
                     {creatingCandidate ? (
-                      <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>Creating…</>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating…</>
                     ) : (
                       <><UserPlus className="mr-2 h-4 w-4" />Create Candidate</>
                     )}
@@ -1273,97 +1503,108 @@ export default function CandidatesClient({ role, features = {} }: Props) {
 
         {/* Market Candidate Dialog */}
         <Dialog open={showMarketCandidateDialog} onOpenChange={(open) => { if (!open) { setShowMarketCandidateDialog(false); setMarketCreated(null); } else setShowMarketCandidateDialog(true); }}>
-          <DialogContent className="max-w-lg w-full">
-            <DialogHeader className="pb-4 border-b border-zinc-200 dark:border-zinc-800">
-              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold">
-                <div className="bg-violet-100 dark:bg-violet-900/30 p-1.5 rounded-lg">
-                  <UserPlus className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <DialogContent className="max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-xl">
+            <DialogHeader className="border-b border-[var(--border)] pb-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                    <UserPlus className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <DialogTitle className="text-xl font-extrabold text-[var(--text-primary)] text-left">Add Market Candidate</DialogTitle>
+                    <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5 text-left">
+                      External candidate — credentials are inactive until an interview is scheduled.
+                    </p>
+                  </div>
                 </div>
-                Add Market Candidate
-              </DialogTitle>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                External candidate — credentials are inactive until an interview is scheduled.
-              </p>
+                <button
+                  type="button"
+                  onClick={() => { setShowMarketCandidateDialog(false); setMarketCreated(null); }}
+                  className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </DialogHeader>
 
             {marketCreated ? (
-              <div className="space-y-4 p-1">
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 p-4 flex items-start gap-3">
+              <div className="space-y-4 py-4 px-1">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-start gap-3">
                   <UserCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-semibold text-emerald-800 dark:text-emerald-200">Market candidate created</p>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-0.5">Login credentials will be activated when an interview is scheduled.</p>
+                    <p className="font-extrabold text-sm text-emerald-800 dark:text-emerald-200">Market candidate created</p>
+                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300 mt-0.5">Login credentials will be activated when an interview is scheduled.</p>
                   </div>
                 </div>
-                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-700">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]/50 divide-y divide-[var(--border)] overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Email</span>
-                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{marketCreated.email}</span>
+                    <span className="text-xs font-bold text-[var(--text-secondary)]">Email</span>
+                    <span className="font-mono font-bold text-sm text-[var(--text-primary)]">{marketCreated.email}</span>
                   </div>
                   <div className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Password</span>
-                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{marketCreated.generatedPassword}</span>
+                    <span className="text-xs font-bold text-[var(--text-secondary)]">Password</span>
+                    <span className="font-mono font-bold text-sm text-[#6D28D9] dark:text-purple-400">{marketCreated.generatedPassword}</span>
                   </div>
                 </div>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-800 dark:text-amber-200">
                   <strong>Note:</strong> Credentials have been emailed. Save the password — it cannot be retrieved later.
                 </div>
-                <Button className="w-full bg-violet-600 hover:bg-violet-700" onClick={() => { setShowMarketCandidateDialog(false); setMarketCreated(null); }}>Done</Button>
+                <Button className="w-full rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs py-2.5 cursor-pointer" onClick={() => { setShowMarketCandidateDialog(false); setMarketCreated(null); }}>Done</Button>
               </div>
             ) : (
-              <div className="space-y-4 p-1">
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="col-span-2 grid gap-1.5">
-                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Name <span className="text-red-500">*</span></span>
-                    <input
+              <div className="space-y-4 py-4 px-1 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="col-span-1 md:col-span-2 space-y-1.5">
+                    <Label className="text-xs font-bold text-[var(--text-primary)]">Name <span className="text-rose-500">*</span></Label>
+                    <Input
                       type="text"
-                      className={inputCls}
                       value={marketForm.name}
                       onChange={e => setMarketForm(f => ({ ...f, name: e.target.value }))}
                       placeholder="Full name"
                     />
-                  </label>
-                  <label className="col-span-2 grid gap-1.5">
-                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Email <span className="text-red-500">*</span></span>
-                    <input
+                  </div>
+                  <div className="col-span-1 md:col-span-2 space-y-1.5">
+                    <Label className="text-xs font-bold text-[var(--text-primary)]">Email <span className="text-rose-500">*</span></Label>
+                    <Input
                       type="email"
-                      className={inputCls}
                       value={marketForm.email}
                       onChange={e => setMarketForm(f => ({ ...f, email: e.target.value }))}
                       placeholder="candidate@example.com"
                     />
-                  </label>
-                  <label className="grid gap-1.5">
-                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Phone</span>
-                    <input
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-[var(--text-primary)]">Phone</Label>
+                    <Input
                       type="tel"
-                      className={inputCls}
                       value={marketForm.contactNumber}
                       onChange={e => setMarketForm(f => ({ ...f, contactNumber: e.target.value }))}
                       placeholder="+91 98765 43210"
                     />
-                  </label>
-                  <label className="grid gap-1.5">
-                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Branch <span className="text-red-500">*</span></span>
-                    <select
-                      className={inputCls}
-                      value={marketForm.branch}
-                      onChange={e => setMarketForm(f => ({ ...f, branch: e.target.value }))}
-                    >
-                      {branchOptions.map((b) => (
-                        <option key={b.code} value={b.code}>{b.label}</option>
-                      ))}
-                    </select>
-                  </label>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-[var(--text-primary)]">Branch <span className="text-rose-500">*</span></Label>
+                    <Select value={marketForm.branch} onValueChange={(val) => setMarketForm((f) => ({ ...f, branch: val }))}>
+                      <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-sm h-10 font-medium focus:border-[#6D28D9]">
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branchOptions.map((b) => (
+                          <SelectItem key={b.code} value={b.code}>{b.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" className="flex-1" onClick={() => setShowMarketCandidateDialog(false)}>Cancel</Button>
+                <div className="pt-4 border-t border-[var(--border)] flex items-center justify-end gap-3">
+                  <Button variant="secondary" className="bg-[var(--surface-subtle)] font-bold text-xs cursor-pointer" onClick={() => setShowMarketCandidateDialog(false)}>Cancel</Button>
                   <Button
-                    className="flex-1 bg-violet-600 hover:bg-violet-700"
+                    type="button"
+                    className="rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] text-white font-bold text-xs shadow-xs hover:scale-[1.02] active:scale-[0.98] cursor-pointer transition-all px-4 py-2"
                     onClick={() => void handleCreateMarketCandidate()}
                     disabled={creatingMarket || !marketForm.name.trim() || !marketForm.email.trim()}
                   >
-                    {creatingMarket ? <><span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent inline-block" />Creating…</> : 'Create Candidate'}
+                    {creatingMarket ? <><Loader2 className="mr-2 h-4 w-4 animate-spin inline-block" />Creating…</> : 'Create Candidate'}
                   </Button>
                 </div>
               </div>

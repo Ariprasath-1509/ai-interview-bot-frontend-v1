@@ -100,7 +100,7 @@ export function buildInterviewTimeline(interview: {
 
   const verdict = interview.finalVerdict ?? interview.proposedVerdict;
   steps.push({
-    label: verdict === "WITHDRAWN" ? "Withdrawn" : idx >= 4 ? `Signed Off — ${verdict?.replace(/_/g, " ") ?? ""}` : "Sign Off",
+    label: verdict === "WITHDRAWN" ? "Withdrawn" : idx >= 4 ? `Signed Off — ${String(verdict || "").replace(/_/g, " ")}` : "Sign Off",
     status: idx >= 4 ? "completed" : idx === 3 ? "upcoming" : "upcoming",
   });
 

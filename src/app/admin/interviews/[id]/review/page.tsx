@@ -1,5 +1,6 @@
 import { isStaffReadRole, isStaffAdminRole } from '@/lib/staffRoles';
 import Link from "next/link";
+import { Sparkles, Code2, Headphones, ClipboardList, MessageSquare, Target, CheckCircle2, ArrowLeft, Edit2, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
@@ -10,6 +11,8 @@ import { ProctoringTimelinePanel } from "./ProctoringTimelinePanel";
 import { RerunAssessmentButton } from "./RerunAssessmentButton";
 import { ClientBriefPanel } from "./ClientBriefPanel";
 import { MentorReportPanel } from "./MentorReportPanel";
+import { SignOffForm } from "./SignOffForm";
+import { TranscriptView } from "./TranscriptView";
 import { AppShell } from "@/app/components/AppShell";
 import { AssessmentBanners } from "@/app/interview/AssessmentBanners";
 import {
@@ -42,13 +45,25 @@ type Interview = {
   scheduledAt?: string | null;
   expiresAt?: string | null;
   assessmentType?: string | null;
+  candidateName?: string | null;
+  candidateEmail?: string | null;
+  jdTitle?: string | null;
 };
+
 
 function fmtDatetime(iso: string | null | undefined): string {
   return formatDateTime(iso, {
     month: "short", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function parseTranscript(transcriptJson: string | null): { speaker: string; text: string; at: string }[] {
+  if (!transcriptJson) return [];
+  try {
+    const doc = JSON.parse(transcriptJson) as { utterances?: { speaker: string; text: string; at: string }[] };
+    return Array.isArray(doc.utterances) ? doc.utterances : [];
+  } catch { return []; }
 }
 
 function parseCodeSubmissions(transcriptJson: string | null): Record<string, unknown>[] {
@@ -79,8 +94,8 @@ function fmtCost(usd: number): string {
   return `$${usd.toFixed(usd < 1 ? 4 : 2)}`;
 }
 
-function cleanText(text: string | undefined): string {
-  if (!text) return "";
+function cleanText(text: unknown): string {
+  if (!text || typeof text !== "string") return "";
   return text
     .replace(/Heuristic only \(no (OPENAI_API_KEY|CLAUDE_API_KEY)\):\s*/gi, "")
     .replace(/Heuristic only:\s*/gi, "")
@@ -115,10 +130,9 @@ export default async function InterviewReviewPage({
 
   const session = await getSession();
 
-  const [interviewRes, scoresRes, summaryRes, signOffRes, slotQuestionsRes, proctoringRes, tokenSummaryRes] = await Promise.all([
+  const [interviewRes, scoresRes, signOffRes, slotQuestionsRes, proctoringRes, tokenSummaryRes] = await Promise.all([
     apiServer(`/interviews/${id}`, session?.token),
     apiServer(`/scores/${id}`, session?.token),
-    apiServer(`/interviews/summary`, session?.token),
     apiServer(`/reviews/${id}`, session?.token),
     apiServer(`/interviews/${id}/questions`, session?.token),
     apiServer(`/interviews/${id}/proctoring/timeline`, session?.token),
@@ -130,10 +144,8 @@ export default async function InterviewReviewPage({
   const interview = (await interviewRes.json()) as Interview;
   let scores: Score[] = [];
   try { if (scoresRes.ok) scores = await scoresRes.json(); } catch {}
-  const summaries: { id: string; candidateName: string; candidateEmail: string; jdTitle: string }[] =
-    summaryRes?.ok ? await summaryRes.json().catch(() => []) : [];
-  const summary = summaries.find((s) => s.id === id);
   let existingSignOff: SignOff = { signedOff: false };
+
   try { if (signOffRes?.ok) existingSignOff = await signOffRes.json(); } catch {}
   let tokenSummary: TokenSummary | null = null;
   try {
@@ -143,6 +155,7 @@ export default async function InterviewReviewPage({
     }
   } catch {}
   const ai = parseAiAssessment(interview.transcriptJson);
+  const utterances = parseTranscript(interview.transcriptJson);
   const speech = ai?.speechAnalytics ?? null;
   const codeSubmissions = parseCodeSubmissions(interview.transcriptJson);
   const assessFailed = Boolean((ai as { assessFailed?: boolean } | null)?.assessFailed);
@@ -235,7 +248,7 @@ export default async function InterviewReviewPage({
   });
 
   return (
-    <AppShell title="Review interview" subtitle={summary?.candidateName ?? "Unknown candidate"}>
+    <AppShell title="Review interview" subtitle={interview.candidateName ?? "Candidate Review"}>
     <ReviewPageScrollReset />
     {signedOff && (
       <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
@@ -246,10 +259,11 @@ export default async function InterviewReviewPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-            {summary?.candidateEmail && <span>{summary.candidateEmail}</span>}
-            {summary?.jdTitle && <span className="text-zinc-300 dark:text-zinc-600">·</span>}
-            {summary?.jdTitle && <span>{summary.jdTitle}</span>}
+            {interview.candidateEmail && <span>{interview.candidateEmail}</span>}
+            {interview.jdTitle && <span className="text-zinc-300 dark:text-zinc-600">·</span>}
+            {interview.jdTitle && <span>{interview.jdTitle}</span>}
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
               interview.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800" :
@@ -305,16 +319,18 @@ export default async function InterviewReviewPage({
           {isStaffAdminRole(session?.role) && (interview.status === "DRAFT" || interview.status === "SCHEDULED" || interview.status === "EXPIRED") && (
             <Link
               href={`/admin/interviews/${interview.id}/edit`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
+              className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-xs font-bold text-[#6D28D9] dark:text-purple-300 shadow-2xs hover:bg-purple-500/20 active:scale-[0.98] transition-all cursor-pointer"
             >
+              <Edit2 className="h-3.5 w-3.5" />
               Edit interview
             </Link>
           )}
           <Link
             href="/admin/review"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-bold text-[var(--text-primary)] shadow-2xs hover:border-[#6D28D9] active:scale-[0.98] transition-all cursor-pointer"
           >
-            ← Back to Reviews
+            <ArrowLeft className="h-3.5 w-3.5 text-[#6D28D9]" />
+            Back to Reviews
           </Link>
         </div>
       </div>
@@ -324,27 +340,35 @@ export default async function InterviewReviewPage({
       </div>
 
       {ai?.summary ? (
-        <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 p-5 text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 font-medium">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-200 text-xs dark:bg-sky-800">✨</span>
-              AI Assessment
-            </div>
-            <span className="text-xs opacity-70">{(ai.source === "claude" ? "ai-two-pass" : ai.source) ?? "unknown"}{ai.scoredAt ? ` · ${ai.scoredAt}` : ""}</span>
+        <div className="mt-6 panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+          <div className="panel-header panel-header-accent-purple flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              AI Assessment Summary
+            </h3>
+            <span className="text-xs font-semibold text-[var(--text-secondary)] opacity-80">
+              {(ai.source === "claude" ? "ai-two-pass" : ai.source) ?? "unknown"}{ai.scoredAt ? ` · ${ai.scoredAt}` : ""}
+            </span>
           </div>
-          <p className="mt-3 text-sm leading-relaxed">{cleanText(ai.summary)}</p>
-          {ai.strengths?.length ? (
-            <div className="mt-3 text-sm">
-              <div className="font-medium">Strengths</div>
-              <ul className="mt-1 list-inside list-disc">{ai.strengths.map((s: string, i: number) => <li key={i}>{cleanText(s)}</li>)}</ul>
-            </div>
-          ) : null}
-          {ai.gaps?.length ? (
-            <div className="mt-3 text-sm">
-              <div className="font-medium">Gaps vs JD</div>
-              <ul className="mt-1 list-inside list-disc">{ai.gaps.map((s: string, i: number) => <li key={i}>{cleanText(s)}</li>)}</ul>
-            </div>
-          ) : null}
+          <div className="p-5 space-y-4">
+            <p className="text-sm font-medium leading-relaxed text-[var(--text-primary)]">{cleanText(ai.summary)}</p>
+            {ai.strengths?.length ? (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-xs">
+                <div className="font-extrabold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider mb-2">Strengths</div>
+                <ul className="space-y-1 list-inside list-disc text-[var(--text-primary)] font-medium">
+                  {ai.strengths.map((s: string, i: number) => <li key={i}>{cleanText(s)}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            {ai.gaps?.length ? (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs">
+                <div className="font-extrabold text-amber-700 dark:text-amber-300 uppercase tracking-wider mb-2">Gaps vs JD</div>
+                <ul className="space-y-1 list-inside list-disc text-[var(--text-primary)] font-medium">
+                  {ai.gaps.map((s: string, i: number) => <li key={i}>{cleanText(s)}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -513,43 +537,63 @@ export default async function InterviewReviewPage({
         />
       </div>
 
-      <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex items-center gap-2 font-medium mb-4">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs dark:bg-zinc-800">🎯</span>
-          Scores
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {scores.length ? scores.map((s) => (
-            <div key={s.id} className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/30 text-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">{s.dimension}</span>
-                <div className="flex items-center gap-2 text-xs">
-                  {s.confidence && (
-                    <span className={`flex items-center gap-1 ${
-                      s.confidence === 'high' ? 'text-emerald-600 dark:text-emerald-400' :
-                      s.confidence === 'medium' ? 'text-blue-600 dark:text-blue-400' :
-                      'text-zinc-500 dark:text-zinc-400'
-                    }`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${
-                        s.confidence === 'high' ? 'bg-emerald-500' :
-                        s.confidence === 'medium' ? 'bg-blue-500' :
-                        'bg-zinc-400'
-                      }`} />
-                      {s.confidence}
-                    </span>
-                  )}
-                  <span className="rounded bg-zinc-200/50 px-2 py-0.5 font-medium dark:bg-zinc-800">{s.value}/{scoreMax}</span>
-                </div>
-              </div>
-              {s.rationale && <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{cleanText(s.rationale)}</p>}
-              {s.evidence && <p className="mt-1.5 text-[11px] italic text-zinc-500 dark:text-zinc-500">"{s.evidence}"</p>}
-              {s.gap && (
-                <div className="mt-2 rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-900/20 dark:text-red-200">
-                  <span className="font-semibold">Gap:</span> {s.gap}
-                </div>
-              )}
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 lg:col-span-2">
+          <div className="panel-header panel-header-accent-indigo">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <MessageSquare className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              Transcript
+            </h3>
+          </div>
+          <div className="p-5">
+            <div className="max-h-[480px] overflow-y-auto pr-1">
+              <TranscriptView utterances={utterances} />
             </div>
-          )) : <p className="text-zinc-500 text-sm">No scores yet.</p>}
+          </div>
+        </div>
+
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200">
+          <div className="panel-header panel-header-accent-purple">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              Scores
+            </h3>
+          </div>
+          <div className="p-5">
+            <div className="max-h-[600px] overflow-y-auto pr-2 space-y-3">
+              {scores.length ? scores.map((s) => (
+                <div key={s.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-3.5 text-xs transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-[var(--text-primary)] text-sm">{s.dimension}</span>
+                    <div className="flex items-center gap-2">
+                      {s.confidence && (
+                        <span className={`flex items-center gap-1 font-semibold ${
+                          s.confidence === 'high' ? 'text-emerald-600 dark:text-emerald-400' :
+                          s.confidence === 'medium' ? 'text-blue-600 dark:text-blue-400' :
+                          'text-[var(--text-secondary)]'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${
+                            s.confidence === 'high' ? 'bg-emerald-500' :
+                            s.confidence === 'medium' ? 'bg-blue-500' :
+                            'bg-zinc-400'
+                          }`} />
+                          {s.confidence}
+                        </span>
+                      )}
+                      <span className="rounded-full bg-purple-500/10 border border-purple-500/20 text-[#6D28D9] dark:text-purple-300 px-2.5 py-0.5 font-extrabold">{s.value}/{scoreMax}</span>
+                    </div>
+                  </div>
+                  {s.rationale && <p className="mt-1 leading-relaxed text-[var(--text-primary)] font-medium">{cleanText(s.rationale)}</p>}
+                  {s.evidence && <p className="mt-1.5 italic text-[var(--text-secondary)]">"{s.evidence}"</p>}
+                  {s.gap && (
+                    <div className="mt-2 rounded-xl border border-rose-500/20 bg-rose-500/10 p-2 text-rose-700 dark:text-rose-300 font-medium">
+                      <span className="font-extrabold">Gap:</span> {s.gap}
+                    </div>
+                  )}
+                </div>
+              )) : <p className="text-[var(--text-secondary)] text-xs font-medium">No scores yet.</p>}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -708,77 +752,51 @@ export default async function InterviewReviewPage({
         <MentorReportPanel interviewId={interview.id} />
       )}
 
-      <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex items-center gap-2 font-medium">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">OK</span>
-          Sign-off
+      <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 relative z-20">
+        <div className="panel-header panel-header-accent-emerald rounded-t-2xl flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            Sign-off & Verdict
+          </h3>
         </div>
-
-        {/* Show existing sign-off if present */}
-        {existingSignOff.signedOff && (
-          <div className="mt-3 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900 space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Current verdict:</span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                {existingSignOff.finalVerdict}
-              </span>
-            </div>
-            <p><span className="font-medium">Note:</span> {existingSignOff.note}</p>
-            {existingSignOff.signedOffAt && (
-              <p className="text-xs text-zinc-500">
-                Last updated: {formatDateTime(existingSignOff.signedOffAt)}
-              </p>
-            )}
-          </div>
-        )}
-
-        {isStaffReadRole(session?.role) ? (
-          <>
-            <p className="mt-3 text-sm text-zinc-600">
-              {existingSignOff.signedOff ? "Update sign-off:" : "Overriding an existing verdict requires a note."}
-            </p>
-            <form action={signOff} className="mt-3 grid gap-3">
-              <input type="hidden" name="interviewId" value={interview.id} />
-              <label className="grid gap-2 text-sm">
-                Verdict
-                <select
-                  name="verdict"
-                  required
-                  defaultValue={existingSignOff.finalVerdict ?? ""}
-                  className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-800 dark:bg-black dark:text-zinc-100"
-                >
-                  <option value="" disabled>Select a verdict</option>
-                  <option value="READY">Ready</option>
-                  <option value="NEEDS_1_WEEK_PREP">Needs 1-week prep</option>
-                  <option value="NEEDS_RESKILLING">Needs reskilling</option>
-                  <option value="MISMATCH_WITH_JD">Mismatch with JD</option>
-                </select>
-              </label>
-              <label className="grid gap-2 text-sm">
-                Note (required)
-                <textarea
-                  name="note"
-                  required
-                  defaultValue={existingSignOff.note ?? ""}
-                  placeholder="Explain rationale for sign-off / override…"
-                  className="min-h-[90px] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-800 dark:bg-black dark:text-zinc-100"
-                />
-              </label>
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  className="rounded-full bg-foreground px-6 py-2 text-background hover:bg-zinc-800 dark:hover:bg-zinc-200"
-                >
-                  {existingSignOff.signedOff ? "Update sign-off" : "Sign off"}
-                </button>
+        <div className="p-5 space-y-4">
+          {/* Show existing sign-off if present */}
+          {existingSignOff.signedOff && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs text-[var(--text-primary)] space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-emerald-700 dark:text-emerald-300">Current verdict:</span>
+                <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-extrabold text-emerald-800 dark:text-emerald-200">
+                  {existingSignOff.finalVerdict}
+                </span>
               </div>
-            </form>
-          </>
-        ) : (
-          <p className="mt-4 text-sm text-zinc-500">
-            Sign-off is restricted to staff accounts.
-          </p>
-        )}
+              <p><span className="font-bold">Note:</span> {existingSignOff.note}</p>
+              {existingSignOff.signedOffAt && (
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Last updated: {formatDateTime(existingSignOff.signedOffAt)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isStaffReadRole(session?.role) ? (
+            <>
+              <p className="text-xs font-semibold text-[var(--text-secondary)]">
+                {existingSignOff.signedOff ? "Update sign-off:" : "Overriding an existing verdict requires a note."}
+              </p>
+              <SignOffForm
+                interviewId={interview.id}
+                defaultVerdict={existingSignOff.finalVerdict}
+                defaultNote={existingSignOff.note}
+                signedOff={Boolean(existingSignOff.signedOff)}
+                signOffAction={signOff}
+              />
+            </>
+          ) : (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Sign-off is restricted to staff accounts.
+            </p>
+          )}
+        </div>
       </div>
     </div>
     </AppShell>

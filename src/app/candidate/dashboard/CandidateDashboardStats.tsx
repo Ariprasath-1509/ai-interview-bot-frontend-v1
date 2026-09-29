@@ -12,8 +12,20 @@ export function CandidateDashboardStats({
 }) {
   return (
     <>
-      <StatCard title="Upcoming" value={upcoming} accent="blue" icon={Calendar} />
-      <StatCard title="Completed" value={completed} accent="emerald" icon={CheckCircle2} />
+      <StatCard
+        title="Upcoming Interviews"
+        description="Scheduled & active sessions"
+        value={upcoming}
+        accent="blue"
+        icon={Calendar}
+      />
+      <StatCard
+        title="Completed Interviews"
+        description="Past technical evaluations"
+        value={completed}
+        accent="emerald"
+        icon={CheckCircle2}
+      />
     </>
   );
 }

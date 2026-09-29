@@ -471,7 +471,8 @@ export async function detectFrame(
       !!device ||
       state.blockStreak >= BLOCK_STREAK ||
       eventType === "identity_mismatch" ||
-      eventType === "liveness_failed";
+      eventType === "liveness_failed" ||
+      eventType === "multiple_faces";
     return {
       reasons,
       hardViolation: hard,

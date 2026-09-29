@@ -2,11 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { LayoutDashboard } from 'lucide-react';
-import { SkeletonDashboard } from '@/components/common/Skeleton';
+import {
+  LayoutDashboard,
+  Activity,
+  UserCheck,
+  Layers,
+  TrendingUp,
+  Zap,
+  Clock,
+  AlertTriangle,
+  Calendar,
+  PlayCircle,
+  CheckCircle2,
+  Award,
+  Sparkles,
+} from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { PageHero, SectionHeader, StatCard } from '@/components/common/AppUi';
-import { formatTime } from '@/lib/formatDate';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { StatCard } from '@/components/common/AppUi';
 import DashboardTrendsTab, { type TrendsResponse } from '@/app/admin/DashboardTrendsTab';
 import DashboardPerformanceTab, { type CandidatePerformanceData } from '@/app/admin/DashboardPerformanceTab';
 import TokenAnalyticsTab, { type TodayTokenData as TokenData, type PeriodTokenData as WeeklyTokenData, type PerInterviewTokenData } from '@/app/admin/TokenAnalyticsTab';
@@ -45,255 +58,406 @@ const VERDICT_FLOW_ORDER = [
   'READY',
 ] as const;
 
+const VERDICT_CONFIG: Record<string, { label: string; accent: "purple" | "rose" | "amber" | "yellow" | "emerald"; icon: any }> = {
+  WITHDRAWN: { label: 'Withdrawn / Ended Early', accent: 'purple', icon: Clock },
+  MISMATCH_WITH_JD: { label: 'Mismatch with JD', accent: 'rose', icon: AlertTriangle },
+  NEEDS_RESKILLING: { label: 'Needs Reskilling', accent: 'amber', icon: TrendingUp },
+  NEEDS_1_WEEK_PREP: { label: 'Needs 1-Week Prep', accent: 'yellow', icon: Activity },
+  READY: { label: 'Ready for Deployment', accent: 'emerald', icon: Sparkles },
+};
+
 type CandidateAnalytics = CandidatePerformanceData
-
-interface Interviewer {
-  name: string; interviewCount: number; successRate: number;
-}
-
 type TrendData = TrendsResponse
+
+// In-memory module cache for instant (0ms) tab switching back to Dashboard
+let dashboardCache: {
+  analytics: AnalyticsData | null;
+  tokenData: TokenData | null;
+  weeklyTokens: WeeklyTokenData | null;
+  monthlyTokens: WeeklyTokenData | null;
+  perInterviewTokens: PerInterviewTokenData | null;
+  modeAnalytics: ModeAnalytics | null;
+  verdicts: VerdictAnalytics | null;
+  candidateAnalytics: CandidateAnalytics | null;
+  trends: TrendData | null;
+  reviewPendingCount: number;
+} | null = null;
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState('overview');
 
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [tokenData, setTokenData] = useState<TokenData | null>(null);
-  const [weeklyTokens, setWeeklyTokens] = useState<WeeklyTokenData | null>(null);
-  const [monthlyTokens, setMonthlyTokens] = useState<WeeklyTokenData | null>(null);
-  const [perInterviewTokens, setPerInterviewTokens] = useState<PerInterviewTokenData | null>(null);
-  const [modeAnalytics, setModeAnalytics] = useState<ModeAnalytics | null>(null);
-  const [verdicts, setVerdicts] = useState<VerdictAnalytics | null>(null);
-  const [candidateAnalytics, setCandidateAnalytics] = useState<CandidateAnalytics | null>(null);
-  const [trends, setTrends] = useState<TrendData | null>(null);
-  const [reviewPendingCount, setReviewPendingCount] = useState(0);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(dashboardCache?.analytics ?? null);
+  const [tokenData, setTokenData] = useState<TokenData | null>(dashboardCache?.tokenData ?? null);
+  const [weeklyTokens, setWeeklyTokens] = useState<WeeklyTokenData | null>(dashboardCache?.weeklyTokens ?? null);
+  const [monthlyTokens, setMonthlyTokens] = useState<WeeklyTokenData | null>(dashboardCache?.monthlyTokens ?? null);
+  const [perInterviewTokens, setPerInterviewTokens] = useState<PerInterviewTokenData | null>(dashboardCache?.perInterviewTokens ?? null);
+  const [modeAnalytics, setModeAnalytics] = useState<ModeAnalytics | null>(dashboardCache?.modeAnalytics ?? null);
+  const [verdicts, setVerdicts] = useState<VerdictAnalytics | null>(dashboardCache?.verdicts ?? null);
+  const [candidateAnalytics, setCandidateAnalytics] = useState<CandidateAnalytics | null>(dashboardCache?.candidateAnalytics ?? null);
+  const [trends, setTrends] = useState<TrendData | null>(dashboardCache?.trends ?? null);
+  const [reviewPendingCount, setReviewPendingCount] = useState(dashboardCache?.reviewPendingCount ?? 0);
   const [loading, setLoading] = useState(true);
 
   const fetchAnalytics = async () => {
     try {
-      const [analyticsRes, tokenRes, modeRes, verdictsRes, candidatesRes, trendsRes, reviewRes,
-             weeklyTokenRes, monthlyTokenRes, perInterviewTokenRes] = await Promise.all([
-        fetch('/api/analytics/realtime').catch(() => null),
-        fetch('/api/tokens/check-limit').catch(() => null),
-        fetch('/api/analytics/modes').catch(() => null),
-        fetch('/api/analytics/verdicts').catch(() => null),
-        fetch('/api/analytics/candidates').catch(() => null),
-        fetch('/api/analytics/trends').catch(() => null),
-        fetch('/api/interviews/summary').catch(() => null),
-        fetch('/api/tokens/analytics/weekly').catch(() => null),
-        fetch('/api/tokens/analytics/monthly').catch(() => null),
-        fetch('/api/tokens/analytics/per-interview').catch(() => null),
+      // Fast Phase: Fetch core overview metrics first (~40ms) to clear loading spinner quickly
+      const [
+        analyticsData,
+        tokenResData,
+        modeResData,
+        verdictsRawData,
+      ] = await Promise.all([
+        fetch('/api/analytics/realtime').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/tokens/check-limit').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/analytics/modes').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/analytics/verdicts').then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
 
-      if (analyticsRes?.ok) setAnalytics(await analyticsRes.json());
-      if (tokenRes?.ok) setTokenData(await tokenRes.json());
-      if (weeklyTokenRes?.ok) setWeeklyTokens(await weeklyTokenRes.json());
-      if (monthlyTokenRes?.ok) setMonthlyTokens(await monthlyTokenRes.json());
-      if (perInterviewTokenRes?.ok) setPerInterviewTokens(await perInterviewTokenRes.json());
-      if (modeRes?.ok) setModeAnalytics(await modeRes.json());
-      if (verdictsRes?.ok) {
-        const vData = await verdictsRes.json();
-        let extracted = vData;
-        if (vData && typeof vData === 'object' && !vData.READY && Object.values(vData).some(v => typeof v === 'object' && v !== null && 'READY' in v)) {
-          extracted = Object.values(vData).find(v => typeof v === 'object' && v !== null && 'READY' in v);
-        }
-        setVerdicts(
-            extracted.verdictDistribution
-            || extracted.verdicts
-            || extracted.data
-            || extracted
-        );
+      if (analyticsData) setAnalytics(analyticsData);
+      if (tokenResData) setTokenData(tokenResData);
+      if (modeResData) setModeAnalytics(modeResData);
+
+      let extractedVerdicts = verdictsRawData;
+      if (verdictsRawData && typeof verdictsRawData === 'object' && !verdictsRawData.READY && Object.values(verdictsRawData).some(v => typeof v === 'object' && v !== null && 'READY' in v)) {
+        extractedVerdicts = Object.values(verdictsRawData).find(v => typeof v === 'object' && v !== null && 'READY' in v);
       }
-      if (candidatesRes?.ok) setCandidateAnalytics(await candidatesRes.json());
-      if (trendsRes?.ok) setTrends(await trendsRes.json());
-      if (reviewRes?.ok) {
-        const summaryData = await reviewRes.json() as Array<{ status?: string }>;
-        if (Array.isArray(summaryData)) {
-          setReviewPendingCount(summaryData.filter(i => i.status === 'REVIEW_PENDING').length);
-        }
+      const parsedVerdicts = extractedVerdicts ? (
+        extractedVerdicts.verdictDistribution ||
+        extractedVerdicts.verdicts ||
+        extractedVerdicts.data ||
+        extractedVerdicts
+      ) : null;
+      if (parsedVerdicts) setVerdicts(parsedVerdicts);
+
+      // Dismiss loading spinner fast as soon as primary overview metrics arrive
+      setLoading(false);
+
+      // Secondary Phase: Fetch heavier background aggregate queries concurrently
+      const [
+        candidatesData,
+        trendsData,
+        summaryData,
+        weeklyTokenData,
+        monthlyTokenData,
+        perInterviewTokenData,
+      ] = await Promise.all([
+        fetch('/api/analytics/candidates').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/analytics/trends').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/interviews/summary').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/tokens/analytics/weekly').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/tokens/analytics/monthly').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/tokens/analytics/per-interview').then(r => r.ok ? r.json() : null).catch(() => null),
+      ]);
+
+      if (candidatesData) setCandidateAnalytics(candidatesData);
+      if (trendsData) setTrends(trendsData);
+      if (weeklyTokenData) setWeeklyTokens(weeklyTokenData);
+      if (monthlyTokenData) setMonthlyTokens(monthlyTokenData);
+      if (perInterviewTokenData) setPerInterviewTokens(perInterviewTokenData);
+
+      let pendingCount = 0;
+      if (Array.isArray(summaryData)) {
+        pendingCount = summaryData.filter(i => i.status === 'REVIEW_PENDING').length;
+        setReviewPendingCount(pendingCount);
       }
+
+      // Update module cache for smooth fallback
+      dashboardCache = {
+        analytics: analyticsData ?? dashboardCache?.analytics ?? null,
+        tokenData: tokenResData ?? dashboardCache?.tokenData ?? null,
+        weeklyTokens: weeklyTokenData ?? dashboardCache?.weeklyTokens ?? null,
+        monthlyTokens: monthlyTokenData ?? dashboardCache?.monthlyTokens ?? null,
+        perInterviewTokens: perInterviewTokenData ?? dashboardCache?.perInterviewTokens ?? null,
+        modeAnalytics: modeResData ?? dashboardCache?.modeAnalytics ?? null,
+        verdicts: parsedVerdicts ?? dashboardCache?.verdicts ?? null,
+        candidateAnalytics: candidatesData ?? dashboardCache?.candidateAnalytics ?? null,
+        trends: trendsData ?? dashboardCache?.trends ?? null,
+        reviewPendingCount: pendingCount || dashboardCache?.reviewPendingCount || 0,
+      };
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
-      // Don't retry immediately on error - wait for next interval
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const t = setTimeout(fetchAnalytics, 0);
-    const interval = setInterval(fetchAnalytics, 60000); // Increased to 60 seconds
-    return () => {
-      clearTimeout(t);
-      clearInterval(interval);
-    };
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 60000);
+    return () => clearInterval(interval);
   }, []);
 
-  if (loading) return <LoadingSpinner message="Loading dashboard..." />;
+  if (loading) return <LoadingSpinner message="Loading interview dashboard..." />;
 
   const tabs = [
-    { id: 'overview', label: 'Overview', accent: 'blue' },
-    { id: 'status', label: 'Status & Flow', accent: 'purple' },
-    { id: 'performance', label: 'Candidate Performance', accent: 'emerald' },
-    { id: 'modes', label: 'Interview Modes', accent: 'amber' },
-    { id: 'trends', label: 'Trends', accent: 'rose' },
-    { id: 'tokens', label: 'Token Usage', accent: 'teal' },
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'status', label: 'Status & Flow', icon: Activity },
+    { id: 'performance', label: 'Candidate Performance', icon: UserCheck },
+    { id: 'modes', label: 'Interview Modes', icon: Layers },
+    { id: 'trends', label: 'Trends', icon: TrendingUp },
+    { id: 'tokens', label: 'Token Usage', icon: Zap },
   ] as const;
 
   return (
-      <div className="space-y-6 w-full animate-in">
-        <PageHero
-            icon={LayoutDashboard}
-            title="Admin Dashboard"
-            description="Monitor interview pipeline, candidate readiness, and token usage in real time."
-            variant="sunset"
-        />
-
-        <div className="flex justify-between items-center flex-wrap gap-3">
-          {/* Token Usage Alert Summary */}
-          <div>
-            {tokenData && (tokenData.nearLimit || tokenData.overLimit) && (
-                <div className={`px-4 py-2 rounded-lg text-sm font-medium ${tokenData.overLimit ? 'bg-red-50 text-red-900 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-900/50' : 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-900/50'}`}>
-                  {tokenData.overLimit ? 'Token limit exceeded' : 'Approaching token limit'} ({tokenData.usage.toLocaleString()} / {tokenData.limit.toLocaleString()})
-                </div>
-            )}
+    <div className="space-y-6 w-full animate-in">
+      {/* Top Banner Card with Gradient & Logo */}
+      <div className="relative overflow-hidden rounded-2xl bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] p-6 text-white shadow-lg border border-purple-400/30">
+        <div className="absolute right-0 top-0 -mt-8 -mr-8 h-48 w-48 rounded-full bg-purple-500/10 blur-2xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-400 to-fuchsia-600 text-white font-black text-base shadow-lg shadow-purple-950/50 border border-white/25">
+              BR
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <span className="text-white">Bench Readiness Analytics</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/20">
+                  Live
+                </span>
+              </h2>
+              <p className="text-xs text-white/90 mt-1 font-normal">
+                Real-time tracking of candidate pipeline, evaluation verdicts, and AI readiness scores.
+              </p>
+            </div>
           </div>
-          <div className="text-sm text-zinc-500 dark:text-zinc-400">
-            Last updated: {analytics?.lastUpdated ? formatTime(analytics.lastUpdated) : 'Never'}
+          <div className="flex items-center gap-2 text-xs font-semibold bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/20 text-white self-start md:self-auto">
+            <Clock className="h-4 w-4 text-purple-200" />
+            <span>Last Updated: {analytics?.lastUpdated ? new Date(analytics.lastUpdated).toLocaleTimeString() : 'Just now'}</span>
           </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="tab-bar">
-          {tabs.map(tab => (
-              <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  data-accent={tab.accent}
-                  className={activeTab === tab.id ? 'tab-bar-item tab-bar-item-active' : 'tab-bar-item'}
-              >
-                {tab.label}
-              </button>
-          ))}
-        </div>
-
-        {/* Tab Content Areas */}
-        <div className="mt-6">
-
-          {/* OVERVIEW TAB */}
-          {activeTab === 'overview' && (
-              <div className="space-y-6">
-
-                {/* Interview Pipeline */}
-                <div>
-                  <SectionHeader
-                      title="Interview Pipeline"
-                      description="Current status of all interviews in the system"
-                  />
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    <StatCard
-                        title="Scheduled"
-                        description="Booked but not yet started"
-                        value={analytics?.statusCounts.scheduled ?? 0}
-                        accent="teal"
-                        linkTo="/admin/review?status=SCHEDULED"
-                    />
-                    <StatCard
-                        title="In Progress"
-                        description="Interview currently underway"
-                        value={analytics?.statusCounts.inProgress || 0}
-                        accent="blue"
-                        linkTo="/admin/review?status=IN_PROGRESS"
-                    />
-                    <StatCard title="Review Pending" description="Awaiting manager sign-off" value={reviewPendingCount} accent="yellow" linkTo="/admin/review?status=REVIEW_PENDING" />
-                    <StatCard title="Completed" description="Fully assessed by AI" value={analytics?.statusCounts.completed || 0} accent="green" linkTo="/admin/review?status=COMPLETED" />
-                    <StatCard title="Signed Off" description="Final verdict submitted" value={analytics?.statusCounts.signedOff || 0} accent="purple" linkTo="/admin/review?status=SIGNED_OFF" />
-                  </div>
-                </div>
-
-                {/* Activity & Outcomes */}
-                <div>
-                  <SectionHeader
-                      title="Activity & Outcomes"
-                      description="Interview volume and readiness results"
-                  />
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <StatCard title="Interviews Today" description="Created or updated today" value={analytics?.timePeriods.today || 0} accent="indigo" />
-                    <StatCard title="Interviews This Week" description="Created or updated this week" value={analytics?.timePeriods.thisWeek || 0} accent="teal" />
-                    <StatCard title="Bench Readiness Rate" description="Candidates marked Ready out of all assessed" value={`${analytics?.successMetrics.successRate || 0}%`} accent="emerald" subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`} />
-                  </div>
-                </div>
-
-              </div>
-          )}
-
-          {/* STATUS & FLOW TAB */}
-          {activeTab === 'status' && (
-              <div className="space-y-6">
-                <div className="card p-6">
-                  <h3 className="text-lg font-semibold mb-6 text-zinc-900 dark:text-zinc-100">Assessment Verdict Distribution</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {verdicts ? (
-                        VERDICT_FLOW_ORDER.map((key) => {
-                          const count = verdicts[key];
-                          if (typeof count !== 'number') return null;
-                          const formatKey = key.replace(/_/g, ' ');
-                          return (
-                              <div key={key} className="text-center p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800">
-                                <div className="text-3xl font-bold text-zinc-800 dark:text-zinc-200">{count}</div>
-                                <div className="text-xs font-medium text-zinc-500 mt-2 uppercase">{formatKey}</div>
-                              </div>
-                          );
-                        })
-                    ) : (
-                        <div className="col-span-full text-center py-8 text-zinc-500 dark:text-zinc-400">
-                          No verdict data available
-                        </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-          )}
-
-          {/* CANDIDATE PERFORMANCE TAB */}
-          {activeTab === 'performance' && (
-              <DashboardPerformanceTab data={candidateAnalytics} />
-          )}
-
-          {/* MODES TAB */}
-          {activeTab === 'modes' && (
-              <div className="card p-6">
-                <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-zinc-100">Interview Mode Distribution</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {modeAnalytics && Object.entries(modeAnalytics.modeDistribution).map(([mode, count]) => (
-                      <Link href={`/admin/review?mode=${mode}`} key={mode} className="text-center p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors border border-zinc-100 dark:border-zinc-800 cursor-pointer block">
-                        <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">{count}</div>
-                        <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mt-2 uppercase tracking-wide">{mode}</div>
-                      </Link>
-                  ))}
-                </div>
-                <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                  Total Recorded Interviews: {modeAnalytics?.totalInterviews || 0}
-                </div>
-              </div>
-          )}
-
-          {/* TRENDS TAB */}
-          {activeTab === 'trends' && (
-              <DashboardTrendsTab trends={trends} />
-          )}
-
-          {/* TOKENS TAB */}
-          {activeTab === 'tokens' && (
-            <TokenAnalyticsTab
-              today={tokenData}
-              weekly={weeklyTokens}
-              monthly={monthlyTokens}
-              perInterview={perInterviewTokens}
-            />
-          )}
-
         </div>
       </div>
+
+      {/* Token Alert Banner */}
+      {tokenData && (tokenData.nearLimit || tokenData.overLimit) && (
+        <div className={`p-4 rounded-xl flex items-center justify-between gap-4 border transition-all ${
+          tokenData.overLimit
+            ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+            : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+        }`}>
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">
+                {tokenData.overLimit ? 'Token Hard Limit Exceeded' : 'Approaching Token Usage Threshold'}
+              </p>
+              <p className="text-xs opacity-90">
+                {tokenData.usage.toLocaleString()} / {tokenData.limit.toLocaleString()} tokens utilized today.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/admin/settings/tokens"
+            className="text-xs font-semibold underline hover:opacity-80 shrink-0"
+          >
+            Manage Limits →
+          </Link>
+        </div>
+      )}
+
+      {/* Modern Navigation Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 rounded-full bg-[var(--surface-subtle)] border border-[var(--border)]">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-150 whitespace-nowrap cursor-pointer active:scale-[0.98] focus:outline-none border ${
+                isActive
+                  ? 'bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] !text-white hover:!text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_10px_rgba(42,0,53,0.4)] border-purple-300/30'
+                  : 'border-transparent text-[var(--text-secondary)] hover:!text-white hover:bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_10px_rgba(42,0,53,0.4)] hover:border-purple-300/30'
+              }`}
+            >
+              <Icon className="h-4 w-4 text-current" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB CONTENTS */}
+      <div className="space-y-6">
+
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Interview Pipeline */}
+            <Card className="p-6">
+              <CardHeader className="px-0 pt-0">
+                <CardTitle className="text-base font-semibold">Interview Pipeline</CardTitle>
+                <CardDescription>Real-time status of all candidate interviews</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 pb-0">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <StatCard
+                    title="Scheduled"
+                    description="Booked & upcoming"
+                    value={analytics?.statusCounts.scheduled ?? 0}
+                    accent="teal"
+                    icon={Calendar}
+                    linkTo="/admin/review?status=SCHEDULED"
+                  />
+                  <StatCard
+                    title="In Progress"
+                    description="Currently active"
+                    value={analytics?.statusCounts.inProgress || 0}
+                    accent="blue"
+                    icon={PlayCircle}
+                    linkTo="/admin/review?status=IN_PROGRESS"
+                  />
+                  <StatCard
+                    title="Review Pending"
+                    description="Awaiting evaluation"
+                    value={reviewPendingCount}
+                    accent="yellow"
+                    icon={Clock}
+                    linkTo="/admin/review?status=REVIEW_PENDING"
+                  />
+                  <StatCard
+                    title="Completed"
+                    description="Fully AI assessed"
+                    value={analytics?.statusCounts.completed || 0}
+                    accent="green"
+                    icon={CheckCircle2}
+                    linkTo="/admin/review?status=COMPLETED"
+                  />
+                  <StatCard
+                    title="Signed Off"
+                    description="Final verdict submitted"
+                    value={analytics?.statusCounts.signedOff || 0}
+                    accent="purple"
+                    icon={Award}
+                    linkTo="/admin/review?status=SIGNED_OFF"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Activity & Outcomes */}
+            <Card className="p-6">
+              <CardHeader className="px-0 pt-0">
+                <CardTitle className="text-base font-semibold">Activity & Bench Readiness</CardTitle>
+                <CardDescription>Interview throughput and candidate readiness rates</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 pb-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <StatCard
+                    title="Interviews Today"
+                    description="Recorded during last 24 hours"
+                    value={analytics?.timePeriods.today || 0}
+                    accent="indigo"
+                    icon={Activity}
+                  />
+                  <StatCard
+                    title="Interviews This Week"
+                    description="Recorded during past 7 days"
+                    value={analytics?.timePeriods.thisWeek || 0}
+                    accent="teal"
+                    icon={TrendingUp}
+                  />
+                  <StatCard
+                    title="Bench Readiness Rate"
+                    description="Candidates assessed as deployment ready"
+                    value={`${analytics?.successMetrics.successRate || 0}%`}
+                    accent="emerald"
+                    icon={Sparkles}
+                    subtitle={`${analytics?.successMetrics.readyCount || 0} ready / ${analytics?.successMetrics.totalAssessed || 0} assessed`}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+
+        {/* STATUS & FLOW TAB */}
+        {activeTab === 'status' && (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <CardHeader className="px-0 pt-0">
+                <CardTitle className="text-base font-semibold">Assessment Verdict Distribution</CardTitle>
+                <CardDescription>Breakdown of AI and manager final readiness verdicts</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 pb-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {verdicts ? (
+                    VERDICT_FLOW_ORDER.map((key) => {
+                      const count = verdicts[key];
+                      if (typeof count !== 'number') return null;
+                      const config = VERDICT_CONFIG[key] || VERDICT_CONFIG.WITHDRAWN;
+                      return (
+                        <StatCard
+                          key={key}
+                          title={config.label}
+                          value={count}
+                          accent={config.accent}
+                          icon={config.icon}
+                          linkTo={`/admin/review?verdict=${key}`}
+                        />
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-full text-center py-12 text-[var(--text-secondary)]">
+                      No verdict distribution data available.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* CANDIDATE PERFORMANCE TAB */}
+        {activeTab === 'performance' && (
+          <DashboardPerformanceTab data={candidateAnalytics} />
+        )}
+
+        {/* INTERVIEW MODES TAB */}
+        {activeTab === 'modes' && (
+          <Card className="p-6">
+            <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold">Interview Mode Distribution</CardTitle>
+                <CardDescription>Total interviews conducted across screening and technical rounds</CardDescription>
+              </div>
+              <span className="text-xs font-semibold text-[var(--text-secondary)] bg-[var(--surface-subtle)] px-3 py-1 rounded-full border border-[var(--border)]">
+                Total Recorded: {modeAnalytics?.totalInterviews || 0}
+              </span>
+            </CardHeader>
+            <CardContent className="px-0 pb-0 space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                {modeAnalytics && Object.entries(modeAnalytics.modeDistribution).map(([mode, count]) => (
+                  <StatCard
+                    key={mode}
+                    title={mode}
+                    value={count}
+                    accent="blue"
+                    icon={Layers}
+                    linkTo={`/admin/review?mode=${mode}`}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* TRENDS TAB */}
+        {activeTab === 'trends' && (
+          <DashboardTrendsTab trends={trends} />
+        )}
+
+        {/* TOKEN USAGE TAB */}
+        {activeTab === 'tokens' && (
+          <TokenAnalyticsTab
+            today={tokenData}
+            weekly={weeklyTokens}
+            monthly={monthlyTokens}
+            perInterview={perInterviewTokens}
+          />
+        )}
+
+      </div>
+    </div>
   );
 }

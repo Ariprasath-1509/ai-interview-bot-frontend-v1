@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Pencil, Trash2, Layers } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Plus, Pencil, Trash2, Layers, Sparkles, FolderTree } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useConfirm } from "@/components/common/ConfirmDialog";
 import { useToast } from "@/components/common/Toast";
-import { INTERVIEW_TYPE_COLORS } from "@/lib/questionbank-constants";
+import { MasterDataEmptyState, MasterDataLoading } from "@/components/admin/master-data/MasterDataUi";
 
 interface Category {
   id: string;
@@ -24,6 +23,11 @@ interface Category {
   createdAt: string;
 }
 
+const TYPE_BADGE: Record<string, string> = {
+  backend: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
+  frontend: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20",
+  shared: "bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/20",
+};
 
 export default function QuestionBankCategoriesClient() {
   const { confirm } = useConfirm();
@@ -107,18 +111,17 @@ export default function QuestionBankCategoriesClient() {
     }
   };
 
-  const handleDelete = async (id: string, questionCount: number) => {
+  const handleDelete = async (cat: Category) => {
     const ok = await confirm({
-      title: "Delete category?",
-      message: questionCount > 0
-        ? `This category has ${questionCount} question${questionCount !== 1 ? "s" : ""}. They will become uncategorized. This action cannot be undone.`
-        : "This action cannot be undone.",
+      title: "Delete Category",
+      message: `Delete "${cat.name}"? Questions in this category will move to General.`,
       confirmLabel: "Delete",
       variant: "danger",
     });
     if (!ok) return;
+
     try {
-      const res = await fetch(`/api/questionbank/categories/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/questionbank/categories/${cat.id}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
         fetchCategories();
@@ -131,37 +134,38 @@ export default function QuestionBankCategoriesClient() {
     }
   };
 
-  const getTypeColor = (type: string) => INTERVIEW_TYPE_COLORS[type] || INTERVIEW_TYPE_COLORS.shared;
-
   if (loading) {
-    return <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    return <MasterDataLoading label="Loading classification categories..." />;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Create Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add New Category
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-3">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      {/* Form Panel Card */}
+      <div className="panel-card rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+        <div className="panel-header panel-header-accent-purple flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+            <Plus className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            Add Classification Category
+          </h3>
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">
+            AI Digest category constraint
+          </span>
+        </div>
+        <div className="p-5">
+          <div className="flex flex-wrap items-center gap-3">
             <Input
               type="text"
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
-              placeholder="Category name"
-              className="flex-1"
+              placeholder="Category name (e.g., System Design)"
+              className="max-w-xs rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 text-xs font-medium"
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
             <Select value={newInterviewType} onValueChange={setNewInterviewType}>
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="w-[140px] rounded-xl border-[var(--border)] bg-[var(--surface)] text-xs font-semibold">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl border-[var(--border)]">
                 <SelectItem value="backend">Backend</SelectItem>
                 <SelectItem value="frontend">Frontend</SelectItem>
                 <SelectItem value="shared">Shared</SelectItem>
@@ -170,90 +174,144 @@ export default function QuestionBankCategoriesClient() {
             <Button
               onClick={handleCreate}
               disabled={saving || !newCategory.trim()}
-              className="gap-2"
+              className="rounded-xl font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Add
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-1.5" />
+                  Add Category
+                </>
+              )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Categories Grid */}
-      {categories.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <Layers className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No categories found</p>
-            <p className="text-sm text-muted-foreground">Create your first category above</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {categories.map((cat) => (
-            <Card key={cat.id} className="hover:border-primary/50 transition-colors">
-              <CardContent className="pt-4">
-                {editingId === cat.id ? (
-                  <div className="space-y-3">
-                    <Input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="font-medium"
-                      onKeyDown={(e) => e.key === "Enter" && handleUpdate(cat.id)}
-                    />
-                    <Select value={editInterviewType} onValueChange={setEditInterviewType}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="backend">Backend</SelectItem>
-                        <SelectItem value="frontend">Frontend</SelectItem>
-                        <SelectItem value="shared">Shared</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleUpdate(cat.id)} disabled={saving} className="flex-1">
-                        Save
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="flex-1">
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-lg">{cat.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getTypeColor(cat.interviewType || "shared")}`}>
-                          {cat.interviewType || "shared"}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {cat.questionCount} question{cat.questionCount !== 1 ? "s" : ""}
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => startEdit(cat)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(cat.id, cat.questionCount)}
-                        className="text-red-500 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
         </div>
-      )}
+      </div>
+
+      {/* List Panel Card */}
+      <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-indigo-300/30">
+        <div className="panel-header panel-header-accent-indigo flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+            <Layers className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+            Categories Repository
+          </h3>
+          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
+            {categories.length} categories
+          </span>
+        </div>
+        <div className="p-5">
+          {categories.length === 0 ? (
+            <MasterDataEmptyState
+              icon={Layers}
+              title="No categories yet"
+              description="Create your first classification category using the form above."
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {categories.map((cat) => (
+                <div
+                  key={cat.id}
+                  className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs transition-all duration-200 hover:border-indigo-500/30 hover:shadow-xs group"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                          <FolderTree className="h-4 w-4" />
+                        </div>
+                        {editingId === cat.id ? (
+                          <Input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="h-8 font-semibold text-xs rounded-lg border-[var(--border)] bg-[var(--surface)]"
+                            onKeyDown={(e) => e.key === "Enter" && handleUpdate(cat.id)}
+                          />
+                        ) : (
+                          <span className="font-bold text-sm text-[var(--text-primary)]">{cat.name}</span>
+                        )}
+                      </div>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border ${
+                          TYPE_BADGE[cat.interviewType ?? "shared"] ?? TYPE_BADGE.shared
+                        }`}
+                      >
+                        {cat.interviewType ?? "shared"}
+                      </span>
+                    </div>
+
+                    {editingId === cat.id && (
+                      <div className="mt-3">
+                        <Select value={editInterviewType} onValueChange={setEditInterviewType}>
+                          <SelectTrigger className="h-8 text-xs font-semibold rounded-lg border-[var(--border)]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-[var(--border)]">
+                            <SelectItem value="backend">Backend</SelectItem>
+                            <SelectItem value="frontend">Frontend</SelectItem>
+                            <SelectItem value="shared">Shared</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-3">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-subtle)] border border-[var(--border)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
+                      {cat.questionCount} {cat.questionCount === 1 ? 'question' : 'questions'}
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      {editingId === cat.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            className="h-7 px-2.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                            onClick={() => handleUpdate(cat.id)}
+                            disabled={saving}
+                          >
+                            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 rounded-lg text-xs"
+                            onClick={() => setEditingId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-7 p-0 rounded-lg border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 hover:scale-105 transition-all"
+                            onClick={() => startEdit(cat)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          {cat.name !== "General" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 w-7 p-0 rounded-lg border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 hover:scale-105 transition-all"
+                              onClick={() => handleDelete(cat)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

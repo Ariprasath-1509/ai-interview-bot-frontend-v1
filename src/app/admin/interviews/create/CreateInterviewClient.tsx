@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -262,7 +262,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
     }
   };
 
-  const selectCandidate = (candidate: Candidate) => {
+  const selectCandidate = async (candidate: Candidate) => {
     setSelectedCandidate(candidate);
     setCandidateSearch(candidate.name);
     setShowCandidateResults(false);
@@ -276,8 +276,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
     updatedData.candidateId = candidate.id;
     fieldsPopulated.push('engineerEmail', 'engineerName');
     
-    if (candidate.resumeSummary) {
-      updatedData.resumeSummary = candidate.resumeSummary;
+    const summaryText = candidate.resumeSummary || (candidate as any).summary || (candidate as any).aiSummary || (candidate as any).resume_summary || (candidate as any).reviewSummary;
+    if (summaryText) {
+      updatedData.resumeSummary = summaryText;
       fieldsPopulated.push('resumeSummary');
     }
     
@@ -288,6 +289,22 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
     
     // Fetch matching clients for this candidate
     if (clientsEnabled) fetchMatchingClients(candidate);
+
+    // If resumeSummary was not attached in search payload, fetch auto-fill preview from backend
+    if (!summaryText && candidate.id) {
+      try {
+        const response = await fetch(`/api/recruiter/interviews/auto-fill/preview?candidateId=${candidate.id}`, { credentials: 'include' });
+        if (response.ok) {
+          const previewData = await response.json();
+          if (previewData.resumeSummary) {
+            setFormData(prev => ({ ...prev, resumeSummary: previewData.resumeSummary }));
+            setAutoFilledFields(prev => Array.from(new Set([...prev, 'resumeSummary'])));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch candidate resume summary:', err);
+      }
+    }
     
     toast('Candidate selected and form auto-filled', 'success');
   };
@@ -688,7 +705,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
   const isOnboarding = formData.assessmentType === 'ONBOARDING';
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
+    <div className="mx-auto w-full max-w-7xl">
       {(formData.candidateId || formData.clientId) && !autoFillApplied && (
         <div className="mb-6 flex justify-end">
           <Button
@@ -713,67 +730,74 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Interview Type */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-purple flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               Interview Type
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+            <Link
+              href="/admin/interviews/bulk-create"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-1.5 text-xs font-bold text-[var(--text-primary)] shadow-2xs transition-all hover:bg-[var(--surface-subtle)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+              Bulk Create
+            </Link>
+          </div>
+          <div className="p-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label
-                className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors ${
+                className={`flex cursor-pointer flex-col gap-1 rounded-xl border p-3.5 transition-all duration-200 ${
                   formData.assessmentType === 'CLIENT_INTERVIEW'
-                    ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/20'
-                    : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                    ? 'border-purple-500/40 bg-purple-500/10 shadow-2xs ring-1 ring-purple-500/30'
+                    : 'border-[var(--border)] bg-[var(--surface)] hover:border-purple-300/40 hover:bg-[var(--surface-subtle)]/60'
                 }`}
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+                <span className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
                   <input
                     type="radio"
                     name="assessmentType"
                     checked={formData.assessmentType === 'CLIENT_INTERVIEW'}
                     onChange={() => handleInputChange('assessmentType', 'CLIENT_INTERVIEW')}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-purple-600"
                   />
                   Client Interview
                 </span>
-                <span className="text-xs text-zinc-500">JD-based, scored against a client's role with the full assessment report.</span>
+                <span className="text-xs text-[var(--text-secondary)] font-medium">JD-based, scored against a client's role with the full assessment report.</span>
               </label>
               <label
-                className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors ${
+                className={`flex cursor-pointer flex-col gap-1 rounded-xl border p-3.5 transition-all duration-200 ${
                   formData.assessmentType === 'ONBOARDING'
-                    ? 'border-teal-400 bg-teal-50 dark:border-teal-600 dark:bg-teal-950/20'
-                    : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                    ? 'border-teal-500/40 bg-teal-500/10 shadow-2xs ring-1 ring-teal-500/30'
+                    : 'border-[var(--border)] bg-[var(--surface)] hover:border-teal-300/40 hover:bg-[var(--surface-subtle)]/60'
                 }`}
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+                <span className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
                   <input
                     type="radio"
                     name="assessmentType"
                     checked={formData.assessmentType === 'ONBOARDING'}
                     onChange={() => handleInputChange('assessmentType', 'ONBOARDING')}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-teal-600"
                   />
                   Onboarding Assessment
                 </span>
-                <span className="text-xs text-zinc-500">Checks basic understanding of one concept you specify — no client, single simple score.</span>
+                <span className="text-xs text-[var(--text-secondary)] font-medium">Checks basic understanding of one concept you specify — no client, single simple score.</span>
               </label>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Candidate Search */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
+        <div className="panel-card !overflow-visible relative z-30 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-blue rounded-t-2xl">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Search Candidate (Optional)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="relative">
+            </h3>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="relative z-50">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Input
@@ -783,10 +807,10 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                       setCandidateSearch(e.target.value);
                       searchCandidates(e.target.value);
                     }}
-                    className="pr-10"
+                    className="pr-10 rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20"
                   />
                   {searchingCandidates && (
-                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-zinc-400" />
+                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-[var(--text-secondary)]" />
                   )}
                 </div>
                 {selectedCandidate && (
@@ -795,7 +819,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                     variant="outline"
                     size="sm"
                     onClick={clearCandidateSelection}
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 rounded-xl border-[var(--border)] text-xs font-semibold"
                   >
                     <X className="h-4 w-4" />
                     Clear
@@ -805,25 +829,25 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
               
               {/* Search Results */}
               {showCandidateResults && candidateResults.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg max-h-60 overflow-y-auto dark:bg-zinc-900 dark:border-zinc-700">
+                <div className="absolute left-0 right-0 top-full z-50 mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl max-h-60 overflow-y-auto">
                   {candidateResults.map((candidate) => (
                     <div
                       key={candidate.id}
-                      className="p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 dark:hover:bg-zinc-800 dark:border-zinc-800"
+                      className="p-3.5 hover:bg-[var(--surface-subtle)] cursor-pointer border-b border-[var(--border)] last:border-b-0 transition-colors"
                       onClick={() => selectCandidate(candidate)}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-zinc-900 dark:text-zinc-100">{candidate.name}</p>
-                          <p className="text-sm text-zinc-600 dark:text-zinc-400">{candidate.email}</p>
+                          <p className="font-bold text-sm text-[var(--text-primary)]">{candidate.name}</p>
+                          <p className="text-xs text-[var(--text-secondary)]">{candidate.email}</p>
                           {candidate.skillSet && (
-                            <p className="text-xs text-zinc-500 mt-1">
+                            <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
                               {candidate.skillSet} • {candidate.yoePortrayed || 0} years exp
                             </p>
                           )}
                         </div>
                         {candidate.resumeSummary && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-[10px] font-bold border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300">
                             Resume Available
                           </Badge>
                         )}
@@ -834,95 +858,100 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
               )}
               
               {showCandidateResults && candidateResults.length === 0 && !searchingCandidates && candidateSearch.trim() && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-md shadow-lg p-3 dark:bg-zinc-900 dark:border-zinc-700">
-                  <p className="text-sm text-zinc-500">No candidates found</p>
+                <div className="absolute left-0 right-0 top-full z-50 mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl p-3.5">
+                  <p className="text-sm font-medium text-[var(--text-secondary)]">No candidates found</p>
                 </div>
               )}
             </div>
             
             {selectedCandidate && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md dark:bg-blue-950/20 dark:border-blue-900">
-                <div className="flex items-center gap-2 mb-2">
-                  <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span className="font-medium text-blue-900 dark:text-blue-200">Selected Candidate</span>
+              <div className="p-4 bg-purple-500/10 border border-purple-500/25 rounded-xl">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <User className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  <span className="font-bold text-xs uppercase tracking-wider text-purple-700 dark:text-purple-300">Selected Candidate</span>
                 </div>
-                <p className="text-sm text-blue-800 dark:text-blue-300">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
                   {selectedCandidate.name} ({selectedCandidate.email})
                 </p>
                 {selectedCandidate.skillSet && (
-                  <p className="text-xs text-blue-600 mt-1 dark:text-blue-400">
+                  <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
                     {selectedCandidate.skillSet} • {selectedCandidate.yoePortrayed || 0} years experience
                   </p>
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Client Selection - Show all clients when no candidate selected */}
         {clientsEnabled && !isOnboarding && !selectedCandidate && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+            <div className="panel-header panel-header-accent-emerald rounded-t-2xl">
+              <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+                <Briefcase className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 Available Client Positions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+              </h3>
+            </div>
+            <div className="p-5 space-y-3">
               {searchingClients && (
-                <div className="flex items-center gap-2 text-zinc-600">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <div className="flex items-center gap-2 text-[var(--text-secondary)] text-sm font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
                   <span>Loading clients...</span>
                 </div>
               )}
               {!searchingClients && clientResults.length === 0 && (
-                <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-md dark:bg-zinc-900 dark:border-zinc-800">
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">No clients available</p>
+                <div className="p-3.5 bg-[var(--surface-subtle)] border border-[var(--border)] rounded-xl">
+                  <p className="text-sm font-medium text-[var(--text-secondary)]">No clients available</p>
                 </div>
               )}
               {!searchingClients && clientResults.length > 0 && (
-                <select
-                  value={selectedClient?.id ?? ''}
-                  onChange={(e) => {
-                    const client = clientResults.find((c) => c.id === e.target.value);
-                    if (client) selectClient(client);
-                    else clearClientSelection();
+                <Select
+                  value={selectedClient?.id || "NONE"}
+                  onValueChange={(val) => {
+                    if (val === "NONE") {
+                      clearClientSelection();
+                    } else {
+                      const c = clientResults.find((client) => client.id === val);
+                      if (c) selectClient(c);
+                    }
                   }}
-                  className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-2 bg-white dark:bg-zinc-950 dark:text-zinc-100"
                 >
-                  <option value="">— Select a client —</option>
-                  {clientResults.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.clientName} — {client.jdRole}{client.screeningChecklistJson ? ' ✓ checklist' : ''}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-12 font-medium focus:border-[#6D28D9]">
+                    <SelectValue placeholder="Select a client position..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60 z-50">
+                    <SelectItem value="NONE" className="text-xs font-semibold text-[var(--text-secondary)]">
+                      Select a client position...
+                    </SelectItem>
+                    {clientResults.map((client) => (
+                      <SelectItem key={client.id} value={client.id} className="text-xs font-semibold py-2">
+                        <div className="flex items-center justify-between gap-4 w-full">
+                          <span className="font-bold text-[var(--text-primary)]">{client.clientName}</span>
+                          <span className="text-xs text-[var(--text-secondary)] font-medium truncate">{client.jdRole}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
-
               {selectedClient && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{selectedClient.clientName}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">{selectedClient.jdRole}</p>
-                    </div>
-                    <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1">
-                      <X className="h-4 w-4" /> Clear
-                    </Button>
+                <div className="flex items-center justify-between p-3 bg-purple-500/10 border border-purple-500/25 rounded-xl mt-2">
+                  <div>
+                    <p className="text-xs font-bold text-purple-700 dark:text-purple-300">Selected Client Position</p>
+                    <p className="text-sm font-extrabold text-[var(--text-primary)]">{selectedClient.clientName} - {selectedClient.jdRole}</p>
+                    <span className={`mt-1.5 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
+                      selectedClient.screeningChecklistJson
+                        ? 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900'
+                        : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                    }`}>
+                      {selectedClient.screeningChecklistJson ? `Checklist: ${selectedClient.screeningChecklistName || 'Saved'}` : 'No screening checklist — add one below'}
+                    </span>
                   </div>
-                  {selectedClient.focusAreas && (
-                    <p className="text-xs text-zinc-400 mt-1 truncate">Focus: {selectedClient.focusAreas}</p>
-                  )}
-                  <span className={`mt-1.5 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
-                    selectedClient.screeningChecklistJson
-                      ? 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900'
-                      : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                  }`}>
-                    {selectedClient.screeningChecklistJson ? `Checklist: ${selectedClient.screeningChecklistName || 'Saved'}` : 'No screening checklist — add one below'}
-                  </span>
+                  <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1 rounded-xl text-xs font-semibold">
+                    <X className="h-4 w-4" /> Clear
+                  </Button>
                 </div>
               )}
-
               {selectedClient && (
                 <div className="mt-3">
                   <ScreeningChecklistEditor
@@ -939,98 +968,107 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Client Selection - Show matching clients for selected candidate */}
         {clientsEnabled && !isOnboarding && selectedCandidate && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+            <div className="panel-header panel-header-accent-emerald rounded-t-2xl">
+              <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+                <Briefcase className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 Matching Client Positions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+              </h3>
+            </div>
+            <div className="p-5 space-y-3">
               {searchingClients && (
-                <div className="flex items-center gap-2 text-zinc-600">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <div className="flex items-center gap-2 text-[var(--text-secondary)] text-sm font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
                   <span>Finding matches...</span>
                 </div>
               )}
 
               {!searchingClients && clientResults.length === 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md dark:bg-amber-950/20 dark:border-amber-900">
-                  <p className="text-sm text-amber-800 dark:text-amber-300">{clientsMessage || 'No client positions found.'}</p>
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">{clientsMessage || 'No client positions found.'}</p>
                 </div>
               )}
 
               {!searchingClients && clientResults.length > 0 && (
-                <select
-                  value={selectedClient?.id ?? ''}
-                  onChange={(e) => {
-                    const client = clientResults.find((c) => c.id === e.target.value);
-                    if (client) selectClient(client);
-                    else clearClientSelection();
+                <Select
+                  value={selectedClient?.id || "NONE"}
+                  onValueChange={(val) => {
+                    if (val === "NONE") {
+                      clearClientSelection();
+                    } else {
+                      const c = clientResults.find((client) => client.id === val);
+                      if (c) selectClient(c);
+                    }
                   }}
-                  className="w-full text-sm rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-2 bg-white dark:bg-zinc-950 dark:text-zinc-100"
                 >
-                  <option value="">— Select a client —</option>
-                  {clientResults.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      [{client.matchLabel ?? 'AVAILABLE'}] {client.clientName} — {client.jdRole}{client.screeningChecklistJson ? ' ✓ checklist' : ''}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] text-xs h-12 font-medium focus:border-[#6D28D9]">
+                    <SelectValue placeholder="Select a matching client position..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60 z-50">
+                    <SelectItem value="NONE" className="text-xs font-semibold text-[var(--text-secondary)]">
+                      Select a matching client position...
+                    </SelectItem>
+                    {clientResults.map((client) => (
+                      <SelectItem key={client.id} value={client.id} className="text-xs font-semibold py-2">
+                        <div className="flex items-center justify-between gap-4 w-full">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[var(--text-primary)]">{client.clientName}</span>
+                            {client.matchLabel && (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full border bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
+                                {client.matchLabel}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-[var(--text-secondary)] font-medium truncate">{client.jdRole}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
 
-              {selectedClient && (() => {
-                const labelColors = {
-                  STRONG:    'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
-                  GOOD:      'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
-                  PARTIAL:   'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
-                  AVAILABLE: 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
-                };
-                const label = selectedClient.matchLabel ?? 'AVAILABLE';
-                return (
-                  <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{selectedClient.clientName}</p>
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${labelColors[label]}`}>
-                            {label}
+              {selectedClient && (
+                <div className="rounded-xl border border-purple-500/25 bg-purple-500/10 p-3 mt-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-bold text-purple-700 dark:text-purple-300">Selected Client Position</p>
+                        {selectedClient.matchLabel && (
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full border bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
+                            {selectedClient.matchLabel}
                           </span>
-                        </div>
-                        <p className="text-xs text-zinc-600 mt-0.5 dark:text-zinc-400">{selectedClient.jdRole}</p>
-                        {selectedClient.focusAreas && (
-                          <p className="text-xs text-zinc-400 mt-0.5 truncate dark:text-zinc-500">Focus: {selectedClient.focusAreas}</p>
                         )}
-                        {selectedClient.matchReasons && selectedClient.matchReasons.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {selectedClient.matchReasons.map((r, i) => (
-                              <span key={i} className="text-[10px] bg-white border border-zinc-200 rounded px-1.5 py-0.5 text-zinc-500 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-400">
-                                {r}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <span className={`mt-1.5 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
-                          selectedClient.screeningChecklistJson
-                            ? 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900'
-                            : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                        }`}>
-                          {selectedClient.screeningChecklistJson ? `Checklist: ${selectedClient.screeningChecklistName || 'Saved'}` : 'No screening checklist — add one below'}
-                        </span>
                       </div>
-                      <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1 shrink-0">
-                        <X className="h-4 w-4" /> Clear
-                      </Button>
+                      <p className="text-sm font-extrabold text-[var(--text-primary)]">{selectedClient.clientName} - {selectedClient.jdRole}</p>
+                      {selectedClient.matchReasons && selectedClient.matchReasons.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {selectedClient.matchReasons.map((r, i) => (
+                            <span key={i} className="text-[10px] bg-white border border-zinc-200 rounded px-1.5 py-0.5 text-zinc-500 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-400">
+                              {r}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <span className={`mt-1.5 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
+                        selectedClient.screeningChecklistJson
+                          ? 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900'
+                          : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+                      }`}>
+                        {selectedClient.screeningChecklistJson ? `Checklist: ${selectedClient.screeningChecklistName || 'Saved'}` : 'No screening checklist — add one below'}
+                      </span>
                     </div>
+                    <Button type="button" variant="outline" size="sm" onClick={clearClientSelection} className="flex items-center gap-1 rounded-xl text-xs font-semibold shrink-0">
+                      <X className="h-4 w-4" /> Clear
+                    </Button>
                   </div>
-                );
-              })()}
+                </div>
+              )}
 
               {selectedClient && (
                 <div className="mt-3">
@@ -1048,22 +1086,22 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
         {/* Candidate Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-purple">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               Candidate Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </h3>
+          </div>
+          <div className="p-5 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label htmlFor="engineerEmail">Email *</Label>
+                  <Label htmlFor="engineerEmail" className="font-bold text-xs text-[var(--text-primary)]">Email *</Label>
                   <FieldAutoFillIndicator 
                     isAutoFilled={autoFilledFields.includes('engineerEmail') && !manuallyEdited.has('engineerEmail')}
                     confidence={autoFillConfidence}
@@ -1076,13 +1114,15 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   onChange={(e) => handleInputChange('engineerEmail', e.target.value)}
                   placeholder="candidate@example.com"
                   required
-                  className={autoFilledFields.includes('engineerEmail') && !manuallyEdited.has('engineerEmail') ? 'border-blue-300 bg-blue-50/50' : ''}
+                  className={`rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 ${
+                    autoFilledFields.includes('engineerEmail') && !manuallyEdited.has('engineerEmail') ? 'border-purple-300 bg-purple-500/10' : ''
+                  }`}
                 />
               </div>
               
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label htmlFor="engineerName">Full Name *</Label>
+                  <Label htmlFor="engineerName" className="font-bold text-xs text-[var(--text-primary)]">Full Name *</Label>
                   <FieldAutoFillIndicator 
                     isAutoFilled={autoFilledFields.includes('engineerName') && !manuallyEdited.has('engineerName')}
                     confidence={autoFillConfidence}
@@ -1094,14 +1134,16 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   onChange={(e) => handleInputChange('engineerName', e.target.value)}
                   placeholder="John Doe"
                   required
-                  className={autoFilledFields.includes('engineerName') && !manuallyEdited.has('engineerName') ? 'border-blue-300 bg-blue-50/50' : ''}
+                  className={`rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 ${
+                    autoFilledFields.includes('engineerName') && !manuallyEdited.has('engineerName') ? 'border-purple-300 bg-purple-500/10' : ''
+                  }`}
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="resumeSummary">Resume Summary *</Label>
+                <Label htmlFor="resumeSummary" className="font-bold text-xs text-[var(--text-primary)]">Resume Summary *</Label>
                 <FieldAutoFillIndicator 
                   isAutoFilled={autoFilledFields.includes('resumeSummary') && !manuallyEdited.has('resumeSummary')}
                   confidence={autoFillConfidence}
@@ -1114,36 +1156,38 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 placeholder="Brief summary of candidate's experience, skills, and background..."
                 rows={4}
                 required
-                className={autoFilledFields.includes('resumeSummary') && !manuallyEdited.has('resumeSummary') ? 'border-blue-300 bg-blue-50/50' : ''}
+                className={`rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 ${
+                  autoFilledFields.includes('resumeSummary') && !manuallyEdited.has('resumeSummary') ? 'border-purple-300 bg-purple-500/10' : ''
+                }`}
               />
               {!formData.resumeSummary && !selectedCandidate && (
-                <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
+                <p className="text-xs text-[var(--text-secondary)] mt-1.5 flex items-center gap-1 font-medium">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                   Search for a candidate above to auto-populate resume summary
                 </p>
               )}
               {selectedCandidate && !selectedCandidate.resumeSummary && (
-                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
+                <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1 font-medium dark:text-amber-400">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                   Selected candidate has no resume summary in database
                 </p>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Job Description / Concept */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5" />
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-indigo">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <Briefcase className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
               {isOnboarding ? 'Concept / Topic' : 'Job Description'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </h3>
+          </div>
+          <div className="p-5 space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="jdTitle">{isOnboarding ? 'Concept / Topic *' : 'Job Title *'}</Label>
+                <Label htmlFor="jdTitle" className="font-bold text-xs text-[var(--text-primary)]">{isOnboarding ? 'Concept / Topic *' : 'Job Title *'}</Label>
                 <FieldAutoFillIndicator
                   isAutoFilled={autoFilledFields.includes('jdTitle') && !manuallyEdited.has('jdTitle')}
                   confidence={autoFillConfidence}
@@ -1155,12 +1199,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 onChange={(e) => handleInputChange('jdTitle', e.target.value)}
                 placeholder={isOnboarding ? 'Java Collections' : 'Senior Backend Engineer'}
                 required
-                className={autoFilledFields.includes('jdTitle') && !manuallyEdited.has('jdTitle') ? 'border-blue-300 bg-blue-50/50' : ''}
+                className={`rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 ${
+                  autoFilledFields.includes('jdTitle') && !manuallyEdited.has('jdTitle') ? 'border-purple-300 bg-purple-500/10' : ''
+                }`}
               />
             </div>
 
             <div>
-              <Label htmlFor="jdText">{isOnboarding ? 'Concept description' : 'Job Description'}</Label>
+              <Label htmlFor="jdText" className="font-bold text-xs text-[var(--text-primary)] mb-2 block">{isOnboarding ? 'Concept description' : 'Job Description'}</Label>
               <Textarea
                 id="jdText"
                 value={formData.jdText}
@@ -1169,13 +1215,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   ? 'What the candidate should understand — key points, scope, and anything to explicitly cover or avoid...'
                   : 'Detailed job requirements, responsibilities, and qualifications...'}
                 rows={6}
+                className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20"
               />
             </div>
 
             {!isOnboarding && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label htmlFor="focusAreas">Focus Areas</Label>
+                  <Label htmlFor="focusAreas" className="font-bold text-xs text-[var(--text-primary)]">Focus Areas</Label>
                   <FieldAutoFillIndicator
                     isAutoFilled={autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas')}
                     confidence={autoFillConfidence}
@@ -1186,7 +1233,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   value={formData.focusAreas}
                   onChange={(e) => handleInputChange('focusAreas', e.target.value)}
                   placeholder="Java, Spring Boot, Microservices, System Design"
-                  className={autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas') ? 'border-blue-300 bg-blue-50/50' : ''}
+                  className={`rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20 ${
+                    autoFilledFields.includes('focusAreas') && !manuallyEdited.has('focusAreas') ? 'border-purple-300 bg-purple-500/10' : ''
+                  }`}
                 />
               </div>
             )}
@@ -1204,29 +1253,31 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 }}
               />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Interview Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-purple">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               Interview Configuration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </h3>
+          </div>
+          <div className="p-5 space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <div className="flex items-center justify-between mb-2 min-h-5">
-                  <Label htmlFor="interviewMode">Interview Mode</Label>
+                  <Label htmlFor="interviewMode" className="font-bold text-xs text-[var(--text-primary)]">Interview Mode</Label>
                   <FieldAutoFillIndicator
                     isAutoFilled={autoFilledFields.includes('interviewMode') && !manuallyEdited.has('interviewMode')}
                     confidence={autoFillConfidence}
                   />
                 </div>
                 <Select value={formData.interviewMode} onValueChange={handleModeChange}>
-                  <SelectTrigger className={autoFilledFields.includes('interviewMode') && !manuallyEdited.has('interviewMode') ? 'border-blue-300 bg-blue-50/50' : ''}>
+                  <SelectTrigger className={`rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] ${
+                    autoFilledFields.includes('interviewMode') && !manuallyEdited.has('interviewMode') ? 'border-purple-300 bg-purple-500/10' : ''
+                  }`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1241,7 +1292,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
 
               <div>
                 <div className="flex items-center mb-2 min-h-5">
-                  <Label htmlFor="customDuration">Duration (minutes)</Label>
+                  <Label htmlFor="customDuration" className="font-bold text-xs text-[var(--text-primary)]">Duration (minutes)</Label>
                 </div>
                 <Input
                   id="customDuration"
@@ -1251,18 +1302,19 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   placeholder="Custom duration"
                   min={5}
                   max={120}
+                  className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20"
                 />
               </div>
 
               <div>
                 <div className="flex items-center mb-2 min-h-5">
-                  <Label htmlFor="questionDifficulty">Question Difficulty</Label>
+                  <Label htmlFor="questionDifficulty" className="font-bold text-xs text-[var(--text-primary)]">Question Difficulty</Label>
                 </div>
                 <Select
                   value={formData.questionDifficulty || 'AUTO'}
                   onValueChange={(v) => handleInputChange('questionDifficulty', v === 'AUTO' ? '' : v)}
                 >
-                  <SelectTrigger id="questionDifficulty">
+                  <SelectTrigger id="questionDifficulty" className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1275,24 +1327,24 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-              <FileText className="h-4 w-4" />
+            <div className="flex items-center gap-2 rounded-xl bg-[var(--surface-subtle)] border border-[var(--border)] p-3 text-xs font-semibold text-[var(--text-secondary)]">
+              <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
               <span>
                 {formData.interviewMode} mode · {formData.customDurationMinutes || INTERVIEW_MODES.find(m => m.value === formData.interviewMode)?.duration || 15} minutes ·{' '}
                 {formData.questionDifficulty ? `${formData.questionDifficulty.charAt(0)}${formData.questionDifficulty.slice(1).toLowerCase()} questions` : 'difficulty set by mode'}
               </span>
             </div>
 
-            <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 cursor-pointer dark:border-zinc-800 dark:bg-zinc-900/50">
+            <label className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 cursor-pointer hover:border-purple-300/40 transition-colors">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-zinc-300"
+                className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-purple-600"
                 checked={formData.includeProgrammingQuestions}
                 onChange={(e) => handleInputChange('includeProgrammingQuestions', e.target.checked)}
               />
               <span className="text-sm">
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">Include programming questions</span>
-                <span className="mt-0.5 block text-xs text-zinc-500">
+                <span className="font-bold text-[var(--text-primary)]">Include programming questions</span>
+                <span className="mt-0.5 block text-xs text-[var(--text-secondary)] font-medium">
                   When enabled, the interview may include a coding slot with a code editor and test cases.
                   Leave unchecked for theory-only interviews.
                 </span>
@@ -1301,40 +1353,42 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="scheduledAt">Available from (optional)</Label>
+                <Label htmlFor="scheduledAt" className="font-bold text-xs text-[var(--text-primary)]">Available from (optional)</Label>
                 <Input
                   id="scheduledAt"
                   type="datetime-local"
                   value={formData.scheduledAt ?? ''}
                   onChange={(e) => handleInputChange('scheduledAt', e.target.value || null)}
+                  className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
                 />
-                <p className="text-xs text-zinc-500">Candidate cannot access before this time</p>
+                <p className="text-xs text-[var(--text-secondary)] font-medium">Candidate cannot access before this time</p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="expiresAt">Expires at (optional)</Label>
+                <Label htmlFor="expiresAt" className="font-bold text-xs text-[var(--text-primary)]">Expires at (optional)</Label>
                 <Input
                   id="expiresAt"
                   type="datetime-local"
                   value={formData.expiresAt ?? ''}
                   onChange={(e) => handleInputChange('expiresAt', e.target.value || null)}
+                  className="rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
                 />
-                <p className="text-xs text-zinc-500">Link becomes inaccessible after this time</p>
+                <p className="text-xs text-[var(--text-secondary)] font-medium">Link becomes inaccessible after this time</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Question Bank Selection — not applicable to onboarding or when QUESTION_BANK feature is disabled */}
         {questionBankEnabled && !isOnboarding && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-blue">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Question Selection (Optional)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+            </h3>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="rounded-xl bg-[var(--surface-subtle)] border border-[var(--border)] p-3.5 text-xs font-semibold text-[var(--text-secondary)]">
               Optionally pin specific questions — pick them from the question bank here, or add your own in the next section. Leave both off to let the AI generate everything.
             </p>
 
@@ -1349,28 +1403,28 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                     if (bankQuestions.length === 0) fetchBankQuestions('');
                   }
                 }}
-                className="flex items-center gap-2 text-sm font-medium"
+                className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] cursor-pointer"
               >
                 {useQuestionBank
-                  ? <CheckSquare className="h-5 w-5 text-blue-600" />
-                  : <Square className="h-5 w-5 text-zinc-400" />}
+                  ? <CheckSquare className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  : <Square className="h-5 w-5 text-[var(--text-secondary)]" />}
                 Select from Question Bank
               </button>
             </div>
 
             {useQuestionBank && (
               <div className="space-y-3">
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--text-secondary)] font-medium">
                   The AI will pick randomly from your selected questions. Once all are used, it continues generating questions until the timer ends.
                 </p>
 
                 {/* Search */}
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)]" />
                   <Input
                     placeholder="Search questions..."
                     value={bankSearch}
-                    className="pl-9"
+                    className="pl-9 rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:border-purple-500 focus:ring-purple-500/20"
                     onChange={e => {
                       setBankSearch(e.target.value);
                       if (bankSearchTimer.current) clearTimeout(bankSearchTimer.current);
@@ -1380,14 +1434,14 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 </div>
 
                 {/* Question list */}
-                <div className="border border-zinc-200 rounded-md max-h-64 overflow-y-auto dark:border-zinc-700">
+                <div className="border border-[var(--border)] rounded-xl max-h-64 overflow-y-auto bg-[var(--surface)]">
                   {bankLoading && (
-                    <div className="flex items-center justify-center p-4 gap-2 text-zinc-500">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading questions...
+                    <div className="flex items-center justify-center p-4 gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" /> Loading questions...
                     </div>
                   )}
                   {!bankLoading && bankQuestions.length === 0 && (
-                    <p className="p-4 text-sm text-zinc-500">No questions found.</p>
+                    <p className="p-4 text-xs font-medium text-[var(--text-secondary)]">No questions found.</p>
                   )}
                   {!bankLoading && bankQuestions.map(q => {
                     const isSelected = selectedQuestions.some(s => s.id === q.id);
@@ -1395,21 +1449,21 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                       <div
                         key={q.id}
                         onClick={() => toggleQuestion(q)}
-                        className={`flex items-start gap-3 p-3 cursor-pointer border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900 ${
-                          isSelected ? 'bg-blue-50 dark:bg-blue-950/30' : ''
+                        className={`flex items-start gap-3 p-3.5 cursor-pointer border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-subtle)] transition-colors ${
+                          isSelected ? 'bg-purple-500/10' : ''
                         }`}
                       >
                         {isSelected
-                          ? <CheckSquare className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                          : <Square className="h-4 w-4 text-zinc-400 mt-0.5 shrink-0" />}
+                          ? <CheckSquare className="h-4 w-4 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
+                          : <Square className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-zinc-900 line-clamp-2 dark:text-zinc-100">{q.text}</p>
+                          <p className="text-xs font-semibold text-[var(--text-primary)] line-clamp-2">{q.text}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            {q.category && <span className="text-xs text-zinc-500">{q.category}</span>}
-                            <Badge variant="outline" className={`text-xs ${
-                              q.relevancyLabel === 'HIGH' ? 'border-green-300 text-green-700'
-                              : q.relevancyLabel === 'MEDIUM' ? 'border-yellow-300 text-yellow-700'
-                              : 'border-zinc-300 text-zinc-500'
+                            {q.category && <span className="text-[11px] font-medium text-[var(--text-secondary)]">{q.category}</span>}
+                            <Badge variant="outline" className={`text-[10px] font-bold ${
+                              q.relevancyLabel === 'HIGH' ? 'border-emerald-500/30 text-emerald-700 bg-emerald-500/10 dark:text-emerald-300'
+                              : q.relevancyLabel === 'MEDIUM' ? 'border-amber-500/30 text-amber-700 bg-amber-500/10 dark:text-amber-300'
+                              : 'border-[var(--border)] text-[var(--text-secondary)]'
                             }`}>{q.relevancyLabel}</Badge>
                           </div>
                         </div>
@@ -1420,28 +1474,28 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
 
                 {/* Selected summary */}
                 {selectedQuestions.length > 0 && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md dark:bg-blue-950/20 dark:border-blue-900">
+                  <div className="p-3.5 bg-purple-500/10 border border-purple-500/25 rounded-xl">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                      <span className="text-xs font-bold text-[var(--text-primary)]">
                         {selectedQuestions.length} question{selectedQuestions.length !== 1 ? 's' : ''} selected
                       </span>
                       <button
                         type="button"
                         onClick={() => setSelectedQuestions([])}
-                        className="text-xs text-blue-600 underline dark:text-blue-400"
+                        className="text-xs font-bold text-purple-600 underline dark:text-purple-400 cursor-pointer"
                       >
                         Clear all
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {selectedQuestions.map(q => (
                         <span
                           key={q.id}
-                          className="inline-flex items-center gap-1 bg-white border border-blue-200 rounded px-2 py-0.5 text-xs text-blue-800 dark:bg-zinc-900 dark:border-blue-900 dark:text-blue-300"
+                          className="inline-flex items-center gap-1.5 bg-[var(--surface)] border border-purple-500/30 rounded-lg px-2.5 py-1 text-xs font-semibold text-[var(--text-primary)] shadow-2xs"
                         >
                           {q.text.substring(0, 40)}{q.text.length > 40 ? '…' : ''}
                           <button type="button" onClick={e => { e.stopPropagation(); toggleQuestion(q); }}>
-                            <X className="h-3 w-3" />
+                            <X className="h-3 w-3 text-[var(--text-secondary)] hover:text-red-500" />
                           </button>
                         </span>
                       ))}
@@ -1450,19 +1504,19 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
         )}
 
         {/* Manual Custom Questions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <List className="h-5 w-5" />
+        <div className="panel-card overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs transition-all duration-200 hover:border-purple-300/30">
+          <div className="panel-header panel-header-accent-purple">
+            <h3 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)]">
+              <List className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               Manual Custom Questions (Optional)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </h3>
+          </div>
+          <div className="p-5 space-y-4">
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -1471,34 +1525,33 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                   setUseManualQuestions(next);
                   if (next) setUseQuestionBank(false);
                 }}
-                className="flex items-center gap-2 text-sm font-medium"
+                className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] cursor-pointer"
               >
                 {useManualQuestions
-                  ? <CheckSquare className="h-5 w-5 text-blue-600" />
-                  : <Square className="h-5 w-5 text-zinc-400" />}
+                  ? <CheckSquare className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  : <Square className="h-5 w-5 text-[var(--text-secondary)]" />}
                 Add your own custom questions
               </button>
             </div>
 
             {useManualQuestions && (
               <div className="space-y-4">
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--text-secondary)] font-medium">
                   Add custom questions that will be asked during the interview. The AI will use these questions in order before generating additional ones if time permits.
                 </p>
 
                 {/* Quick Paste Section */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Quick Paste (One question per line)</Label>
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Quick Paste (One question per line)</Label>
                   <Textarea
                     placeholder="Paste multiple questions here, one per line...&#10;Example:&#10;Explain the difference between abstract class and interface in Java&#10;How do you handle exceptions in Spring Boot?&#10;What is dependency injection?"
                     value={quickPasteText}
                     onChange={(e) => setQuickPasteText(e.target.value)}
                     rows={4}
-                    className="font-mono text-sm"
+                    className="font-mono text-xs rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
                   />
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     onClick={() => {
                       const lines = quickPasteText
@@ -1516,24 +1569,25 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                       toast(`Added ${lines.length} question${lines.length !== 1 ? 's' : ''}`, 'success');
                     }}
                     disabled={!quickPasteText.trim()}
+                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition-all duration-200 hover:opacity-95 hover:shadow-md active:scale-[0.98] disabled:from-purple-600/35 disabled:via-violet-600/35 disabled:to-indigo-600/35 disabled:text-white/50 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
                   >
-                    <Plus className="h-4 w-4 mr-1" />
+                    <Plus className="h-4 w-4" />
                     Parse & Add Questions
                   </Button>
                 </div>
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-zinc-200 dark:border-zinc-700" />
+                    <span className="w-full border-t border-[var(--border)]" />
                   </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-zinc-500 dark:bg-zinc-950">Or add individually</span>
+                  <div className="relative flex justify-center text-[10px] uppercase tracking-wider font-bold">
+                    <span className="bg-[var(--surface)] px-3.5 text-[var(--text-secondary)]">Or add individually</span>
                   </div>
                 </div>
 
                 {/* Individual Question Entry */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Add Single Question</Label>
+                  <Label className="text-xs font-bold text-[var(--text-primary)]">Add Single Question</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="Type a question and click Add..."
@@ -1547,11 +1601,10 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                           toast('Question added', 'success');
                         }
                       }}
-                      className="flex-1"
+                      className="flex-1 rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
                     />
                     <Button
                       type="button"
-                      variant="outline"
                       size="sm"
                       onClick={() => {
                         if (!newQuestionText.trim()) {
@@ -1563,8 +1616,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                         toast('Question added', 'success');
                       }}
                       disabled={!newQuestionText.trim()}
+                      className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition-all duration-200 hover:opacity-95 hover:shadow-md active:scale-[0.98] disabled:from-purple-600/35 disabled:via-violet-600/35 disabled:to-indigo-600/35 disabled:text-white/50 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
                     >
-                      <Plus className="h-4 w-4 mr-1" />
+                      <Plus className="h-4 w-4" />
                       Add
                     </Button>
                   </div>
@@ -1574,7 +1628,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 {manualQuestions.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">
+                      <Label className="text-xs font-bold text-[var(--text-primary)]">
                         Custom Questions ({manualQuestions.length})
                       </Label>
                       <Button
@@ -1585,21 +1639,21 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                           setManualQuestions([]);
                           toast('All questions cleared', 'success');
                         }}
-                        className="text-xs text-red-600 hover:text-red-700"
+                        className="text-xs font-bold text-red-600 hover:text-red-700"
                       >
                         Clear All
                       </Button>
                     </div>
                     
-                    <div className="max-h-80 overflow-y-auto rounded-md border border-zinc-200 divide-y divide-zinc-100 dark:border-zinc-700 dark:divide-zinc-800">
+                    <div className="max-h-80 overflow-y-auto rounded-xl border border-[var(--border)] divide-y divide-[var(--border)] bg-[var(--surface)]">
                       {manualQuestions.map((question, index) => (
-                        <div key={index} className="p-3 hover:bg-zinc-50 group dark:hover:bg-zinc-900">
+                        <div key={index} className="p-3.5 hover:bg-[var(--surface-subtle)] group transition-colors">
                           {editingIndex === index ? (
                             <div className="flex gap-2">
                               <Input
                                 value={editingText}
                                 onChange={(e) => setEditingText(e.target.value)}
-                                className="flex-1"
+                                className="flex-1 rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
                                 autoFocus
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
@@ -1632,6 +1686,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                                     toast('Question updated', 'success');
                                   }
                                 }}
+                                className="rounded-xl"
                               >
                                 Save
                               </Button>
@@ -1643,14 +1698,15 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                                   setEditingIndex(null);
                                   setEditingText('');
                                 }}
+                                className="rounded-xl"
                               >
                                 Cancel
                               </Button>
                             </div>
                           ) : (
                             <div className="flex items-start gap-3">
-                              <span className="text-xs font-medium text-zinc-400 mt-1 shrink-0">Q{index + 1}</span>
-                              <p className="flex-1 text-sm text-zinc-900 dark:text-zinc-100">{question}</p>
+                              <span className="text-xs font-bold text-[var(--text-secondary)] mt-0.5 shrink-0">Q{index + 1}</span>
+                              <p className="flex-1 text-xs font-medium text-[var(--text-primary)]">{question}</p>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Button
                                   type="button"
@@ -1660,9 +1716,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                                     setEditingIndex(index);
                                     setEditingText(question);
                                   }}
-                                  className="h-7 w-7 p-0"
+                                  className="h-7 w-7 p-0 rounded-lg"
                                 >
-                                  <Edit2 className="h-3 w-3 text-blue-600" />
+                                  <Edit2 className="h-3.5 w-3.5 text-purple-600" />
                                 </Button>
                                 <Button
                                   type="button"
@@ -1672,9 +1728,9 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                                     setManualQuestions(prev => prev.filter((_, i) => i !== index));
                                     toast('Question removed', 'success');
                                   }}
-                                  className="h-7 w-7 p-0"
+                                  className="h-7 w-7 p-0 rounded-lg"
                                 >
-                                  <Trash2 className="h-3 w-3 text-red-600" />
+                                  <Trash2 className="h-3.5 w-3.5 text-red-600" />
                                 </Button>
                               </div>
                             </div>
@@ -1683,8 +1739,8 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                       ))}
                     </div>
                     
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md dark:bg-blue-950/20 dark:border-blue-900">
-                      <p className="text-xs text-blue-800 dark:text-blue-300">
+                    <div className="p-3.5 bg-purple-500/10 border border-purple-500/25 rounded-xl">
+                      <p className="text-xs text-[var(--text-primary)] font-medium">
                         <strong>Note:</strong> These {manualQuestions.length} question{manualQuestions.length !== 1 ? 's' : ''} will be asked in order during the interview. If time remains after all custom questions, the AI will generate additional questions.
                       </p>
                     </div>
@@ -1692,22 +1748,23 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
                 )}
 
                 {manualQuestions.length === 0 && (
-                  <div className="p-4 border-2 border-dashed border-zinc-200 rounded-md text-center dark:border-zinc-700">
-                    <p className="text-sm text-zinc-500">No custom questions added yet</p>
-                    <p className="text-xs text-zinc-400 mt-1">Use quick paste or add questions individually above</p>
+                  <div className="p-5 border-2 border-dashed border-[var(--border)] rounded-xl text-center">
+                    <p className="text-xs font-semibold text-[var(--text-secondary)]">No custom questions added yet</p>
+                    <p className="text-[11px] text-[var(--text-secondary)] mt-1 opacity-75">Use quick paste or add questions individually above</p>
                   </div>
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Submit Button */}
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-4 pt-2">
           <Button 
             type="button" 
             variant="outline" 
             onClick={() => router.back()}
+            className="rounded-xl border-[var(--border)] px-5 py-2.5 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
           >
             Cancel
           </Button>
@@ -1715,7 +1772,7 @@ export function CreateInterviewClient({ candidateId, clientId, searchParams, fea
           <Button 
             type="submit" 
             disabled={loading}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#4C1D95] px-6 py-2.5 text-xs font-bold text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.98] cursor-pointer"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

@@ -8,11 +8,9 @@ export default async function MasterDataPage() {
   const features = await getEnabledFeatures(session);
 
   return (
-    <AppShell
-      title="Master Data"
-      subtitle="Manage lookup values, categories, tags, and companies without code changes."
-    >
+    <AppShell title="Master Data">
       <MasterDataOverviewClient questionBankEnabled={features.QUESTION_BANK !== false} />
     </AppShell>
+
   );
 }

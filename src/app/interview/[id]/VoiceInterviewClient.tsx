@@ -486,9 +486,9 @@ export function VoiceInterviewClient({
       // transition itself can briefly report as an "exit" before settling, which isn't the
       // candidate leaving fullscreen.
       if (Date.now() < sessionStartGraceUntilRef.current) return;
-      if (strictLockdownEnabled && sessionActiveRef.current) {
-        void abandonInterview(utterancesRef.current, "tab_switch_violation");
-      }
+      // Routes through the same warn-once-then-terminate counter as tab switches/blur —
+      // see registerIntegrityViolationRef, set inside the tab-switch effect below.
+      registerIntegrityViolationRef.current("fullscreen_exit");
     },
   });
 
@@ -685,8 +685,8 @@ export function VoiceInterviewClient({
     let terminationMessage = "";
     if (reason === "tab_switch_violation") {
       terminationMessage = strictLockdownEnabled
-        ? "[INTERVIEW TERMINATED] Candidate switched tabs/windows or exited fullscreen during the interview. Strict lockdown mode was active — this is considered a violation of interview integrity guidelines."
-        : "[INTERVIEW TERMINATED] Candidate switched tabs/windows more than 2 times during the interview. This is considered a violation of interview integrity guidelines.";
+        ? "[INTERVIEW TERMINATED] Candidate switched tabs/windows, lost window focus, or exited fullscreen more than once during the interview. Strict lockdown mode was active — this is considered a violation of interview integrity guidelines."
+        : "[INTERVIEW TERMINATED] Candidate switched tabs/windows, lost window focus, or exited fullscreen more than once during the interview. This is considered a violation of interview integrity guidelines.";
     } else if (reason === "ai_manipulation") {
       terminationMessage = "[INTERVIEW TERMINATED] Multiple attempts to manipulate the AI interviewer were detected.";
     } else if (reason === "not_prepared") {
@@ -804,6 +804,11 @@ export function VoiceInterviewClient({
    *  prompt and the fullscreen-entry transition at session start, both of which can fire a
    *  spurious window blur that has nothing to do with the candidate switching tabs. */
   const sessionStartGraceUntilRef = useRef(0);
+  /** Shared entry point for every integrity violation (tab switch, window blur, fullscreen
+   *  exit) — set inside the tab-switch effect below. Lets `fullscreen`'s `onExit` (defined
+   *  above that effect) route through the same warn-once-then-terminate counter instead of
+   *  terminating on its own. */
+  const registerIntegrityViolationRef = useRef<(kind: "tab_switch" | "fullscreen_exit") => void>(() => {});
   /** Recognition was stopped only so the bot can speak (do not flush / do not treat as user Stop). */
   const pausedForTtsRef = useRef(false);
   /** User clicked "Send answer" — wait for `onend` so the engine finalizes text before flush. */
@@ -1366,7 +1371,11 @@ export function VoiceInterviewClient({
   }, []);
 
   async function transcribeAnswerBlob(blob: Blob): Promise<string> {
-    if (blob.size > 4_000_000) {
+    // 8MB, not 4MB — 4MB was a mis-copy of next.config.ts's Server-Actions-only
+    // bodySizeLimit, which doesn't apply to this fetch/FormData route handler. The actual
+    // ceiling is nginx's client_max_body_size (10MB per README) — 8MB leaves headroom
+    // under that for answers longer than the ~2 minutes 4MB allowed at 128kbps.
+    if (blob.size > 8_000_000) {
       throw new Error(`audio_too_large:${blob.size}`);
     }
     const fd = new FormData();
@@ -2846,26 +2855,30 @@ export function VoiceInterviewClient({
   useEffect(() => {
     let handledForThisSwitch = false;
 
-    const onFocusLossViolation = () => {
+    // Shared by tab-switch/blur (below) AND fullscreen exit (useFullscreenEnforcement's
+    // onExit, set up earlier via registerIntegrityViolationRef) — one counter, one warning
+    // modal, one threshold, regardless of which kind of violation or which proctoring mode.
+    registerIntegrityViolationRef.current = (kind) => {
       if (!sessionActiveRef.current) return;
       // Absorb the mic-permission prompt and the fullscreen-entry transition right at
       // session start — both can fire a spurious blur/visibilitychange that has nothing
       // to do with the candidate switching away.
       if (Date.now() < sessionStartGraceUntilRef.current) return;
-      // visibilitychange(hidden) and window blur usually fire together for the same
-      // app-switch — dedupe within a tick so we don't double-count one switch.
+      // visibilitychange(hidden), window blur, and a fullscreen exit often fire together
+      // for the same physical action (e.g. pressing Escape while alt-tabbing) — dedupe
+      // within a tick so we don't double-count one switch.
       if (handledForThisSwitch) return;
       handledForThisSwitch = true;
       setTimeout(() => {
         handledForThisSwitch = false;
       }, 500);
 
-      // Increment tab switch count
+      // Increment the shared violation count
       const newCount = tabSwitchCountRef.current + 1;
       tabSwitchCountRef.current = newCount;
       setTabSwitchCount(newCount);
 
-      if (videoProctoringRequiredRef.current) {
+      if (kind === "tab_switch" && videoProctoringRequiredRef.current) {
         const phoneVisible = proctoring.snapshot.lastReasons.some((r) => r.includes("Recording device"));
         if (phoneVisible) {
           proctoring.reportExternalEvent(
@@ -2882,20 +2895,21 @@ export function VoiceInterviewClient({
       // Show warning when user returns
       setShowTabWarning(true);
 
-      // Strict lockdown (admin-configurable): terminate on the very first switch.
-      // Otherwise: one warning + resume (tabSwitchCount === 1 below), terminate on the 2nd —
-      // matches the "Tab switches: X/2" copy in the warning modal. This MUST stay in sync
-      // with the resume button's `tabSwitchCount === 1` check below: every switch kills the
-      // mic session immediately regardless of strict lockdown (silentEndBecauseUserLeftRef),
-      // so any count that has neither a resume button nor an actual abandon call leaves the
-      // candidate stuck in a dead session with no way forward.
-      const threshold = strictLockdownEnabled ? 1 : 2;
+      // One warning, terminate on the 2nd violation — same threshold for strict and lenient
+      // lockdown, and for tab-switch/blur vs fullscreen-exit. Strict lockdown still differs
+      // in redirect delay (below) and in best-effort OS key capture (lockKeyboard on
+      // useFullscreenEnforcement). This MUST stay in sync with the resume button's
+      // `tabSwitchCount === 1` check below: every violation kills the mic session
+      // immediately (silentEndBecauseUserLeftRef), so any count that has neither a resume
+      // button nor an actual abandon call leaves the candidate stuck with no way forward.
+      const threshold = 2;
       if (newCount >= threshold) {
         setTimeout(() => {
           void abandonInterview(utterancesRef.current, "tab_switch_violation");
         }, strictLockdownEnabled ? 1500 : 3000); // brief delay to show the termination message
       }
     };
+    const onFocusLossViolation = () => registerIntegrityViolationRef.current("tab_switch");
     const onHidden = () => {
       if (document.visibilityState === "hidden") onFocusLossViolation();
     };
@@ -3084,24 +3098,20 @@ export function VoiceInterviewClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl border-2 border-red-500 bg-white p-6 shadow-xl dark:bg-zinc-900 space-y-4">
             <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
-              {strictLockdownEnabled || tabSwitchCount >= 2 ? "Interview ending" : "Tab switch detected"}
+              {tabSwitchCount >= 2 ? "Interview ending" : "Tab switch detected"}
             </h2>
             <div className="space-y-2 text-sm">
-              <p className="font-semibold">You switched tabs/windows during the interview. This is not allowed.</p>
+              <p className="font-semibold">You switched tabs/windows, lost window focus, or exited fullscreen during the interview. This is not allowed.</p>
               <p className="text-zinc-600 dark:text-zinc-400">
-                {strictLockdownEnabled
-                  ? "Strict lockdown is enabled for this interview — any tab switch, window switch, or exit from fullscreen ends the interview immediately."
-                  : tabSwitchCount === 1
-                    ? "This is your first and only warning. One more tab switch will automatically terminate your interview."
-                    : "You have exceeded the allowed tab switches. Your interview is being terminated."}
+                {tabSwitchCount === 1
+                  ? `This is your first and only warning${strictLockdownEnabled ? " (strict lockdown is enabled for this interview)" : ""}. One more violation will automatically terminate your interview.`
+                  : "You have exceeded the allowed number of violations. Your interview is being terminated."}
               </p>
-              {!strictLockdownEnabled && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
-                  <p className="text-xs font-mono">Tab switches: <span className="font-bold text-red-600">{tabSwitchCount}/2</span></p>
-                </div>
-              )}
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+                <p className="text-xs font-mono">Integrity violations: <span className="font-bold text-red-600">{tabSwitchCount}/2</span></p>
+              </div>
             </div>
-            {!strictLockdownEnabled && tabSwitchCount === 1 ? (
+            {tabSwitchCount === 1 ? (
               <button
                 onClick={() => {
                   setShowTabWarning(false);

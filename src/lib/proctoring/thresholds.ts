@@ -18,12 +18,15 @@ export const DEFAULT_DETECTION_CONFIG: DetectionConfig = {
  * Violation types that can auto-terminate the interview.
  * identity_mismatch and liveness_failed removed — their detectors are not
  * reliable enough to justify termination (too many false positives).
+ * fullscreen_exit removed — termination for it is now solely owned by the client-side
+ * unified tab-switch/fullscreen violation counter in VoiceInterviewClient (see
+ * registerIntegrityViolationRef), so it isn't double-counted via a second, independent
+ * strike path here.
  */
 export const TERMINATABLE_VIOLATIONS = new Set([
   "phone_detected",
   "camera_blocked",
   "multiple_faces",
-  "fullscreen_exit",
   "cross_signal",
 ]);
 
@@ -32,6 +35,15 @@ export const MONITORING_GRACE_PERIOD_MS = 300_000; // 5 minutes (was 2 minutes)
 
 /** Minimum gap between counted soft-violation strikes (prevents rapid accumulation). */
 export const SOFT_STRIKE_COOLDOWN_MS = 30_000; // 30 s (was 20 s)
+
+/**
+ * A sustained (never-clearing) terminatable violation — e.g. a phone held up the whole
+ * interview — still counts a fresh strike every this-many ms while it remains active,
+ * instead of being capped at one strike for the entire episode. Matches roughly
+ * CLEAR_STREAK * detectIntervalMs, i.e. how long the frame-detection loop would otherwise
+ * take to naturally clear the episode if the violation ever stopped.
+ */
+export const SUSTAINED_VIOLATION_RESTRIKE_MS = 5_000;
 
 /**
  * Strike thresholds per violation type.

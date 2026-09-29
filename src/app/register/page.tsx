@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const inputCls = "input-base";
-const selectCls = "input-base appearance-none bg-white dark:bg-zinc-950";
+const inputCls =
+  "w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#5C0062] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#5C0062] transition-colors";
+
+const selectCls =
+  "w-full rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-2 text-sm text-zinc-900 focus:border-[#5C0062] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#5C0062] transition-colors";
 
 type Option = { code: string; label: string };
 
@@ -114,27 +117,47 @@ export default function RegisterPage() {
   }
 
   const sectionCls = "space-y-3";
-  const sectionTitle = "section-label";
+  const sectionTitle = "text-xs font-bold uppercase tracking-wider text-[#5C0062] border-b border-zinc-100 pb-1 mb-2";
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-zinc-50 px-4 py-8 dark:bg-[#050505] sm:px-6">
-      <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/10 blur-[100px] dark:bg-emerald-600/15" />
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#15001c] px-6 py-12 lg:px-16">
 
-      <main className="z-10 w-full max-w-lg space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
-            Candidate Registration
+      <main className="z-10 flex w-full max-w-6xl flex-col items-center justify-between gap-12 lg:flex-row lg:items-center">
+        {/* Left Side: White Heading & Hero Text */}
+        <div className="flex flex-col justify-center space-y-5 max-w-lg text-left">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] text-white font-black text-sm border border-white/20 shadow-md">
+              BR
+            </div>
+            <span className="text-2xl font-black tracking-tight text-white">BENCH READINESS</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight !text-white uppercase leading-tight" style={{ color: "#ffffff" }}>
+            JOIN THE PLATFORM. AMPLIFY QUALITY.
           </h1>
-          <p className="mt-2 text-sm text-zinc-500">Fill in your profile to get started with interviews.</p>
+
+          <p className="text-sm text-purple-100/90 leading-relaxed font-normal">
+            Create your candidate profile to start taking AI-led technical and screening assessments with real-time feedback and evaluation scores.
+          </p>
+
+          <p className="text-base font-extrabold text-white">
+            Get. Set. Bench Readiness!
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/60">
+        {/* Right Side: Registration Card */}
+        <div className="w-full max-w-md shrink-0 rounded-2xl border border-white/20 bg-white p-8 shadow-2xl shadow-purple-950/40 text-zinc-900">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-extrabold text-zinc-900">Candidate Registration</h2>
+            <div className="w-8 h-1 bg-[#5C0062] rounded-full mx-auto mt-1.5" />
+          </div>
+
           {success ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800 font-semibold text-center">
               Registration successful. Redirecting to login…
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Account */}
               <div className={sectionCls}>
                 <p className={sectionTitle}>Account</p>
@@ -147,7 +170,7 @@ export default function RegisterPage() {
                   </Field>
                 </div>
                 <Field label="Password" hint="min 6 chars" error={fieldError.password}>
-                  <input className={inputCls} type="password" value={form.password} onChange={set("password")} />
+                  <input className={inputCls} type="password" placeholder="Create password" value={form.password} onChange={set("password")} />
                 </Field>
               </div>
 
@@ -183,21 +206,21 @@ export default function RegisterPage() {
               </div>
 
               {error && (
-                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                   {error}
                 </p>
               )}
 
               <button
-                className="mt-1 w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-opacity duration-200 hover:opacity-80"
+                className="w-full rounded-full bg-[linear-gradient(180deg,#5C0062_0%,#3B0045_50%,#2A0035_100%)] px-4 py-2.5 text-sm font-bold text-white shadow-md transition-all duration-150 hover:opacity-90 cursor-pointer active:scale-[0.98]"
                 type="button"
                 onClick={onRegister}
               >
                 Register
               </button>
-              <p className="text-center text-sm text-zinc-500">
+              <p className="text-center text-xs text-zinc-500">
                 Already have an account?{" "}
-                <Link href="/login" className="font-medium text-zinc-900 underline dark:text-zinc-100">Sign in</Link>
+                <Link href="/login" className="font-semibold text-[#5C0062] underline hover:text-[#3B0045]">Sign in</Link>
               </p>
             </div>
           )}
@@ -209,13 +232,13 @@ export default function RegisterPage() {
 
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium">
+    <label className="grid gap-1.5 text-xs font-semibold text-zinc-700">
       <span>
         {label}
         {hint && <span className="ml-1 font-normal text-zinc-400">({hint})</span>}
       </span>
       {children}
-      {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
+      {error && <span className="text-xs text-red-600 font-normal">{error}</span>}
     </label>
   );
 }
