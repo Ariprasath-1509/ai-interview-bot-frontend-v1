@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { setAuthCookies } from "@/lib/authCookies";
+import { clientIpHeader } from "@/lib/clientIp";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export async function POST(req: Request) {
 
   const upstream = await fetch(`${GATEWAY}/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...clientIpHeader(req.headers) },
     body: JSON.stringify(body),
   }).catch(() => null);
 
