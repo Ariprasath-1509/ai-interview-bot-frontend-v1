@@ -8,6 +8,7 @@ import {
   isAccessTokenExpired,
   setAuthCookies,
 } from "@/lib/authCookies";
+import { clientIpHeaderFromRequest } from "@/lib/clientIp";
 import type { ReadonlyRequestCookies } from "next/dist/server/web/spec-extension/adapters/request-cookies";
 
 const GATEWAY = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6002";
@@ -26,7 +27,7 @@ export async function refreshAuthTokens(refreshToken: string): Promise<AuthToken
   try {
     const res = await fetch(`${GATEWAY}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await clientIpHeaderFromRequest()) },
       body: JSON.stringify({ refreshToken }),
       cache: "no-store",
     });

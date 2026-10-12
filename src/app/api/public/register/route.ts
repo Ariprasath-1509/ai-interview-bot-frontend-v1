@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIpHeader } from "@/lib/clientIp";
 
 const GATEWAY = process.env.API_URL ?? "http://localhost:6002";
 
@@ -8,7 +9,7 @@ export async function POST(req: Request) {
     const body = await req.text();
     const response = await fetch(`${GATEWAY}/auth/register`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...clientIpHeader(req.headers) },
       body,
     });
     const data = await response.json();

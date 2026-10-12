@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { setAuthCookies } from "@/lib/authCookies";
+import { clientIpHeader } from "@/lib/clientIp";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
 
     const res = await fetch(`${GATEWAY}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...clientIpHeader(req.headers) },
       body: JSON.stringify(body),
     });
 

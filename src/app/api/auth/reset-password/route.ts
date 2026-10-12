@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clientIpHeader } from "@/lib/clientIp";
 
 const GATEWAY = process.env.API_URL ?? 'http://localhost:6002';
 
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(`${GATEWAY}/auth/reset-password`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...clientIpHeader(req.headers) },
       body: JSON.stringify({ email, otp, newPassword }),
     });
 
