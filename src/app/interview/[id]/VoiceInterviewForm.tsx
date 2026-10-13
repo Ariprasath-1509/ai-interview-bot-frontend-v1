@@ -36,26 +36,44 @@ function SubmitButton({
   const busy = pending || waitingRecording;
 
   return (
-    <button
-      className="btn-primary inline-flex w-fit items-center gap-2 px-6 py-2.5 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-      type="button"
-      disabled={busy || disabled}
-      onClick={onMarkComplete}
-    >
-      {busy ? (
-        <>
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {waitingRecording ? "Saving session recording…" : "Running AI assessment…"}
-        </>
-      ) : (
-        <>
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Mark complete
-        </>
-      )}
-    </button>
+    <>
+      <button
+        className="btn-primary inline-flex w-fit items-center gap-2 px-6 py-2.5 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+        type="button"
+        disabled={busy || disabled}
+        onClick={onMarkComplete}
+      >
+        {busy ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {waitingRecording ? "Saving session recording…" : "Running AI assessment…"}
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Mark complete
+          </>
+        )}
+      </button>
+      {pending && <StillScoringHint />}
+    </>
+  );
+}
+
+/** Shown once AI scoring runs longer than usual (it can take a few minutes when the queue is busy). */
+function StillScoringHint() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 30_000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!slow) return null;
+  return (
+    <p className="text-xs text-amber-600 dark:text-amber-400" role="status">
+      Still scoring your interview. This can take a few minutes. Please keep this tab open.
+    </p>
   );
 }
 
@@ -327,7 +345,7 @@ export function VoiceInterviewForm({
         />
 
         <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          Session recording uploads first, then AI assessment runs in the background (typically 30–90 seconds). Please keep this tab open.
+          Session recording uploads first, then AI assessment runs in the background (usually under a minute, up to 5 minutes when busy). Please keep this tab open.
         </p>
         {recordingBlocksSubmit && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
