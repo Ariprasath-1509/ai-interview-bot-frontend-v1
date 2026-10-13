@@ -12,6 +12,7 @@ import {
   MediaServiceTimeoutError,
   MEDIA_SERVICE_TIMEOUT_MS,
   TTS_SPEAK_TIMEOUT_MS,
+  recordServerTtsResult,
   resetVoiceServicePrefs,
   voiceServicePrefs,
 } from "@/lib/mediaTimeout";
@@ -233,6 +234,9 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
     onStart?.();
   };
 
+  // Text the browser voice speaks if Kokoro fails: by default all of it.
+  let browserText = text;
+
   // Pipelined Kokoro TTS: split into sentences, fetch N+1 while N plays
   if (voiceServicePrefs.preferServerTts && text.trim().length > 0) {
     try {
@@ -243,7 +247,7 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
         (_, i) => (i === 0 || i === 1 ? fetchTtsBlob(sentences[i], abort.signal) : Promise.resolve(null))
       );
 
-      let allSucceeded = true;
+      let failedAt = -1;
       for (let i = 0; i < sentences.length; i++) {
         if (abort.signal.aborted) break;
 
@@ -253,16 +257,24 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
         }
 
         const result = await prefetched[i];
-        if (!result) { allSucceeded = false; break; }
+        if (!result) { failedAt = i; break; }
 
         await playTtsUrl(result.url, abort.signal, i === 0 ? notifyStart : undefined);
       }
 
-      if (allSucceeded) return;
-      // If any sentence failed, mark server TTS unavailable and fall through to browser
-      voiceServicePrefs.preferServerTts = false;
+      // Stopped on purpose (next question, end of interview): not a Kokoro failure.
+      if (abort.signal.aborted) return;
+      if (failedAt < 0) {
+        recordServerTtsResult(true);
+        return;
+      }
+      // Fix 6.4: speak only the unplayed rest with the browser voice for THIS question;
+      // Kokoro is tried again on the next question (off for the session after repeated failures).
+      recordServerTtsResult(false);
+      browserText = sentences.slice(failedAt).join(" ");
     } catch {
-      voiceServicePrefs.preferServerTts = false;
+      if (abort.signal.aborted) return;
+      recordServerTtsResult(false);
     }
   }
 
@@ -276,7 +288,7 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
   }
 
   await new Promise<void>((resolve) => {
-    const u = new SpeechSynthesisUtterance(text);
+    const u = new SpeechSynthesisUtterance(browserText);
     u.rate = 1.0;
     u.pitch = 1.0;
     let resolved = false;
@@ -288,7 +300,7 @@ async function speakWhenDone(text: string, onStart?: () => void): Promise<void> 
     };
     const abortHandler = () => { synth.cancel(); done(); };
     abort.signal.addEventListener("abort", abortHandler, { once: true });
-    const timer = setTimeout(done, Math.max(text.length * 80, 4000) + 5000);
+    const timer = setTimeout(done, Math.max(browserText.length * 80, 4000) + 5000);
     u.onstart = () => notifyStart();
     u.onend = () => { clearTimeout(timer); abort.signal.removeEventListener("abort", abortHandler); done(); };
     u.onerror = () => { clearTimeout(timer); abort.signal.removeEventListener("abort", abortHandler); done(); };

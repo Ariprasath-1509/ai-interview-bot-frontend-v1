@@ -26,9 +26,27 @@ export const voiceServicePrefs = {
   preferServerTts: true,
 };
 
+/** Server (Kokoro) TTS is switched off for the session only after this many questions in a row
+ *  failed. A single failure falls back to browser voice for that question only (fix 6.4). */
+export const SERVER_TTS_MAX_CONSECUTIVE_FAILURES = 3;
+let serverTtsConsecutiveFailures = 0;
+
+/** Record one question's server-TTS outcome. Intentional stops (abort) must not be recorded. */
+export function recordServerTtsResult(ok: boolean) {
+  if (ok) {
+    serverTtsConsecutiveFailures = 0;
+    return;
+  }
+  serverTtsConsecutiveFailures++;
+  if (serverTtsConsecutiveFailures >= SERVER_TTS_MAX_CONSECUTIVE_FAILURES) {
+    voiceServicePrefs.preferServerTts = false;
+  }
+}
+
 export function resetVoiceServicePrefs() {
   voiceServicePrefs.preferServerStt = true;
   voiceServicePrefs.preferServerTts = true;
+  serverTtsConsecutiveFailures = 0;
 }
 
 export function isUsingBrowserVoiceFallback() {
