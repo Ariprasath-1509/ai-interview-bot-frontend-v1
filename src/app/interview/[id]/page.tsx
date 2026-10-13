@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { apiServer } from "@/lib/apiClient";
 import { resolveProctoringMode, type ProctoringMode } from "@/lib/proctoring/mode";
 import { CODING_SLOT_MINUTES } from "@/lib/constants";
+import { assessFailureSummary, waitForAssessment } from "@/app/interview/assessmentPolling";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -343,61 +344,32 @@ async function completeInterview(formData: FormData) {
     timeoutMs: 30_000,
   }).catch(() => null);
 
-  // STEP 2 — Kick off async assessment.
-  const asyncStart = await apiServer("/ai/assess-async", session.token, {
-    method: "POST",
-    body: JSON.stringify(assessBody),
-    timeoutMs: 30_000,
-  }).catch(() => null);
-
-  // STEP 3 — Poll for up to 90 s (18 × 5 s).  Stays well inside the typical
-  // 100-second cloud-proxy idle timeout so the connection never drops mid-poll.
-  if (asyncStart?.ok) {
-    const asyncPayload = (await asyncStart.json().catch(() => ({}))) as { runId?: string };
-    const assessRunId = asyncPayload.runId;
-
-    for (let attempt = 0; attempt < 18; attempt++) {
-      if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, 5000));
-      }
-      const statusPath = assessRunId
+  // STEP 2 + 3 — Kick off async assessment and poll for up to ~300 s with backoff
+  // (nginx proxy_read_timeout is 600 s). A 503 (scoring queue full) is retried after Retry-After.
+  const outcome = await waitForAssessment<AssessmentPayload>({
+    start: () => apiServer("/ai/assess-async", session.token, {
+      method: "POST",
+      body: JSON.stringify(assessBody),
+      timeoutMs: 30_000,
+    }).catch(() => null),
+    fetchStatus: (assessRunId) => apiServer(
+      assessRunId
         ? `/ai/assess-status/${parsed.interviewId}?runId=${encodeURIComponent(assessRunId)}`
-        : `/ai/assess-status/${parsed.interviewId}`;
-      const statusRes = await apiServer(statusPath, session.token, {
-        timeoutMs: 15_000,
-      }).catch(() => null);
-      if (!statusRes?.ok) continue;
-      const status = (await statusRes.json().catch(() => ({}))) as {
-        status?: string;
-        result?: AssessmentPayload;
-        error?: string;
-        runId?: string;
-      };
-      if (status.status === "COMPLETED" && status.result) {
-        if (assessRunId && status.runId && status.runId !== assessRunId) {
-          continue;
-        }
-        assessment = status.result;
-        break;
-      }
-      if (status.status === "FAILED") {
-        assessmentMeta = {
-          assessFailed: true,
-          assessError: status.error ?? "failed",
-          scoredAt: new Date().toISOString(),
-          summary: "AI assessment failed. A reviewer can re-run assessment from the review page.",
-        };
-        break;
-      }
-    }
-  }
+        : `/ai/assess-status/${parsed.interviewId}`,
+      session.token,
+      { timeoutMs: 15_000 },
+    ).catch(() => null),
+  });
 
-  if (!assessment && !assessmentMeta.assessFailed) {
+  if (outcome.kind === "completed") {
+    assessment = outcome.result;
+  } else {
+    const assessError = outcome.kind === "failed" ? outcome.error : "timeout";
     assessmentMeta = {
       assessFailed: true,
-      assessError: "timeout",
+      assessError,
       scoredAt: new Date().toISOString(),
-      summary: "AI assessment is still running or timed out. A reviewer can re-run assessment from the review page.",
+      summary: assessFailureSummary(assessError),
     };
   }
 

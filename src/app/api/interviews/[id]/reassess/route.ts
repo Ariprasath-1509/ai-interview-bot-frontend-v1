@@ -32,6 +32,14 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       signal: AbortSignal.timeout(45_000),
     });
 
+    if (asyncRes.status === 503) {
+      // Scoring queue full (ai-service fix 6.1): the run was closed as FAILED, safe to try again.
+      return NextResponse.json(
+        { error: 'AI scoring is busy right now. Please try Re-run Assessment again in a minute.' },
+        { status: 503, headers: { 'Retry-After': asyncRes.headers.get('retry-after') ?? '30' } }
+      );
+    }
+
     if (!asyncRes.ok) {
       const err = await asyncRes.text().catch(() => 'Failed to queue assessment');
       return NextResponse.json({ error: err }, { status: 500 });
